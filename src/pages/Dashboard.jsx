@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { databases } from "../lib/appwrite";
+import { databases } from "../lib/firebase";
 import { Query, ID } from "appwrite";
 import { X, Megaphone, ChevronRight, Pencil, Trash2, Save, Loader2 } from "lucide-react";
 

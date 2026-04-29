@@ -1,5 +1,5 @@
 import React from 'react'
-import { account } from '../lib/appwrite';
+import { account } from '../lib/firebase';
 function Login() {
     const [email, setEmail] = React.useState('');
     const [password, setPassword] = React.useState('');

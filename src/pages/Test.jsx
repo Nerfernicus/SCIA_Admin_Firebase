@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { account } from "../lib/appwrite";
+import { account } from "../lib/firebase";
 import tets from "../assets/Screenshot 2026-03-17 212139.png";
 
 function Test() {
@@ -28,6 +28,7 @@ function Test() {
       ) : (
         <div>user: {user ? user.name : "None"}</div>
       )}
+      <Text>Test Page</Text>
     </div>
   );
 }

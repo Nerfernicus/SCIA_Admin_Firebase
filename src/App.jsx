@@ -5,7 +5,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Test from './pages/Test';
 import { createBrowserRouter, Outlet, RouterProvider } from "react-router";
-import { client } from './lib/appwrite';
+import { client } from './lib/firebase';
 import Sidebar from './components/Sidebar';
 import HealthCenters from './pages/HealthCenters';
 import UserManagement from './pages/UserManagement';

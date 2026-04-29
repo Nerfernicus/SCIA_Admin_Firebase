@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { db } from "../lib/firebase";
 import {
-  collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp
+  collection, addDoc, query, orderBy, limit, getDocs, onSnapshot, serverTimestamp
 } from "firebase/firestore";
 
 const COLLECTION_ID = "editorial_health";
@@ -25,19 +25,13 @@ export default function Announcements() {
   const [audience, setAudience] = useState("ALL");
   const [barangay, setBarangay] = useState("");
 
-  const fetchRecentEvents = async () => {
-    try {
-      const res = await fetch("http://YOUR_IP:3000/api/events");
-      const data = await res.json();
-
-      setRecentActivity(data.slice(0, 5)); // latest 5
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
+  // 🔥 Real-time: fetch last 5 announcements from Firestore
   useEffect(() => {
-    fetchRecentEvents();
+    const q = query(collection(db, COLLECTION_ID), orderBy("createdAt", "desc"), limit(5));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setRecentActivity(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
   }, []);
 
   const showToast = (msg, type = 'success') => {
@@ -47,7 +41,7 @@ export default function Announcements() {
 
   // Clear form fields
   const resetForm = () => {
-    setTitle(''); setWhat(''); setWhen(''); setWhere(''); setDescription('');
+    setWhat(''); setWhen(''); setWhere(''); setDescription('');
     setPublishTime('Immediately'); setExpiration('Never');
   };
 
@@ -88,25 +82,19 @@ export default function Announcements() {
     setSaving(true);
 
     try {
-      const res = await fetch("http://10.142.254.160:3000/api/events", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: what,
-          description,
-          location: where,
-          date: when,
-          expiration,
-          audience,
-          barangay,
-        })
+      // 🔥 Write directly to Firestore — mobile app reads from this collection in real-time
+      const expirationDate = computeExpirationDate(expiration);
+      await addDoc(collection(db, COLLECTION_ID), {
+        Title: what,
+        Body: description,
+        Location: where,
+        Date: when,
+        expiration: expirationDate ? expirationDate.toISOString() : null,
+        Audience: audience,
+        barangay: audience === "BARANGAY" ? barangay : null,
+        Status: "PUBLISHED",
+        createdAt: serverTimestamp(),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error);
 
       showToast("Announcement published!");
       resetForm();

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { databases } from "../lib/appwrite";
-import { Query, ID } from "appwrite";
+import { db } from "../lib/firebase";
+import {
+  collection, query, where, orderBy, limit, getDocs,
+  doc, updateDoc, deleteDoc, serverTimestamp
+} from "firebase/firestore";
 import { X, Megaphone, ChevronRight, Pencil, Trash2, Save, Loader2 } from "lucide-react";
 
-const DATABASE_ID   = "69ec2be300324536d19f";
 const COLLECTION_ID = "editorial_health";
-const BUCKET_ID     = "69ec280d0025f5ed0b40";
 
 const verificationQueue = [
   { name: "Marcus Thorne",   role: "Physician", id: "#4492" },
@@ -27,7 +28,8 @@ function AnnouncementBanner({ announcements }) {
 
   if (dismissed || announcements.length === 0) return null;
   const a = announcements[current];
-  const diff = Math.round((Date.now() - new Date(a.$createdAt)) / 60000);
+  const createdAt = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+  const diff = Math.round((Date.now() - createdAt) / 60000);
   const timeAgo = diff < 60 ? `${diff}m ago` : diff < 1440 ? `${Math.round(diff/60)}h ago` : `${Math.round(diff/1440)}d ago`;
 
   return (
@@ -62,22 +64,20 @@ function AnnouncementBanner({ announcements }) {
 
 // ── Edit Modal ────────────────────────────────────────────────────────────────
 function EditModal({ announcement, onClose, onSaved }) {
-  const [title, setTitle]     = useState(announcement.Title);
-  const [body, setBody]       = useState(announcement.Body);
+  const [title, setTitle]       = useState(announcement.Title);
+  const [body, setBody]         = useState(announcement.Body);
   const [audience, setAudience] = useState(announcement.Audience);
-  const [saving, setSaving]   = useState(false);
-  const [error, setError]     = useState('');
+  const [saving, setSaving]     = useState(false);
+  const [error, setError]       = useState('');
 
   const handleSave = async () => {
     if (!title.trim() || !body.trim()) { setError('Title and body are required.'); return; }
     setSaving(true);
     try {
-      const updated = await databases.updateDocument(DATABASE_ID, COLLECTION_ID, announcement.$id, {
-        Title:    title.trim(),
-        Body:     body.trim(),
-        Audience: audience,
-      });
-      onSaved(updated);
+      const docRef = doc(db, COLLECTION_ID, announcement.id);
+      const updates = { Title: title.trim(), Body: body.trim(), Audience: audience };
+      await updateDoc(docRef, updates);
+      onSaved({ ...announcement, ...updates });
       onClose();
     } catch (err) {
       console.error(err);
@@ -89,10 +89,7 @@ function EditModal({ announcement, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-
-      {/* Modal */}
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 z-10">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold text-gray-900">Edit Announcement</h2>
@@ -106,30 +103,18 @@ function EditModal({ announcement, onClose, onSaved }) {
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Title</label>
-            <input
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none"
-            />
+            <input value={title} onChange={e => setTitle(e.target.value)}
+              className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
           </div>
-
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Body</label>
-            <textarea
-              rows={5}
-              value={body}
-              onChange={e => setBody(e.target.value)}
-              className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none resize-none"
-            />
+            <textarea rows={5} value={body} onChange={e => setBody(e.target.value)}
+              className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none resize-none" />
           </div>
-
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Audience</label>
-            <select
-              value={audience}
-              onChange={e => setAudience(e.target.value)}
-              className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm font-semibold text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none"
-            >
+            <select value={audience} onChange={e => setAudience(e.target.value)}
+              className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm font-semibold text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none">
               <option>All Users</option>
               <option>Patients</option>
               <option>Medical Staff</option>
@@ -138,17 +123,11 @@ function EditModal({ announcement, onClose, onSaved }) {
         </div>
 
         <div className="flex gap-3 mt-6">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors"
-          >
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors">
             Cancel
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
-          >
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors">
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             Save Changes
           </button>
@@ -165,8 +144,8 @@ function DeleteModal({ announcement, onClose, onDeleted }) {
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await databases.deleteDocument(DATABASE_ID, COLLECTION_ID, announcement.$id);
-      onDeleted(announcement.$id);
+      await deleteDoc(doc(db, COLLECTION_ID, announcement.id));
+      onDeleted(announcement.id);
       onClose();
     } catch (err) {
       console.error(err);
@@ -210,27 +189,37 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget]   = useState(null);
 
   useEffect(() => {
-    databases.listDocuments(DATABASE_ID, COLLECTION_ID, [
-      Query.equal('Status', 'PUBLISHED'),
-      Query.orderDesc('$createdAt'),
-      Query.limit(5),
-    ]).then(res => setAnnouncements(res.documents))
-      .catch(err => console.error('Failed to load announcements:', err))
-      .finally(() => setLoading(false));
+    const fetchAnnouncements = async () => {
+      try {
+        const q = query(
+          collection(db, COLLECTION_ID),
+          where('Status', '==', 'PUBLISHED'),
+          orderBy('createdAt', 'desc'),
+          limit(5)
+        );
+        const snapshot = await getDocs(q);
+        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        setAnnouncements(docs);
+      } catch (err) {
+        console.error('Failed to load announcements:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAnnouncements();
   }, []);
 
   const handleSaved = (updated) => {
-    setAnnouncements(prev => prev.map(a => a.$id === updated.$id ? updated : a));
+    setAnnouncements(prev => prev.map(a => a.id === updated.id ? updated : a));
   };
 
   const handleDeleted = (id) => {
-    setAnnouncements(prev => prev.filter(a => a.$id !== id));
+    setAnnouncements(prev => prev.filter(a => a.id !== id));
   };
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans text-gray-900">
 
-      {/* Modals */}
       {editTarget   && <EditModal   announcement={editTarget}   onClose={() => setEditTarget(null)}   onSaved={handleSaved} />}
       {deleteTarget && <DeleteModal announcement={deleteTarget} onClose={() => setDeleteTarget(null)} onDeleted={handleDeleted} />}
 
@@ -318,18 +307,14 @@ export default function Dashboard() {
             {!loading && announcements.length > 0 && (
               <div className="space-y-4">
                 {announcements.map((a) => {
-                  const diff = Math.round((Date.now() - new Date(a.$createdAt)) / 60000);
+                  const createdAt = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+                  const diff = Math.round((Date.now() - createdAt) / 60000);
                   const timeAgo = diff < 60 ? `${diff}M AGO` : diff < 1440 ? `${Math.round(diff/60)}H AGO` : diff < 2880 ? 'YESTERDAY' : `${Math.round(diff/1440)}D AGO`;
-                  const firstId = a.imageIds?.split(',').filter(Boolean)[0];
-                  const imgSrc = firstId
-                    ? `https://sgp.cloud.appwrite.io/v1/storage/buckets/${BUCKET_ID}/files/${firstId}/view?project=69df6ba200258d02cd62`
-                    : `https://picsum.photos/seed/${a.$id}/60/60`;
+                  const imgSrc = `https://picsum.photos/seed/${a.id}/60/60`;
 
                   return (
-                    <div key={a.$id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-4 hover:shadow-md transition-shadow group">
-                      <img src={imgSrc} alt="" className="w-16 h-16 rounded-lg object-cover flex-shrink-0 bg-gray-100"
-                        onError={(e) => { e.target.src = `https://picsum.photos/seed/${a.$id}/60/60`; }} />
-
+                    <div key={a.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-4 hover:shadow-md transition-shadow group">
+                      <img src={imgSrc} alt="" className="w-16 h-16 rounded-lg object-cover flex-shrink-0 bg-gray-100" />
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 mb-1">
                           <h3 className="font-semibold text-gray-900 text-base leading-tight">{a.Title}</h3>
@@ -343,19 +328,13 @@ export default function Dashboard() {
                               {a.Expiration === 'Never' ? 'No expiry' : `Expires: ${a.Expiration}`}
                             </span>
                           </div>
-
-                          {/* Edit / Delete buttons */}
                           <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => setEditTarget(a)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold transition-colors"
-                            >
+                            <button onClick={() => setEditTarget(a)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold transition-colors">
                               <Pencil size={12} /> Edit
                             </button>
-                            <button
-                              onClick={() => setDeleteTarget(a)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold transition-colors"
-                            >
+                            <button onClick={() => setDeleteTarget(a)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold transition-colors">
                               <Trash2 size={12} /> Delete
                             </button>
                           </div>

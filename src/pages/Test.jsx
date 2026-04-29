@@ -1,32 +1,27 @@
 import React, { useEffect, useState } from "react";
-import { account } from "../lib/appwrite";
-import tets from "../assets/Screenshot 2026-03-17 212139.png";
+import { auth } from "../lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 function Test() {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadUser() {
-      try {
-        setLoading(true);
-        const userData = await account.get();
-        setUser(userData);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadUser();
-  }, []); 
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   return (
-    <div>
+    <div className="p-8">
       {loading ? (
-        <img src={tets} alt="Loading" className="animate-spin w-12 h-12" />
+        <div className="text-gray-500">Loading...</div>
       ) : (
-        <div>user: {user ? user.name : "None"}</div>
+        <div className="text-gray-800">
+          User: {user ? user.email : "None (not logged in)"}
+        </div>
       )}
     </div>
   );

@@ -9,7 +9,7 @@ import {
   HelpCircle,
   LogOut
 } from 'lucide-react';
-import { Link, useLocation } from 'react-router';
+import { Link, useLocation } from 'react-router-dom';
 
 const Sidebar = ({ children }) => {
   // Get the current route to handle active states automatically

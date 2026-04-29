@@ -1,132 +1,28 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Bell, Settings, Plus, AlignLeft, Bold, Italic,
-  List, Link as LinkIcon, ImageIcon,
-  Users, User, BriefcaseMedical, Clock, ChevronDown,
+  Bell, Settings, Plus, AlignLeft,
+  Clock, ChevronDown,
   Save, Send, CheckCircle2, Edit3, AlertCircle, BarChart2,
-  ImagePlus, X, Loader2
+  X, Loader2, MapPin, Calendar, FileText
 } from 'lucide-react';
-import { db, storage } from "../lib/firebase";
+import { db } from "../lib/firebase";
 import {
   collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp
 } from "firebase/firestore";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 const COLLECTION_ID = "editorial_health";
 
-function ImageUploader({ images, setImages }) {
-  const fileInputRef = useRef(null);
-  const [dragging, setDragging] = useState(false);
-
-  const uploadFile = useCallback(async (file) => {
-    const id = Math.random().toString(36).slice(2);
-    const preview = URL.createObjectURL(file);
-    setImages(prev => [...prev, { id, file, preview, status: 'uploading', progress: 0, fileId: null, url: null }]);
-    try {
-      const storageRef = ref(storage, `announcements/${id}_${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-          setImages(prev => prev.map(img => img.id === id ? { ...img, progress: pct } : img));
-        },
-        (err) => {
-          console.error('Upload failed:', err);
-          setImages(prev => prev.map(img => img.id === id ? { ...img, status: 'error' } : img));
-        },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          setImages(prev => prev.map(img => img.id === id
-            ? { ...img, status: 'done', fileId: id, url: downloadURL, progress: 100 }
-            : img));
-        }
-      );
-    } catch (err) {
-      console.error('Upload failed:', err);
-      setImages(prev => prev.map(img => img.id === id ? { ...img, status: 'error' } : img));
-    }
-  }, [setImages]);
-
-  const processFiles = useCallback((files) => {
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    Array.from(files).forEach(file => {
-      if (!validTypes.includes(file.type) || file.size > 10 * 1024 * 1024) return;
-      uploadFile(file);
-    });
-  }, [uploadFile]);
-
-  const removeImage = (id) => {
-    setImages(prev => {
-      const img = prev.find(i => i.id === id);
-      if (img?.preview) URL.revokeObjectURL(img.preview);
-      return prev.filter(i => i.id !== id);
-    });
-  };
-
-  return (
-    <div className="mt-6">
-      <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Attached Photos</label>
-      <div
-        onClick={() => fileInputRef.current.click()}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => { e.preventDefault(); setDragging(false); processFiles(e.dataTransfer.files); }}
-        className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${dragging ? 'border-[#0f52ba] bg-blue-50' : 'border-gray-200 bg-gray-50 hover:border-[#0f52ba] hover:bg-blue-50/30'}`}
-      >
-        <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple className="hidden"
-          onChange={(e) => processFiles(e.target.files)} />
-        <div className="flex flex-col items-center gap-2">
-          <div className="bg-blue-100 p-3 rounded-full"><ImagePlus size={22} className="text-[#0f52ba]" /></div>
-          <p className="text-sm font-semibold text-gray-700">Click to browse or drag & drop photos</p>
-          <p className="text-xs text-gray-400">JPG, PNG, GIF, WEBP — up to 10MB each</p>
-        </div>
-      </div>
-
-      {images.length > 0 && (
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-3">
-          {images.map(img => (
-            <div key={img.id} className="relative rounded-xl overflow-hidden aspect-square bg-gray-100 group">
-              <img src={img.preview} alt="preview" className="w-full h-full object-cover" />
-              {img.status === 'uploading' && (
-                <>
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200">
-                    <div className="h-full bg-[#0f52ba] transition-all duration-300" style={{ width: `${img.progress}%` }} />
-                  </div>
-                  <div className="absolute bottom-1 left-0 right-0 text-center">
-                    <span className="text-[9px] font-bold text-white bg-black/50 px-2 py-0.5 rounded-full">{img.progress}%</span>
-                  </div>
-                </>
-              )}
-              {img.status === 'done' && <div className="absolute bottom-1 left-0 right-0 text-center"><span className="text-[9px] font-bold text-white bg-emerald-500/80 px-2 py-0.5 rounded-full">✓ Saved</span></div>}
-              {img.status === 'error' && <div className="absolute bottom-1 left-0 right-0 text-center"><span className="text-[9px] font-bold text-white bg-red-500/80 px-2 py-0.5 rounded-full">✗ Failed</span></div>}
-              <button onClick={(e) => { e.stopPropagation(); removeImage(img.id); }}
-                className="absolute top-1.5 right-1.5 bg-black/60 hover:bg-black/80 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <X size={12} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      {images.length > 0 && (
-        <p className="text-xs text-gray-400 mt-2">{images.filter(i => i.status === 'done').length}/{images.length} photo{images.length !== 1 ? 's' : ''} uploaded</p>
-      )}
-    </div>
-  );
-}
-
 export default function Announcements() {
-  const [selectedAudience, setSelectedAudience] = useState('All Users');
-  const [publishTime, setPublishTime]           = useState('Immediately');
-  const [expiration, setExpiration]             = useState('Never');
-  const [images, setImages]                     = useState([]);
-  const [title, setTitle]                       = useState('');
-  const [body, setBody]                         = useState('');
-  const [saving, setSaving]                     = useState(false);
-  const [toast, setToast]                       = useState(null);
-  const [recentActivity, setRecentActivity]     = useState([]);
-
-  const pendingUploads = images.filter(i => i.status === 'uploading').length;
+  const [publishTime, setPublishTime] = useState('Immediately');
+  const [expiration, setExpiration]   = useState('Never');
+  const [title, setTitle]             = useState('');
+  const [what, setWhat]               = useState('');
+  const [when, setWhen]               = useState('');
+  const [where, setWhere]             = useState('');
+  const [description, setDescription] = useState('');
+  const [saving, setSaving]           = useState(false);
+  const [toast, setToast]             = useState(null);
+  const [recentActivity, setRecentActivity] = useState([]);
 
   useEffect(() => {
     const fetchRecent = async () => {
@@ -147,38 +43,41 @@ export default function Announcements() {
   };
 
   const resetForm = () => {
-    setTitle(''); setBody(''); setImages([]);
-    setSelectedAudience('All Users'); setPublishTime('Immediately'); setExpiration('Never');
+    setTitle(''); setWhat(''); setWhen(''); setWhere(''); setDescription('');
+    setPublishTime('Immediately'); setExpiration('Never');
   };
 
   const saveDocument = async (status) => {
-    if (!title.trim()) { showToast('Please enter a title.', 'error'); return; }
-    if (!body.trim())  { showToast('Please enter a body message.', 'error'); return; }
-    if (pendingUploads > 0) { showToast(`Wait — ${pendingUploads} photo(s) still uploading.`, 'error'); return; }
+    if (!title.trim())       { showToast('Please enter a title.', 'error'); return; }
+    if (!what.trim())        { showToast('Please enter what the event is.', 'error'); return; }
+    if (!when.trim())        { showToast('Please enter when the event is.', 'error'); return; }
+    if (!where.trim())       { showToast('Please enter where the event is.', 'error'); return; }
+    if (!description.trim()) { showToast('Please enter an event description.', 'error'); return; }
 
     setSaving(true);
     try {
-      const imageUrls = images.filter(i => i.status === 'done').map(i => i.url);
       const docRef = await addDoc(collection(db, COLLECTION_ID), {
         Title:        title.trim(),
-        Body:         body.trim(),
-        Audience:     selectedAudience,
+        What:         what.trim(),
+        When:         when.trim(),
+        Where:        where.trim(),
+        Description:  description.trim(),
         Status:       status,
         Publish_Time: publishTime,
         Expiration:   expiration,
-        imageUrls,
+        Audience:     'Senior Citizens',
         createdAt:    serverTimestamp(),
       });
 
       const newDoc = {
         id:           docRef.id,
         Title:        title.trim(),
-        Body:         body.trim(),
-        Audience:     selectedAudience,
+        What:         what.trim(),
+        When:         when.trim(),
+        Where:        where.trim(),
+        Description:  description.trim(),
         Status:       status,
-        Publish_Time: publishTime,
-        Expiration:   expiration,
-        imageUrls,
+        Audience:     'Senior Citizens',
         createdAt:    new Date(),
       };
       setRecentActivity(prev => [newDoc, ...prev].slice(0, 5));
@@ -196,7 +95,7 @@ export default function Announcements() {
     const createdAt = doc.createdAt?.toDate ? doc.createdAt.toDate() : new Date(doc.createdAt);
     const diff = Math.round((Date.now() - createdAt) / 60000);
     const timeAgo = diff < 60 ? `${diff}m ago` : diff < 1440 ? `${Math.round(diff/60)}h ago` : `${Math.round(diff/1440)}d ago`;
-    return `${timeAgo} • Audience: ${doc.Audience}`;
+    return `${timeAgo} • Senior Citizens`;
   };
 
   const statusStyle = (status) => {
@@ -214,8 +113,9 @@ export default function Announcements() {
         </div>
       )}
 
+      {/* Top bar */}
       <div className="flex items-center justify-between mb-8">
-        <span className="text-[#0f52ba] font-semibold text-lg">Editorial Health Admin</span>
+        <span className="text-[#0f52ba] font-semibold text-lg">SCIA Admin</span>
         <div className="flex items-center gap-4 text-gray-500">
           <button className="hover:text-gray-800 transition-colors"><Bell size={20} /></button>
           <button className="hover:text-gray-800 transition-colors"><Settings size={20} /></button>
@@ -223,50 +123,94 @@ export default function Announcements() {
         </div>
       </div>
 
+      {/* Header */}
       <div className="flex justify-between items-end mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Announcements</h1>
-          <p className="text-gray-500">Broadcast updates and alerts across the platform ecosystem.</p>
+          <p className="text-gray-500">Broadcast event updates to senior citizens.</p>
         </div>
         <button onClick={resetForm} className="bg-[#0f52ba] hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-medium flex items-center gap-2 transition-colors shadow-sm">
-          <Plus size={18} /> New Broadcast
+          <Plus size={18} /> New Announcement
         </button>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 space-y-6">
 
+        {/* Left: Form */}
+        <div className="xl:col-span-2 space-y-6">
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center gap-2 mb-6 text-gray-800 font-bold text-lg">
-              <AlignLeft size={20} className="text-[#0f52ba]" /> Content Editor
+              <AlignLeft size={20} className="text-[#0f52ba]" /> Event Details
             </div>
 
-            <div className="mb-6">
+            {/* Title */}
+            <div className="mb-5">
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Announcement Title</label>
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter headline..."
-                className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 text-sm text-gray-800 focus:ring-2 focus:ring-blue-100 outline-none" />
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Free Medical Check-up Day"
+                className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none"
+              />
             </div>
 
+            {/* What */}
+            <div className="mb-5">
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <FileText size={13} /> What
+              </label>
+              <input
+                type="text"
+                value={what}
+                onChange={(e) => setWhat(e.target.value)}
+                placeholder="e.g. Free blood pressure & blood sugar screening"
+                className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none"
+              />
+            </div>
+
+            {/* When */}
+            <div className="mb-5">
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Calendar size={13} /> When
+              </label>
+              <input
+                type="text"
+                value={when}
+                onChange={(e) => setWhen(e.target.value)}
+                placeholder="e.g. May 15, 2025 — 8:00 AM to 12:00 PM"
+                className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none"
+              />
+            </div>
+
+            {/* Where */}
+            <div className="mb-5">
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <MapPin size={13} /> Where
+              </label>
+              <input
+                type="text"
+                value={where}
+                onChange={(e) => setWhere(e.target.value)}
+                placeholder="e.g. Barangay Hall, San Antonio"
+                className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none"
+              />
+            </div>
+
+            {/* Event Description */}
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Body Message</label>
-              <div className="border border-gray-100 rounded-xl overflow-hidden bg-gray-50">
-                <div className="flex items-center gap-4 p-3 border-b border-gray-200 bg-gray-100/50">
-                  <button className="text-gray-600 hover:text-gray-900"><Bold size={16} /></button>
-                  <button className="text-gray-600 hover:text-gray-900"><Italic size={16} /></button>
-                  <button className="text-gray-600 hover:text-gray-900"><List size={16} /></button>
-                  <button className="text-gray-600 hover:text-gray-900"><LinkIcon size={16} /></button>
-                  <button className="text-gray-600 hover:text-gray-900"><ImageIcon size={16} /></button>
-                </div>
-                <textarea rows="8" value={body} onChange={(e) => setBody(e.target.value)}
-                  placeholder="Type your announcement details here..."
-                  className="w-full bg-transparent border-none p-4 text-sm text-gray-800 focus:ring-0 outline-none resize-none" />
-              </div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Event Description</label>
+              <textarea
+                rows={6}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Provide additional details about the event..."
+                className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none resize-none"
+              />
             </div>
-
-            <ImageUploader images={images} setImages={setImages} />
           </div>
 
+          {/* Recent Activity */}
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-bold text-gray-900 text-lg">Recent Activity</h3>
@@ -295,28 +239,20 @@ export default function Announcements() {
           </div>
         </div>
 
+        {/* Right: Scheduling + Actions */}
         <div className="space-y-6">
+
+          {/* Audience Badge */}
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-gray-900 mb-4">Target Audience</h3>
-            <div className="space-y-3">
-              {[
-                { label: 'All Users',     icon: <Users size={18} /> },
-                { label: 'Patients',      icon: <User size={18} /> },
-                { label: 'Medical Staff', icon: <BriefcaseMedical size={18} /> },
-              ].map(({ label, icon }) => (
-                <button key={label} onClick={() => setSelectedAudience(label)}
-                  className={`w-full flex items-center justify-between p-3.5 rounded-xl border-2 transition-all ${selectedAudience === label ? 'border-[#0f52ba] bg-blue-50/30' : 'border-transparent bg-gray-50 hover:bg-gray-100'}`}>
-                  <div className={`flex items-center gap-3 text-sm font-semibold ${selectedAudience === label ? 'text-[#0f52ba]' : 'text-gray-700'}`}>
-                    {icon} {label}
-                  </div>
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedAudience === label ? 'border-[#0f52ba]' : 'border-gray-300'}`}>
-                    {selectedAudience === label && <div className="w-2 h-2 rounded-full bg-[#0f52ba]" />}
-                  </div>
-                </button>
-              ))}
+            <h3 className="font-bold text-gray-900 mb-3">Audience</h3>
+            <div className="flex items-center gap-3 p-3.5 rounded-xl bg-blue-50 border-2 border-[#0f52ba]">
+              <div className="w-8 h-8 rounded-full bg-[#0f52ba] flex items-center justify-center text-white text-sm">👴</div>
+              <span className="text-sm font-bold text-[#0f52ba]">Senior Citizens Only</span>
             </div>
+            <p className="text-xs text-gray-400 mt-3">All announcements are visible only to registered senior citizens.</p>
           </div>
 
+          {/* Scheduling */}
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
             <h3 className="font-bold text-gray-900 mb-4">Scheduling</h3>
             <div className="space-y-4 mb-6">
@@ -352,14 +288,15 @@ export default function Announcements() {
                 className="w-full bg-[#ffc107] hover:bg-yellow-500 disabled:opacity-50 text-yellow-900 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors">
                 {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} Save as Draft
               </button>
-              <button onClick={() => saveDocument('PUBLISHED')} disabled={saving || pendingUploads > 0}
-                className="w-full bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-md shadow-blue-500/20">
+              <button onClick={() => saveDocument('PUBLISHED')} disabled={saving}
+                className="w-full bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-md shadow-blue-500/20">
                 {saving ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                {pendingUploads > 0 ? `Uploading ${pendingUploads} photo…` : 'Publish Announcement'}
+                Publish Announcement
               </button>
             </div>
           </div>
 
+          {/* Stats card */}
           <div className="bg-[#0f52ba] rounded-3xl p-6 text-white shadow-lg shadow-blue-500/20 relative overflow-hidden">
             <div className="absolute right-6 top-6 bg-white/10 p-3 rounded-2xl">
               <BarChart2 size={32} className="text-white/80" />

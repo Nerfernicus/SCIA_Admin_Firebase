@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { db } from "../lib/firebase";
 import {
-  collection, query, where, orderBy, limit, getDocs,
-  doc, updateDoc, deleteDoc, serverTimestamp
+  collection, query, orderBy, limit,
+  doc, updateDoc, deleteDoc, onSnapshot
 } from "firebase/firestore";
 import { X, Megaphone, ChevronRight, Pencil, Trash2, Save, Loader2 } from "lucide-react";
 
@@ -189,24 +189,24 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget]   = useState(null);
 
   useEffect(() => {
-    const fetchAnnouncements = async () => {
-      try {
-        const q = query(
-          collection(db, COLLECTION_ID),
-          where('Status', '==', 'PUBLISHED'),
-          orderBy('createdAt', 'desc'),
-          limit(5)
-        );
-        const snapshot = await getDocs(q);
-        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        setAnnouncements(docs);
-      } catch (err) {
-        console.error('Failed to load announcements:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAnnouncements();
+    // 🔥 Real-time listener — no composite index needed (filter by Status client-side)
+    const q = query(
+      collection(db, COLLECTION_ID),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(d => !d.Status || d.Status === 'PUBLISHED')
+        .slice(0, 5);
+      setAnnouncements(docs);
+      setLoading(false);
+    }, (err) => {
+      console.error('Failed to load announcements:', err);
+      setLoading(false);
+    });
+    return () => unsub();
   }, []);
 
   const handleSaved = (updated) => {

@@ -2,8 +2,8 @@ import { db } from "../lib/firebase";
 import { collection, onSnapshot, orderBy, query, doc, updateDoc } from "firebase/firestore";
 import React, { useState, useEffect } from 'react';
 import {
-    Bell, Settings, MapPin, Phone, Info,
-    Crosshair, Clock
+    Bell, Settings, MapPin,
+    Crosshair
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -17,52 +17,93 @@ L.Icon.Default.mergeOptions({
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-// 1. Helper component to smoothly fly to the new GPS coordinates
+// Helper: smoothly fly to coordinates when they change
 function MapController({ centerPosition }) {
     const map = useMap();
-
     React.useEffect(() => {
         if (centerPosition) {
-            map.flyTo(centerPosition, 15, { duration: 1.5 });
+            map.flyTo(centerPosition, 16, { duration: 1.5 });
         }
     }, [centerPosition, map]);
-
     return null;
 }
 
-// Custom icons for the map
+// Red pulsing icon — for PENDING alerts (critical / unhandled)
 const criticalIcon = L.divIcon({
     className: 'custom-div-icon',
-    html: `<div class="relative flex items-center justify-center w-8 h-8"><div class="absolute w-full h-full bg-red-500 rounded-full animate-ping opacity-50"></div><div class="w-4 h-4 bg-red-600 border-2 border-white rounded-full z-10 shadow-md"></div></div>`,
+    html: `<div style="position:relative;display:flex;align-items:center;justify-content:center;width:32px;height:32px;">
+             <div style="position:absolute;width:100%;height:100%;background:#ef4444;border-radius:50%;animation:ping 1s cubic-bezier(0,0,0.2,1) infinite;opacity:0.5;"></div>
+             <div style="width:16px;height:16px;background:#dc2626;border:2px solid white;border-radius:50%;z-index:10;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>
+           </div>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16],
 });
 
+// Orange icon — for DISPATCHED alerts (in progress)
+const dispatchedIcon = L.divIcon({
+    className: 'custom-div-icon',
+    html: `<div style="position:relative;display:flex;align-items:center;justify-content:center;width:32px;height:32px;">
+             <div style="position:absolute;width:100%;height:100%;background:#f97316;border-radius:50%;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;opacity:0.4;"></div>
+             <div style="width:16px;height:16px;background:#ea580c;border:2px solid white;border-radius:50%;z-index:10;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>
+           </div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+});
+
+// Blue icon — for admin's own GPS location
 const myLocationIcon = L.divIcon({
     className: 'custom-div-icon',
-    html: `<div class="relative flex items-center justify-center w-8 h-8"><div class="absolute w-full h-full bg-blue-500 rounded-full animate-ping opacity-40"></div><div class="w-4 h-4 bg-blue-600 border-2 border-white rounded-full z-10 shadow-md"></div></div>`,
+    html: `<div style="position:relative;display:flex;align-items:center;justify-content:center;width:32px;height:32px;">
+             <div style="position:absolute;width:100%;height:100%;background:#3b82f6;border-radius:50%;animation:ping 1s cubic-bezier(0,0,0.2,1) infinite;opacity:0.4;"></div>
+             <div style="width:16px;height:16px;background:#2563eb;border:2px solid white;border-radius:50%;z-index:10;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>
+           </div>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16],
 });
 
 export default function SOSMap() {
-    const [activeFilter, setActiveFilter] = useState('All Alerts');
-
-    // State for GPS coordinates
+    // GPS state for the admin's own location
     const [myLocation, setMyLocation] = useState(null);
     const [isLocating, setIsLocating] = useState(false);
 
-    const mapCenter = [51.530, -0.150]; // Default London center
+    // Live alerts from Firestore
+    const [liveAlerts, setLiveAlerts] = useState([]);
 
-    // Function to trigger browser GPS
+    // Default map center: Valenzuela, Philippines (Poblacion)
+    const mapCenter = [14.7080, 120.9860];
+
+    // Real-time listener for Firestore "emergencies" collection
+    useEffect(() => {
+        const q = query(
+            collection(db, "emergencies"),
+            orderBy("createdAt", "desc")
+        );
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const alerts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            setLiveAlerts(alerts);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // Dispatch action: update status to "dispatched" in Firestore
+    const handleDispatch = async (alertId) => {
+        const alertRef = doc(db, "emergencies", alertId);
+        await updateDoc(alertRef, { status: "dispatched" });
+    };
+
+    // Resolve action: update status to "resolved" in Firestore
+    const handleResolve = async (alertId) => {
+        const alertRef = doc(db, "emergencies", alertId);
+        await updateDoc(alertRef, { status: "resolved" });
+    };
+
+    // Use browser GPS to locate admin
     const handleLocateMe = () => {
         if (!('geolocation' in navigator)) {
             alert("Geolocation is not supported by your browser");
             return;
         }
-        
         setIsLocating(true);
-
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const { latitude, longitude } = position.coords;
@@ -78,38 +119,20 @@ export default function SOSMap() {
         );
     };
 
-    const [liveAlerts, setLiveAlerts] = useState([]);
-
-    // Real-time listener for incoming emergency alerts
-    useEffect(() => {
-    const q = query(
-        collection(db, "emergencies"),
-        orderBy("createdAt", "desc")
+    // Auto-pan: if admin hasn't manually located themselves, pan to the
+    // most recent pending alert automatically so dispatchers see it right away
+    const latestPendingAlert = liveAlerts.find(
+        a => a.status === 'pending' && a.latitude && a.longitude
     );
+    const mapFocusTarget = myLocation
+        ?? (latestPendingAlert ? [latestPendingAlert.latitude, latestPendingAlert.longitude] : null);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const alerts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        setLiveAlerts(alerts);
-    });
+    const activeCount = liveAlerts.filter(a => a.status !== 'resolved').length;
 
-    return () => unsubscribe(); // Clean up listener on unmount
-    }, []);
-
-    const handleDispatch = async (alertId) => {
-    const alertRef = doc(db, "emergencies", alertId);
-    await updateDoc(alertRef, { status: "dispatched" });
-    };
-
-    const handleResolve = async (alertId) => {
-    const alertRef = doc(db, "emergencies", alertId);
-    await updateDoc(alertRef, { status: "resolved" });
-    };
-
-    // Main UI
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden font-sans bg-white">
 
-            {/* Top Header Row */}
+            {/* Top Header */}
             <div className="bg-white border-b border-gray-100 px-6 flex justify-between items-center flex-none h-16 z-[2000] shadow-sm relative">
                 <div className="flex items-center gap-10 h-full">
                     <span className="text-[#0f52ba] font-bold text-lg">Editorial Health Admin</span>
@@ -125,13 +148,14 @@ export default function SOSMap() {
                 </div>
             </div>
 
-            {/* Map Interactive Area */}
+            {/* Map + Panel */}
             <div className="relative flex-1 w-full bg-blue-50/20">
 
+                {/* Leaflet Map */}
                 <div className="absolute inset-0 z-0">
                     <MapContainer
                         center={mapCenter}
-                        zoom={13}
+                        zoom={14}
                         style={{ height: '100%', width: '100%' }}
                         zoomControl={false}
                     >
@@ -140,15 +164,53 @@ export default function SOSMap() {
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                         />
 
-                        {/* Controller handles camera panning */}
-                        <MapController centerPosition={myLocation} />
+                        {/* Auto-pan controller */}
+                        <MapController centerPosition={mapFocusTarget} />
 
-                        {/* Dummy Critical Alert */}
-                        <Marker position={[51.535, -0.155]} icon={criticalIcon}>
-                            <Popup className="font-sans font-bold">Arthur Miller - Critical <br /> Heart Rate: 114 BPM</Popup>
-                        </Marker>
+                        {/* ✅ LIVE ALERT MARKERS from Firestore
+                            Only show pending + dispatched alerts (not resolved) */}
+                        {liveAlerts
+                            .filter(alert =>
+                                alert.status !== 'resolved' &&
+                                alert.latitude != null &&
+                                alert.longitude != null
+                            )
+                            .map(alert => (
+                                <Marker
+                                    key={alert.id}
+                                    position={[alert.latitude, alert.longitude]}
+                                    icon={alert.status === 'pending' ? criticalIcon : dispatchedIcon}
+                                >
+                                    <Popup className="font-sans" minWidth={200}>
+                                        <div className="space-y-1">
+                                            <p className="font-bold text-base">{alert.name}</p>
+                                            <p className="text-red-600 font-semibold text-sm">{alert.emergencyType}</p>
+                                            <p className="text-gray-600 text-sm">{alert.barangay}</p>
+                                            <p className="text-gray-500 text-xs">{alert.address}</p>
+                                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase mt-1 ${
+                                                alert.status === 'pending'
+                                                    ? 'bg-red-100 text-red-700'
+                                                    : 'bg-yellow-100 text-yellow-800'
+                                            }`}>
+                                                {alert.status}
+                                            </span>
+                                            <div className="flex gap-2 mt-2">
+                                                <a
+                                                    href={`https://maps.google.com/?q=${alert.latitude},${alert.longitude}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="text-xs text-blue-600 underline"
+                                                >
+                                                    Open in Google Maps
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </Popup>
+                                </Marker>
+                            ))
+                        }
 
-                        {/* YOUR GPS LOCATION MARKER */}
+                        {/* Admin's own GPS location marker */}
                         {myLocation && (
                             <Marker position={myLocation} icon={myLocationIcon}>
                                 <Popup className="font-sans font-bold">Your Current Location</Popup>
@@ -159,13 +221,15 @@ export default function SOSMap() {
                     </MapContainer>
                 </div>
 
-                {/* GPS Locator Button (Bottom Left) */}
+                {/* GPS Locate Me Button */}
                 <div className="absolute bottom-8 left-6 flex flex-col gap-3 z-[1000]">
                     <button
                         onClick={handleLocateMe}
                         disabled={isLocating}
-                        className={`bg-white/90 backdrop-blur p-3 rounded-2xl shadow-lg border border-gray-100 transition-colors ${isLocating ? 'text-gray-400 cursor-not-allowed' : 'text-[#0f52ba] hover:bg-gray-50'
-                            }`}
+                        className={`bg-white/90 backdrop-blur p-3 rounded-2xl shadow-lg border border-gray-100 transition-colors ${
+                            isLocating ? 'text-gray-400 cursor-not-allowed' : 'text-[#0f52ba] hover:bg-gray-50'
+                        }`}
+                        title="Locate me"
                     >
                         <Crosshair size={20} className={isLocating ? 'animate-spin' : ''} />
                     </button>
@@ -176,7 +240,9 @@ export default function SOSMap() {
                     <div className="flex justify-between items-start mb-5">
                         <div>
                             <h2 className="text-xl font-bold text-gray-900">Live Alerts</h2>
-                            <p className="text-sm text-gray-500 font-medium mt-0.5">3 Active Cases Nearby</p>
+                            <p className="text-sm text-gray-500 font-medium mt-0.5">
+                                {activeCount} Active {activeCount === 1 ? 'Case' : 'Cases'} Nearby
+                            </p>
                         </div>
                         <div className="bg-red-50 text-red-600 px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border border-red-100 shadow-sm">
                             <div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse"></div>LIVE
@@ -194,7 +260,7 @@ export default function SOSMap() {
                                 key={alert.id}
                                 className={`rounded-2xl p-4 shadow-sm border ${
                                     alert.status === "pending"
-                                        ? "bg-[#b91c1c] text-white shadow-red-500/20"
+                                        ? "bg-[#b91c1c] text-white shadow-red-500/20 border-transparent"
                                         : alert.status === "dispatched"
                                         ? "bg-yellow-50 border-yellow-200"
                                         : "bg-gray-50 border-gray-200 opacity-60"
@@ -219,11 +285,13 @@ export default function SOSMap() {
                                         {alert.status}
                                     </span>
                                 </div>
+
                                 <div className={`text-sm mb-4 ${
                                     alert.status === "pending" ? "text-red-100" : "text-gray-600"
                                 }`}>
                                     <p>{alert.barangay} — {alert.address}</p>
                                 </div>
+
                                 {alert.status === "pending" && (
                                     <div className="flex gap-2">
                                         <button
@@ -254,16 +322,31 @@ export default function SOSMap() {
                         ))}
                     </div>
                 </div>
-
             </div>
 
             <style dangerouslySetInnerHTML={{
                 __html: `
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .leaflet-control-zoom a { color: #4b5563 !important; border-radius: 8px !important; border: none !important; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important; }
-        .leaflet-bar { border: none !important; box-shadow: none !important; display: flex; flex-direction: column; gap: 8px; }
-      `}} />
+                    @keyframes ping {
+                        75%, 100% { transform: scale(2); opacity: 0; }
+                    }
+                    .hide-scrollbar::-webkit-scrollbar { display: none; }
+                    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+                    .leaflet-control-zoom a {
+                        color: #4b5563 !important;
+                        border-radius: 8px !important;
+                        border: none !important;
+                        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05) !important;
+                    }
+                    .leaflet-bar {
+                        border: none !important;
+                        box-shadow: none !important;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .leaflet-popup-content { margin: 12px 16px; }
+                `
+            }} />
         </div>
     );
 }

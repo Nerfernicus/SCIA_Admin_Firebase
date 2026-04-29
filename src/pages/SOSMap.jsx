@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import { db } from "../lib/firebase";
+import { collection, onSnapshot, orderBy, query, doc, updateDoc } from "firebase/firestore";
+import React, { useState, useEffect } from 'react';
 import {
     Bell, Settings, MapPin, Phone, Info,
     Crosshair, Clock
@@ -46,13 +48,13 @@ const myLocationIcon = L.divIcon({
 export default function SOSMap() {
     const [activeFilter, setActiveFilter] = useState('All Alerts');
 
-    // 2. State for GPS coordinates
+    // State for GPS coordinates
     const [myLocation, setMyLocation] = useState(null);
     const [isLocating, setIsLocating] = useState(false);
 
     const mapCenter = [51.530, -0.150]; // Default London center
 
-    // 3. Function to trigger browser GPS
+    // Function to trigger browser GPS
     const handleLocateMe = () => {
         if (!('geolocation' in navigator)) {
             alert("Geolocation is not supported by your browser");
@@ -76,6 +78,34 @@ export default function SOSMap() {
         );
     };
 
+    const [liveAlerts, setLiveAlerts] = useState([]);
+
+    // Real-time listener for incoming emergency alerts
+    useEffect(() => {
+    const q = query(
+        collection(db, "emergencies"),
+        orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const alerts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        setLiveAlerts(alerts);
+    });
+
+    return () => unsubscribe(); // Clean up listener on unmount
+    }, []);
+
+    const handleDispatch = async (alertId) => {
+    const alertRef = doc(db, "emergencies", alertId);
+    await updateDoc(alertRef, { status: "dispatched" });
+    };
+
+    const handleResolve = async (alertId) => {
+    const alertRef = doc(db, "emergencies", alertId);
+    await updateDoc(alertRef, { status: "resolved" });
+    };
+
+    // Main UI
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden font-sans bg-white">
 
@@ -154,44 +184,74 @@ export default function SOSMap() {
                     </div>
 
                     <div className="space-y-4">
-                        {/* Alert Card 1: Critical */}
-                        <div className="bg-[#b91c1c] rounded-2xl p-4 text-white shadow-lg shadow-red-500/20">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-red-800/50 flex items-center justify-center border border-red-400">
-                                        <img src="https://i.pravatar.cc/150?u=arthur" alt="Arthur" className="w-10 h-10 rounded-full opacity-90" />
-                                    </div>
+                        {liveAlerts.length === 0 && (
+                            <p className="text-sm text-gray-400 text-center py-8">
+                                No active alerts.
+                            </p>
+                        )}
+                        {liveAlerts.map((alert) => (
+                            <div
+                                key={alert.id}
+                                className={`rounded-2xl p-4 shadow-sm border ${
+                                    alert.status === "pending"
+                                        ? "bg-[#b91c1c] text-white shadow-red-500/20"
+                                        : alert.status === "dispatched"
+                                        ? "bg-yellow-50 border-yellow-200"
+                                        : "bg-gray-50 border-gray-200 opacity-60"
+                                }`}
+                            >
+                                <div className="flex justify-between items-start mb-3">
                                     <div>
-                                        <h3 className="font-bold text-base">Arthur Miller</h3>
-                                        <p className="text-red-200 text-xs font-medium">Heart Rate: 114 BPM</p>
+                                        <h3 className="font-bold text-base">{alert.name}</h3>
+                                        <p className={`text-xs font-medium ${
+                                            alert.status === "pending" ? "text-red-200" : "text-gray-500"
+                                        }`}>
+                                            {alert.emergencyType}
+                                        </p>
                                     </div>
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                        alert.status === "pending"
+                                            ? "bg-white text-red-700"
+                                            : alert.status === "dispatched"
+                                            ? "bg-yellow-200 text-yellow-800"
+                                            : "bg-gray-200 text-gray-600"
+                                    }`}>
+                                        {alert.status}
+                                    </span>
                                 </div>
-                                <span className="bg-white text-red-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Critical</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm text-red-100 mb-5"><MapPin size={14} /> Block 4, Regent St. (240m away)</div>
-                            <div className="flex gap-2">
-                                <button className="flex-1 bg-white hover:bg-gray-50 text-red-700 py-2.5 rounded-xl text-sm font-bold transition-colors">Dispatch EMS</button>
-                                <button className="bg-red-800 hover:bg-red-900 w-12 flex items-center justify-center rounded-xl transition-colors cursor-pointer"><Phone size={18} className="text-white" /></button>
-                            </div>
-                        </div>
-                        {/* Alert Card 2: Medium */}
-                        <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-                            <div className="flex justify-between items-start mb-3">
-                                <div className="flex items-center gap-3">
-                                    <img src="https://i.pravatar.cc/150?u=sarah" alt="Sarah" className="w-10 h-10 rounded-full border border-gray-100" />
-                                    <div>
-                                        <h3 className="font-bold text-gray-900 text-base">Sarah Chen</h3>
-                                        <p className="text-gray-500 text-xs font-medium">Type 1 Diabetic • Hypoglycemia</p>
+                                <div className={`text-sm mb-4 ${
+                                    alert.status === "pending" ? "text-red-100" : "text-gray-600"
+                                }`}>
+                                    <p>{alert.barangay} — {alert.address}</p>
+                                </div>
+                                {alert.status === "pending" && (
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleDispatch(alert.id)}
+                                            className="flex-1 bg-white hover:bg-gray-50 text-red-700 py-2.5 rounded-xl text-sm font-bold transition-colors"
+                                        >
+                                            Dispatch Responder
+                                        </button>
+                                        <a
+                                            href={`https://maps.google.com/?q=${alert.latitude},${alert.longitude}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="bg-red-800 hover:bg-red-900 w-12 flex items-center justify-center rounded-xl transition-colors"
+                                        >
+                                            <MapPin size={18} className="text-white" />
+                                        </a>
                                     </div>
-                                </div>
-                                <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Medium</span>
+                                )}
+                                {alert.status === "dispatched" && (
+                                    <button
+                                        onClick={() => handleResolve(alert.id)}
+                                        className="w-full bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-xl text-sm font-bold transition-colors"
+                                    >
+                                        Mark Resolved
+                                    </button>
+                                )}
                             </div>
-                            <p className="text-sm text-gray-600 italic mb-4">"Feeling lightheaded and confused. Need glucose monitoring assistance."</p>
-                            <div className="flex gap-2">
-                                <button className="flex-1 bg-[#0f52ba] hover:bg-blue-700 text-white py-2.5 rounded-xl text-sm font-bold transition-colors">Assign Nurse</button>
-                                <button className="bg-gray-50 hover:bg-gray-100 border border-gray-200 w-12 flex items-center justify-center rounded-xl transition-colors cursor-pointer"><Info size={18} className="text-gray-600" /></button>
-                            </div>
-                        </div>
+                        ))}
                     </div>
                 </div>
 

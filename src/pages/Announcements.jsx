@@ -15,7 +15,6 @@ const COLLECTION_ID = "editorial_health";
 export default function Announcements() {
   const [publishTime, setPublishTime] = useState('Immediately');
   const [expiration, setExpiration]   = useState('Never');
-  const [title, setTitle]             = useState('');
   const [what, setWhat]               = useState('');
   const [when, setWhen]               = useState('');
   const [where, setWhere]             = useState('');
@@ -23,18 +22,22 @@ export default function Announcements() {
   const [saving, setSaving]           = useState(false);
   const [toast, setToast]             = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [audience, setAudience] = useState("ALL");
+  const [barangay, setBarangay] = useState("");
+
+  const fetchRecentEvents = async () => {
+    try {
+      const res = await fetch("http://YOUR_IP:3000/api/events");
+      const data = await res.json();
+
+      setRecentActivity(data.slice(0, 5)); // latest 5
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
-    const fetchRecent = async () => {
-      try {
-        const q = query(collection(db, COLLECTION_ID), orderBy('createdAt', 'desc'), limit(5));
-        const snapshot = await getDocs(q);
-        setRecentActivity(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchRecent();
+    fetchRecentEvents();
   }, []);
 
   const showToast = (msg, type = 'success') => {
@@ -42,55 +45,81 @@ export default function Announcements() {
     setTimeout(() => setToast(null), 3500);
   };
 
+  // Clear form fields
   const resetForm = () => {
     setTitle(''); setWhat(''); setWhen(''); setWhere(''); setDescription('');
     setPublishTime('Immediately'); setExpiration('Never');
   };
 
-  const saveDocument = async (status) => {
-    if (!title.trim())       { showToast('Please enter a title.', 'error'); return; }
-    if (!what.trim())        { showToast('Please enter what the event is.', 'error'); return; }
-    if (!when.trim())        { showToast('Please enter when the event is.', 'error'); return; }
-    if (!where.trim())       { showToast('Please enter where the event is.', 'error'); return; }
-    if (!description.trim()) { showToast('Please enter an event description.', 'error'); return; }
+  // Compute expiration date based on selected option
+  const computeExpirationDate = (option) => {
+    const now = new Date();
+
+    switch (option) {
+      case "1 Week":
+        return new Date(now.setDate(now.getDate() + 7));
+      case "2 Weeks":
+        return new Date(now.setDate(now.getDate() + 14));
+      case "3 Weeks":
+        return new Date(now.setDate(now.getDate() + 21));
+      case "1 Month":
+        return new Date(now.setMonth(now.getMonth() + 1));
+      case "2 Months":
+        return new Date(now.setMonth(now.getMonth() + 2));
+      case "3 Months":
+        return new Date(now.setMonth(now.getMonth() + 3));
+      default:
+        return null; // Never
+    }
+  };
+
+  // Save document to Firestore
+  const saveDocument = async () => {
+    if (!what || !when || !where || !description) {
+      showToast("Please fill all fields", "error");
+      return;
+    }
+
+    if (audience === "BARANGAY" && !barangay) {
+      showToast("Please select a barangay", "error");
+      return;
+    }
 
     setSaving(true);
+
     try {
-      const docRef = await addDoc(collection(db, COLLECTION_ID), {
-        Title:        title.trim(),
-        What:         what.trim(),
-        When:         when.trim(),
-        Where:        where.trim(),
-        Description:  description.trim(),
-        Status:       status,
-        Publish_Time: publishTime,
-        Expiration:   expiration,
-        Audience:     'Senior Citizens',
-        createdAt:    serverTimestamp(),
+      const res = await fetch("http://10.142.254.160:3000/api/events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: what,
+          description,
+          location: where,
+          date: when,
+          expiration,
+          audience,
+          barangay,
+        })
       });
 
-      const newDoc = {
-        id:           docRef.id,
-        Title:        title.trim(),
-        What:         what.trim(),
-        When:         when.trim(),
-        Where:        where.trim(),
-        Description:  description.trim(),
-        Status:       status,
-        Audience:     'Senior Citizens',
-        createdAt:    new Date(),
-      };
-      setRecentActivity(prev => [newDoc, ...prev].slice(0, 5));
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error);
+
+      showToast("Announcement published!");
       resetForm();
-      showToast(status === 'PUBLISHED' ? 'Announcement published!' : 'Draft saved!');
+
     } catch (err) {
-      console.error('Save failed:', err);
-      showToast('Failed to save. Check console.', 'error');
+      console.error(err);
+      showToast("Failed to publish", "error");
     } finally {
       setSaving(false);
     }
   };
 
+  // Generate status metadata for recent activity items
   const statusMeta = (doc) => {
     const createdAt = doc.createdAt?.toDate ? doc.createdAt.toDate() : new Date(doc.createdAt);
     const diff = Math.round((Date.now() - createdAt) / 60000);
@@ -98,11 +127,39 @@ export default function Announcements() {
     return `${timeAgo} • Senior Citizens`;
   };
 
+  // Get icon and styles based on status
   const statusStyle = (status) => {
     if (status === 'PUBLISHED') return { icon: CheckCircle2, iconColor: 'text-blue-600',  iconBg: 'bg-blue-50',   badgeClass: 'bg-blue-50 text-blue-600' };
     if (status === 'DRAFT')     return { icon: Edit3,        iconColor: 'text-yellow-600', iconBg: 'bg-yellow-50', badgeClass: 'bg-yellow-50 text-yellow-700' };
     return                             { icon: AlertCircle,  iconColor: 'text-red-500',    iconBg: 'bg-red-50',    badgeClass: 'bg-red-50 text-red-500' };
   };
+
+  // Handle "New Announcement" button click
+  const handleNewAnnouncement = () => {
+    const hasData = title || what || when || where || description;
+
+    if (hasData) {
+      const confirmReset = window.confirm(
+        "This will clear the current announcement. Continue?"
+      );
+
+      if (!confirmReset) return;
+    }
+
+    resetForm();
+  };
+
+  const district1Barangays = [
+    "Arkong Bato","Balangkas","Bignay","Bisig","Canumay East","Canumay West",
+    "Coloong","Dalandanan","Isla","Lawang Bato","Lingunan","Mabolo",
+    "Malanday","Malinta","Palasan","Pariancillo Villa","Pasolo","Poblacion",
+    "Pulo","Punturin","Rincon","Tagalag","Veinte Reales","Wawang Pulo"
+  ];
+
+  const district2Barangays = [
+    "Bagbaguin","General T. de Leon","Karuhatan","Mapulang Lupa",
+    "Marulas","Maysan","Parada","Paso de Blas","Ugong"
+  ];
 
   return (
     <div className="flex-1 bg-[#f8f9fa] min-h-screen p-8 font-sans">
@@ -129,7 +186,7 @@ export default function Announcements() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Announcements</h1>
           <p className="text-gray-500">Broadcast event updates to senior citizens.</p>
         </div>
-        <button onClick={resetForm} className="bg-[#0f52ba] hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-medium flex items-center gap-2 transition-colors shadow-sm">
+        <button onClick={handleNewAnnouncement} className="bg-[#0f52ba] hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-medium flex items-center gap-2 transition-colors shadow-sm">
           <Plus size={18} /> New Announcement
         </button>
       </div>
@@ -142,19 +199,7 @@ export default function Announcements() {
             <div className="flex items-center gap-2 mb-6 text-gray-800 font-bold text-lg">
               <AlignLeft size={20} className="text-[#0f52ba]" /> Event Details
             </div>
-
-            {/* Title */}
-            <div className="mb-5">
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Announcement Title</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Free Medical Check-up Day"
-                className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none"
-              />
-            </div>
-
+          
             {/* What */}
             <div className="mb-5">
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
@@ -256,18 +301,43 @@ export default function Announcements() {
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
             <h3 className="font-bold text-gray-900 mb-4">Scheduling</h3>
             <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Publish Time</label>
-                <div className="relative">
-                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-700" size={16} />
-                  <select value={publishTime} onChange={(e) => setPublishTime(e.target.value)}
-                    className="w-full bg-gray-100/80 border-none rounded-xl py-2.5 pl-10 pr-10 text-sm font-semibold text-gray-800 appearance-none focus:ring-2 focus:ring-blue-100 outline-none cursor-pointer">
-                    <option>Immediately</option>
-                    <option>Schedule for later</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
-                </div>
-              </div>
+
+              <select
+                value={audience}
+                onChange={(e) => {
+                  setAudience(e.target.value);
+                  setBarangay(""); // reset when changing audience
+                }}
+                className="w-full bg-gray-100 rounded-xl py-2 px-3"
+              >
+                <option value="ALL">All</option>
+                <option value="DISTRICT_1">Valenzuela District 1</option>
+                <option value="DISTRICT_2">Valenzuela District 2</option>
+                <option value="BARANGAY">Specific Barangay</option>
+              </select>
+
+              {audience === "BARANGAY" && (
+                <select
+                  value={barangay}
+                  onChange={(e) => setBarangay(e.target.value)}
+                  className="w-full bg-gray-100 rounded-xl py-2 px-3 mt-2"
+                >
+                  <option value="">Select Barangay</option>
+
+                  <optgroup label="District 1">
+                    {district1Barangays.map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </optgroup>
+
+                  <optgroup label="District 2">
+                    {district2Barangays.map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </optgroup>
+                </select>
+              )}
+              
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Expiration</label>
                 <div className="relative">
@@ -276,19 +346,20 @@ export default function Announcements() {
                     className="w-full bg-gray-100/80 border-none rounded-xl py-2.5 pl-10 pr-10 text-sm font-semibold text-gray-800 appearance-none focus:ring-2 focus:ring-blue-100 outline-none cursor-pointer">
                     <option>Never</option>
                     <option>1 Week</option>
+                    <option>2 Weeks</option>
+                    <option>3 Weeks</option>
                     <option>1 Month</option>
+                    <option>2 Months</option>
+                    <option>3 Months</option>
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                 </div>
               </div>
+
             </div>
 
             <div className="space-y-3">
-              <button onClick={() => saveDocument('DRAFT')} disabled={saving}
-                className="w-full bg-[#ffc107] hover:bg-yellow-500 disabled:opacity-50 text-yellow-900 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors">
-                {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} Save as Draft
-              </button>
-              <button onClick={() => saveDocument('PUBLISHED')} disabled={saving}
+              <button onClick={saveDocument} disabled={saving}
                 className="w-full bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-md shadow-blue-500/20">
                 {saving ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                 Publish Announcement
@@ -296,22 +367,6 @@ export default function Announcements() {
             </div>
           </div>
 
-          {/* Stats card */}
-          <div className="bg-[#0f52ba] rounded-3xl p-6 text-white shadow-lg shadow-blue-500/20 relative overflow-hidden">
-            <div className="absolute right-6 top-6 bg-white/10 p-3 rounded-2xl">
-              <BarChart2 size={32} className="text-white/80" />
-            </div>
-            <div className="mt-12">
-              <h2 className="text-4xl font-bold mb-1">24.8k</h2>
-              <p className="text-xs font-bold text-blue-200 uppercase tracking-wider mb-4">Reach Last Month</p>
-              <div className="flex gap-1.5">
-                <div className="h-1.5 w-1/3 bg-white rounded-full"></div>
-                <div className="h-1.5 w-1/4 bg-white/30 rounded-full"></div>
-                <div className="h-1.5 w-1/4 bg-white/30 rounded-full"></div>
-                <div className="h-1.5 flex-1 bg-white/30 rounded-full"></div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

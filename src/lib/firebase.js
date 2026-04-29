@@ -12,8 +12,8 @@ const firebaseConfig = {
   projectId: "scia-b5440",
   storageBucket: "scia-b5440.firebasestorage.app",
   messagingSenderId: "244279971713",
-  appId: "1:244279971713:web:18e15e8eba8a125893a280",
-  measurementId: "G-6BLS5Y3XP1"
+  appId: "1:244279971713:web:8a4cba18f0ba528e93a280",
+  measurementId: "G-GXDFVSFJME"
 };
 
 // Initialize Firebase

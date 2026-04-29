@@ -6,8 +6,8 @@ import {
     Save, Send, CheckCircle2, Edit3, AlertCircle, BarChart2,
     ImagePlus, X, Loader2
 } from 'lucide-react';
-import { storage, databases } from "../lib/appwrite";
-import { ID, Query } from "appwrite";
+import { storage, databases } from "../lib/firebase";
+import { ID, Query } from "firebase/firestore";
 
 const BUCKET_ID     = "69ec280d0025f5ed0b40";
 const DATABASE_ID   = "69ec2be300324536d19f";

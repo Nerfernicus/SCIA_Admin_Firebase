@@ -2,15 +2,17 @@ import React, { useState } from 'react';
 import {
   LayoutDashboard, Map, Megaphone, Users,
   ShieldCheck, Building2, LogOut, Crown, User2, CreditCard,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, FileText,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import GenerateReportModal from './GenerateReportModal';
 
 export default function Sidebar({ children }) {
   const location = useLocation();
   const { adminData, logout, isSuperAdmin } = useAuth();
   const [expanded, setExpanded] = useState(true);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const superAdminItems = [
     { name: 'Dashboard',       icon: LayoutDashboard, path: '/' },
@@ -18,6 +20,7 @@ export default function Sidebar({ children }) {
     { name: 'ID Release',      icon: CreditCard,      path: '/id-release' },
     { name: 'User Management', icon: Users,           path: '/users' },
     { name: 'Analytics',       icon: LayoutDashboard, path: '/analytics' },
+    { name: 'Announcements',   icon: Megaphone,       path: '/announcements' },
   ];
 
   const subAdminItems = [
@@ -29,6 +32,14 @@ export default function Sidebar({ children }) {
 
   const navItems = isSuperAdmin ? superAdminItems : subAdminItems;
 
+  const labelStyle = (show) => ({
+    opacity: show ? 1 : 0,
+    maxWidth: show ? '160px' : '0px',
+    overflow: 'hidden',
+    whiteSpace: 'nowrap',
+    transition: 'opacity 0.15s ease, max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  });
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <aside
@@ -38,7 +49,7 @@ export default function Sidebar({ children }) {
         }}
         className="h-screen sticky top-0 bg-white border-r border-gray-100 flex flex-col py-6 font-sans overflow-hidden flex-shrink-0"
       >
-        {/* Header row: title + toggle button */}
+        {/* Header row */}
         <div
           className="flex items-center mb-8"
           style={{
@@ -47,15 +58,7 @@ export default function Sidebar({ children }) {
             transition: 'padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
         >
-          <div
-            style={{
-              opacity: expanded ? 1 : 0,
-              maxWidth: expanded ? '160px' : '0px',
-              overflow: 'hidden',
-              whiteSpace: 'nowrap',
-              transition: 'opacity 0.2s ease, max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            }}
-          >
+          <div style={labelStyle(expanded)}>
             <h1 className="text-xl font-bold text-gray-900">SCIA Admin</h1>
             <p className="text-sm text-gray-500 mt-0.5">Health Platform</p>
           </div>
@@ -65,10 +68,7 @@ export default function Sidebar({ children }) {
             title={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
             className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors duration-150 flex-shrink-0"
           >
-            {expanded
-              ? <PanelLeftClose size={18} />
-              : <PanelLeftOpen size={18} />
-            }
+            {expanded ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
           </button>
         </div>
 
@@ -90,16 +90,7 @@ export default function Sidebar({ children }) {
               : <User2 size={15} className="text-blue-500" />
             }
           </div>
-          <div
-            style={{
-              opacity: expanded ? 1 : 0,
-              maxWidth: expanded ? '160px' : '0px',
-              overflow: 'hidden',
-              whiteSpace: 'nowrap',
-              transition: 'opacity 0.15s ease, max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            }}
-            className="min-w-0"
-          >
+          <div style={labelStyle(expanded)} className="min-w-0">
             <p className={`text-xs font-bold uppercase tracking-wider ${isSuperAdmin ? 'text-amber-600' : 'text-blue-600'}`}>
               {isSuperAdmin ? 'Super Admin' : 'Sub Admin'}
             </p>
@@ -131,24 +122,34 @@ export default function Sidebar({ children }) {
                 }`}
               >
                 <Icon size={18} className={`flex-shrink-0 ${isActive ? 'text-white' : 'text-gray-400'}`} />
-                <span
-                  style={{
-                    opacity: expanded ? 1 : 0,
-                    maxWidth: expanded ? '160px' : '0px',
-                    overflow: 'hidden',
-                    whiteSpace: 'nowrap',
-                    transition: 'opacity 0.15s ease, max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  }}
-                >
-                  {item.name}
-                </span>
+                <span style={labelStyle(expanded)}>{item.name}</span>
               </Link>
             );
           })}
         </nav>
 
+        {/* Generate Report — super admin only */}
+        {isSuperAdmin && (
+          <div className="px-2 mt-3">
+            <button
+              onClick={() => setReportOpen(true)}
+              title={!expanded ? 'Generate Report' : undefined}
+              style={{
+                padding: expanded ? '10px 16px' : '10px',
+                justifyContent: expanded ? 'flex-start' : 'center',
+                transition: 'padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                background: 'linear-gradient(135deg, #0f52ba 0%, #1a6fd4 100%)',
+              }}
+              className="w-full flex items-center gap-3 rounded-xl text-sm font-semibold text-white shadow-md shadow-blue-500/25 hover:shadow-blue-500/40 hover:brightness-110 transition-all duration-150"
+            >
+              <FileText size={18} className="flex-shrink-0 text-white/90" />
+              <span style={labelStyle(expanded)}>Generate Report</span>
+            </button>
+          </div>
+        )}
+
         {/* Sign out */}
-        <div className="mt-auto pt-6 border-t border-gray-100 px-2">
+        <div className="mt-4 pt-4 border-t border-gray-100 px-2">
           <button
             onClick={logout}
             title={!expanded ? 'Sign Out' : undefined}
@@ -160,17 +161,7 @@ export default function Sidebar({ children }) {
             className="w-full flex items-center gap-3 text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-600 rounded-xl transition-colors"
           >
             <LogOut size={18} className="flex-shrink-0" />
-            <span
-              style={{
-                opacity: expanded ? 1 : 0,
-                maxWidth: expanded ? '160px' : '0px',
-                overflow: 'hidden',
-                whiteSpace: 'nowrap',
-                transition: 'opacity 0.15s ease, max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              }}
-            >
-              Sign Out
-            </span>
+            <span style={labelStyle(expanded)}>Sign Out</span>
           </button>
         </div>
       </aside>
@@ -178,7 +169,8 @@ export default function Sidebar({ children }) {
       <main className="flex-1 overflow-y-auto">
         {children}
       </main>
+
+      <GenerateReportModal isOpen={reportOpen} onClose={() => setReportOpen(false)} />
     </div>
   );
 }
-//comment

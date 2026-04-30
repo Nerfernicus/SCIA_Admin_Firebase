@@ -7,6 +7,7 @@ import {
 } from "firebase/firestore";
 import { X, Megaphone, ChevronRight, Pencil, Trash2, Save, Loader2 } from "lucide-react";
 
+
 const COLLECTION_ID = "editorial_health";
 
 const verificationQueue = [
@@ -391,5 +392,5 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
-  );
+  );  
 }

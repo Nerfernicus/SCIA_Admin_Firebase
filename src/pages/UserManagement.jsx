@@ -10,7 +10,7 @@ import { db } from '../lib/firebase';
 import {
     collection, onSnapshot, orderBy, query, doc, updateDoc, deleteDoc
 } from 'firebase/firestore';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 // ── Status badge helpers ───────────────────────────────────────────────────
 const statusDot = (status) => {

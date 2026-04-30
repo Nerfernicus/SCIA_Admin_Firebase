@@ -1,5 +1,5 @@
 import './App.css';
-import { createBrowserRouter, Outlet, RouterProvider, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Outlet, RouterProvider, Navigate } from 'react-router';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';

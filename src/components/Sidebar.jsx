@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Map, Megaphone, Users,
   ShieldCheck, Building2, LogOut, Crown, User2, IdCard
 } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ children }) {

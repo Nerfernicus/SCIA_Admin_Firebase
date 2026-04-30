@@ -1,7 +1,7 @@
 import { db } from "../lib/firebase";
 import { collection, onSnapshot, orderBy, query, doc, updateDoc } from "firebase/firestore";
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import {
     Bell, Settings, MapPin,
     Crosshair

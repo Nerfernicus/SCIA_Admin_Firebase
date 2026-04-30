@@ -10,11 +10,7 @@ import { X, Megaphone, ChevronRight, Pencil, Trash2, Save, Loader2 } from "lucid
 
 const COLLECTION_ID = "editorial_health";
 
-const verificationQueue = [
-  { name: "Marcus Thorne",   role: "Physician", id: "#4492" },
-  { name: "Elena Rodriguez", role: "Nurse",     id: "#8201" },
-  { name: "Samir Al-Fayed",  role: "EMT",       id: "#3115" },
-];
+// Verification queue is now derived from live Firestore data (top 3 pending users)
 
 // ── Announcement Banner ───────────────────────────────────────────────────────
 function AnnouncementBanner({ announcements }) {
@@ -266,8 +262,11 @@ export default function Dashboard() {
 
   // ✅ Derived user counts — from Firestore "users" collection
   const totalUserCount   = allUsers.length;
-  const pendingUserCount = allUsers.filter(u => (u.status ?? 'PENDING') === 'PENDING').length;
-  const activeUserCount  = allUsers.filter(u => u.status === 'ACTIVE').length;
+  const pendingUserCount    = allUsers.filter(u => (u.status ?? 'PENDING') === 'PENDING').length;
+  const activeUserCount     = allUsers.filter(u => u.status === 'ACTIVE').length;
+  const recentPendingUsers  = allUsers
+    .filter(u => (u.status ?? 'PENDING') === 'PENDING')
+    .slice(0, 3);
 
   // % change label: show active users vs total as a rough "live" indicator
   const activePercent = totalUserCount > 0
@@ -509,23 +508,31 @@ export default function Dashboard() {
                 </span>
               </div>
               <div className="space-y-3">
-                {verificationQueue.map((u) => (
-                  <div key={u.id} className="flex items-center gap-3 p-2 -mx-2 hover:bg-gray-50 rounded-lg transition-colors">
-                    <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden flex-shrink-0 border border-gray-200">
-                      <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${u.name}`} alt="" className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-gray-900 text-sm truncate">{u.name}</div>
-                      <div className="text-xs text-gray-500 truncate">{u.role} • ID: {u.id}</div>
-                    </div>
-                    <button
-                      onClick={() => navigate('/users')}
-                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-md transition-colors"
-                    >
-                      REVIEW
-                    </button>
+                {usersLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 size={20} className="animate-spin text-gray-400" />
                   </div>
-                ))}
+                ) : recentPendingUsers.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-4">No pending verifications.</p>
+                ) : (
+                  recentPendingUsers.map((u) => (
+                    <div key={u.id} className="flex items-center gap-3 p-2 -mx-2 hover:bg-gray-50 rounded-lg transition-colors">
+                      <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden flex-shrink-0 border border-gray-200">
+                        <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${u.id}`} alt="" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-900 text-sm truncate">{[u.firstName, u.midName ? u.midName[0] + '.' : '', u.lastName].filter(Boolean).join(' ') || u.email || 'Unknown'}</div>
+                        <div className="text-xs text-gray-500 truncate">{u.idNumber ? `ID: #${u.idNumber}` : u.id.slice(0, 6).toUpperCase()}</div>
+                      </div>
+                      <button
+                        onClick={() => navigate('/users')}
+                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-md transition-colors"
+                      >
+                        REVIEW
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
               <button
                 onClick={() => navigate('/users')}

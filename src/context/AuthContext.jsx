@@ -67,6 +67,7 @@ export function AuthProvider({ children }) {
       user,
       role,
       adminData,
+      setAdminData,
       loading,
       logout,
       isSuperAdmin,

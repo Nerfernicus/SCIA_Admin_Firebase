@@ -7,6 +7,7 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import GenerateReportModal from './GenerateReportModal';
+import Header from './Header';
 
 export default function Sidebar({ children }) {
   const location = useLocation();
@@ -166,8 +167,11 @@ export default function Sidebar({ children }) {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto">
-        {children}
+      <main className="flex-1 overflow-y-auto flex flex-col">
+        <Header />
+        <div className="flex-1">
+          {children}
+        </div>
       </main>
 
       <GenerateReportModal isOpen={reportOpen} onClose={() => setReportOpen(false)} />

@@ -1,19 +1,19 @@
-import "./App.css";
-import { createBrowserRouter, Outlet, RouterProvider } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
-import ProtectedRoute from "./components/ProtectedRoute";
-import Sidebar from "./components/Sidebar";
+import './App.css';
+import { createBrowserRouter, Outlet, RouterProvider } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import Sidebar from './components/Sidebar';
 
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Announcements from "./pages/Announcements";
-import HealthCenters from "./pages/HealthCenters";
-import UserManagement from "./pages/UserManagement";
-import SOSMap from "./pages/SOSMap";
-import AccessDenied from "./pages/Unauthorized";
-import IDVerification from "./pages/IDVerification";
-import IDRelease from "./pages/IDRelease";
-import Analytics from "./pages/Analytics";
+import Login          from './pages/Login';
+import Dashboard      from './pages/Dashboard';
+import Announcements  from './pages/Announcements';
+import HealthCenters  from './pages/HealthCenters';
+import UserManagement from './pages/UserManagement';
+import SOSMap         from './pages/SOSMap';
+import AccessDenied   from './pages/Unauthorized';
+import IDVerification from './pages/IDVerification';
+import IDRelease      from './pages/IDRelease';
+import Analytics      from './pages/Analytics';
 
 function Layout() {
   return (
@@ -25,15 +25,15 @@ function Layout() {
 
 const router = createBrowserRouter([
   {
-    path: "/login",
+    path: '/login',
     element: <Login />,
   },
   {
-    path: "/unauthorized",
+    path: '/unauthorized',
     element: <AccessDenied />,
   },
   {
-    path: "/",
+    path: '/',
     element: (
       <ProtectedRoute>
         <Layout />
@@ -44,33 +44,33 @@ const router = createBrowserRouter([
 
       // Super Admin only
       {
-        path: "verification",
+        path: 'verification',
         element: (
-          <ProtectedRoute allowedRoles={["super_admin"]}>
+          <ProtectedRoute allowedRoles={['super_admin']}>
             <IDVerification />
           </ProtectedRoute>
         ),
       },
       {
-        path: "id-release",
+        path: 'id-release',
         element: (
-          <ProtectedRoute allowedRoles={["super_admin"]}>
+          <ProtectedRoute allowedRoles={['super_admin']}>
             <IDRelease />
           </ProtectedRoute>
         ),
       },
       {
-        path: "users",
+        path: 'users',
         element: (
-          <ProtectedRoute allowedRoles={["super_admin"]}>
+          <ProtectedRoute allowedRoles={['super_admin']}>
             <UserManagement />
           </ProtectedRoute>
         ),
       },
       {
-        path: "analytics",
+        path: 'analytics',
         element: (
-          <ProtectedRoute allowedRoles={["super_admin"]}>
+          <ProtectedRoute allowedRoles={['super_admin']}>
             <Analytics />
           </ProtectedRoute>
         ),
@@ -78,25 +78,25 @@ const router = createBrowserRouter([
 
       // Sub Admin + Super Admin
       {
-        path: "announcements",
+        path: 'announcements',
         element: (
-          <ProtectedRoute allowedRoles={["sub_admin", "super_admin"]}>
+          <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
             <Announcements />
           </ProtectedRoute>
         ),
       },
       {
-        path: "sos",
+        path: 'sos',
         element: (
-          <ProtectedRoute allowedRoles={["sub_admin", "super_admin"]}>
+          <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
             <SOSMap />
           </ProtectedRoute>
         ),
       },
       {
-        path: "health-centers",
+        path: 'health-centers',
         element: (
-          <ProtectedRoute allowedRoles={["sub_admin", "super_admin"]}>
+          <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
             <HealthCenters />
           </ProtectedRoute>
         ),

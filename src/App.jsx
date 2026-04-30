@@ -1,18 +1,16 @@
 import './App.css';
-import { createBrowserRouter, Outlet, RouterProvider, Navigate } from 'react-router';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { createBrowserRouter, Outlet, RouterProvider } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 
-// Pages
-import Login         from './pages/Login';
-import Dashboard     from './pages/Dashboard';
-import Announcements from './pages/Announcements';
-import HealthCenters from './pages/HealthCenters';
+import Login          from './pages/Login';
+import Dashboard      from './pages/Dashboard';
+import Announcements  from './pages/Announcements';
+import HealthCenters  from './pages/HealthCenters';
 import UserManagement from './pages/UserManagement';
-import SOSMap        from './pages/SOSMap';
-import Unauthorized  from './pages/Unauthorized';
-// Placeholder stubs for super-admin-only pages (create real ones later)
+import SOSMap         from './pages/SOSMap';
+import AccessDenied   from './pages/Unauthorized';
 import IDVerification from './pages/IDVerification';
 import IDRelease      from './pages/IDRelease';
 import Analytics      from './pages/Analytics';
@@ -25,13 +23,6 @@ function Layout() {
   );
 }
 
-// Redirect root → login when logged out, dashboard when logged in
-function RootRedirect() {
-  const { user, loading } = useAuth();
-  if (loading) return null;
-  return <Navigate to={user ? '/' : '/login'} replace />;
-}
-
 const router = createBrowserRouter([
   {
     path: '/login',
@@ -39,7 +30,7 @@ const router = createBrowserRouter([
   },
   {
     path: '/unauthorized',
-    element: <Unauthorized />,
+    element: <AccessDenied />,
   },
   {
     path: '/',
@@ -49,10 +40,9 @@ const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      // ── Shared ──────────────────────────────────────────────────────
       { index: true, element: <Dashboard /> },
 
-      // ── Super Admin only ─────────────────────────────────────────────
+      // Super Admin only
       {
         path: 'verification',
         element: (
@@ -86,7 +76,7 @@ const router = createBrowserRouter([
         ),
       },
 
-      // ── Sub Admin (+ Super Admin can also view) ──────────────────────
+      // Sub Admin + Super Admin
       {
         path: 'announcements',
         element: (

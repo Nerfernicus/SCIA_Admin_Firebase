@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { IdCard, CheckCircle2, Search, Loader2, Send } from 'lucide-react';
+import { CreditCard, CheckCircle2, Search, Loader2, Send } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, onSnapshot, query, where, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -45,7 +45,7 @@ export default function IDRelease() {
     <div className="p-8 max-w-5xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <IdCard size={24} className="text-[#0f52ba]" /> ID Release
+          <CreditCard size={24} className="text-[#0f52ba]" /> ID Release
         </h1>
         <p className="text-sm text-gray-500 mt-1">Release approved IDs to residents</p>
       </div>
@@ -53,7 +53,7 @@ export default function IDRelease() {
       <div className="grid grid-cols-2 gap-4 mb-8">
         <div className="bg-white border border-gray-100 rounded-2xl p-5 flex items-center gap-4">
           <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
-            <IdCard size={20} className="text-[#0f52ba]" />
+            <CreditCard size={20} className="text-[#0f52ba]" />
           </div>
           <div><p className="text-2xl font-bold text-gray-900">{filtered.length}</p><p className="text-xs text-gray-500">Awaiting Release</p></div>
         </div>
@@ -80,7 +80,7 @@ export default function IDRelease() {
         <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-blue-500" /></div>
       ) : filtered.length === 0 && released.length === 0 ? (
         <div className="text-center py-20 text-gray-400">
-          <IdCard size={40} className="mx-auto mb-3 opacity-40" />
+          <CreditCard size={40} className="mx-auto mb-3 opacity-40" />
           <p className="font-medium">No approved IDs to release</p>
         </div>
       ) : (

@@ -1,6 +1,7 @@
 import { db } from "../lib/firebase";
 import { collection, onSnapshot, orderBy, query, doc, updateDoc } from "firebase/firestore";
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
     Bell, Settings, MapPin,
     Crosshair
@@ -137,8 +138,18 @@ export default function SOSMap() {
                 <div className="flex items-center gap-10 h-full">
                     <span className="text-[#0f52ba] font-bold text-lg">Editorial Health Admin</span>
                     <nav className="flex gap-8 text-sm font-semibold h-full">
-                        <button className="text-[#0f52ba] border-b-2 border-[#0f52ba] h-full flex items-center">SOS Map</button>
-                        <button className="text-gray-500 hover:text-gray-900 h-full flex items-center transition-colors">Dashboard</button>
+                        {/* SOS Map — active state (current page) */}
+                        <button className="text-[#0f52ba] border-b-2 border-[#0f52ba] h-full flex items-center">
+                            SOS Map
+                        </button>
+
+                        {/* Dashboard — navigates to "/" via React Router */}
+                        <Link
+                            to="/"
+                            className="text-gray-500 hover:text-gray-900 h-full flex items-center transition-colors"
+                        >
+                            Dashboard
+                        </Link>
                     </nav>
                 </div>
                 <div className="flex items-center gap-5 text-gray-500">
@@ -167,7 +178,7 @@ export default function SOSMap() {
                         {/* Auto-pan controller */}
                         <MapController centerPosition={mapFocusTarget} />
 
-                        {/* ✅ LIVE ALERT MARKERS from Firestore
+                        {/* LIVE ALERT MARKERS from Firestore
                             Only show pending + dispatched alerts (not resolved) */}
                         {liveAlerts
                             .filter(alert =>
@@ -350,4 +361,3 @@ export default function SOSMap() {
         </div>
     );
 }
-// test

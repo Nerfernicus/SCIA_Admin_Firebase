@@ -189,8 +189,16 @@ export default function Dashboard() {
   const [editTarget, setEditTarget]       = useState(null);
   const [deleteTarget, setDeleteTarget]   = useState(null);
 
+  // Live SOS alerts from Firestore "emergencies" collection
+  const [sosAlerts, setSosAlerts]   = useState([]);
+  const [sosLoading, setSosLoading] = useState(true);
+
+  // ✅ Live users from Firestore "users" collection (same as UserManagement)
+  const [allUsers, setAllUsers]     = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+
+  // ── Announcements real-time listener ──────────────────────────────────────
   useEffect(() => {
-    // 🔥 Real-time listener — no composite index needed (filter by Status client-side)
     const q = query(
       collection(db, COLLECTION_ID),
       orderBy('createdAt', 'desc'),
@@ -210,6 +218,38 @@ export default function Dashboard() {
     return () => unsub();
   }, []);
 
+  // ── SOS alerts real-time listener ─────────────────────────────────────────
+  useEffect(() => {
+    const q = query(
+      collection(db, "emergencies"),
+      orderBy("createdAt", "desc")
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      setSosAlerts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      setSosLoading(false);
+    }, (err) => {
+      console.error('Failed to load SOS alerts:', err);
+      setSosLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  // ✅ NEW: Live users real-time listener — mirrors UserManagement.jsx
+  useEffect(() => {
+    const q = query(
+      collection(db, "users"),
+      orderBy("createdAt", "desc")
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      setAllUsers(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      setUsersLoading(false);
+    }, (err) => {
+      console.error('Failed to load users:', err);
+      setUsersLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
   const handleSaved = (updated) => {
     setAnnouncements(prev => prev.map(a => a.id === updated.id ? updated : a));
   };
@@ -217,6 +257,22 @@ export default function Dashboard() {
   const handleDeleted = (id) => {
     setAnnouncements(prev => prev.filter(a => a.id !== id));
   };
+
+  // ── Derived SOS counts ────────────────────────────────────────────────────
+  const activeSosCount  = sosAlerts.filter(a => a.status !== 'resolved').length;
+  const pendingSosCount = sosAlerts.filter(a => a.status === 'pending').length;
+  const dispatchedCount = sosAlerts.filter(a => a.status === 'dispatched').length;
+  const latestActiveAlert = sosAlerts.find(a => a.status !== 'resolved');
+
+  // ✅ Derived user counts — from Firestore "users" collection
+  const totalUserCount   = allUsers.length;
+  const pendingUserCount = allUsers.filter(u => (u.status ?? 'PENDING') === 'PENDING').length;
+  const activeUserCount  = allUsers.filter(u => u.status === 'ACTIVE').length;
+
+  // % change label: show active users vs total as a rough "live" indicator
+  const activePercent = totalUserCount > 0
+    ? Math.round((activeUserCount / totalUserCount) * 100)
+    : 0;
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans text-gray-900">
@@ -247,30 +303,100 @@ export default function Dashboard() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-red-500 rounded-xl p-5 shadow-sm text-white flex flex-col justify-between">
+
+          {/* Active SOS Alerts — from Firestore */}
+          <div
+            className="bg-red-500 rounded-xl p-5 shadow-sm text-white flex flex-col justify-between cursor-pointer hover:bg-red-600 transition-colors"
+            onClick={() => navigate('/sos')}
+            title="Go to Live SOS Map"
+          >
             <div className="flex justify-between items-center mb-4">
               <span className="text-red-200">✱</span>
               <span className="bg-red-700 text-white px-2 py-0.5 rounded text-xs font-bold">IMMEDIATE</span>
             </div>
             <div className="text-red-100 text-sm font-medium">Active SOS Alerts</div>
-            <div className="text-4xl font-bold mt-1">04</div>
+            {sosLoading ? (
+              <div className="text-4xl font-bold mt-1">
+                <Loader2 size={28} className="animate-spin text-white/70" />
+              </div>
+            ) : (
+              <>
+                <div className="text-4xl font-bold mt-1">
+                  {String(activeSosCount).padStart(2, '0')}
+                </div>
+                <div className="flex gap-3 mt-2">
+                  <span className="text-[10px] text-red-200 font-semibold">
+                    🔴 {pendingSosCount} Pending
+                  </span>
+                  <span className="text-[10px] text-red-200 font-semibold">
+                    🟠 {dispatchedCount} Dispatched
+                  </span>
+                </div>
+              </>
+            )}
           </div>
-          <div className="bg-yellow-100 rounded-xl p-5 shadow-sm flex flex-col justify-between border border-yellow-200">
+
+          {/* ✅ Pending Verifications — now live from Firestore "users" collection */}
+          <div
+            className="bg-yellow-100 rounded-xl p-5 shadow-sm flex flex-col justify-between border border-yellow-200 cursor-pointer hover:border-yellow-300 transition-colors"
+            onClick={() => navigate('/users')}
+            title="Go to User Management"
+          >
             <div className="flex justify-between items-center mb-4">
               <span>🛡</span>
               <span className="bg-yellow-300 text-yellow-900 px-2 py-0.5 rounded text-xs font-bold">QUEUE</span>
             </div>
             <div className="text-yellow-800 text-sm font-medium">Pending Verifications</div>
-            <div className="text-4xl font-bold text-gray-900 mt-1">128</div>
+            {usersLoading ? (
+              <div className="mt-1">
+                <Loader2 size={24} className="animate-spin text-yellow-600" />
+              </div>
+            ) : (
+              <>
+                <div className="text-4xl font-bold text-gray-900 mt-1">
+                  {pendingUserCount.toLocaleString()}
+                </div>
+                <div className="text-[10px] text-yellow-700 font-semibold mt-2">
+                  of {totalUserCount.toLocaleString()} total users
+                </div>
+              </>
+            )}
           </div>
-          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between">
+
+          {/* ✅ Live Users — total user count from Firestore "users" collection */}
+          <div
+            className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between cursor-pointer hover:border-blue-200 transition-colors"
+            onClick={() => navigate('/users')}
+            title="Go to User Management"
+          >
             <div className="flex justify-between items-center mb-4">
               <span>👥</span>
-              <span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded">+12% Today</span>
+              {usersLoading ? (
+                <Loader2 size={14} className="animate-spin text-gray-400" />
+              ) : (
+                <span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded">
+                  {activePercent}% Active
+                </span>
+              )}
             </div>
             <div className="text-gray-500 text-sm font-medium">Live Users</div>
-            <div className="text-4xl font-bold text-gray-900 mt-1">2,841</div>
+            {usersLoading ? (
+              <div className="mt-1">
+                <Loader2 size={24} className="animate-spin text-gray-400" />
+              </div>
+            ) : (
+              <>
+                <div className="text-4xl font-bold text-gray-900 mt-1">
+                  {totalUserCount.toLocaleString()}
+                </div>
+                <div className="text-[10px] text-gray-400 font-semibold mt-2">
+                  {activeUserCount.toLocaleString()} verified active
+                </div>
+              </>
+            )}
           </div>
+
+          {/* System Load — static */}
           <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between">
             <div className="flex justify-between items-center mb-4">
               <span>📊</span>
@@ -356,9 +482,18 @@ export default function Dashboard() {
               <div className="flex justify-between items-center">
                 <div>
                   <div className="text-[10px] text-gray-400 font-bold tracking-wider uppercase mb-0.5">Active SOS Region</div>
-                  <div className="text-sm font-bold text-gray-900">📍 New York, Sector 7</div>
+                  <div className="text-sm font-bold text-gray-900">
+                    {sosLoading
+                      ? '...'
+                      : latestActiveAlert
+                        ? `📍 ${latestActiveAlert.barangay ?? latestActiveAlert.address ?? 'Unknown location'}`
+                        : '📍 No active alerts'
+                    }
+                  </div>
                 </div>
-                <span className="bg-red-100 text-red-700 px-2.5 py-1 rounded-md text-xs font-bold">3 Red Flags</span>
+                <span className="bg-red-100 text-red-700 px-2.5 py-1 rounded-md text-xs font-bold">
+                  {sosLoading ? '…' : `${pendingSosCount} Red Flag${pendingSosCount !== 1 ? 's' : ''}`}
+                </span>
               </div>
               <button onClick={() => navigate("/sos")} className="w-full py-2.5 border-2 border-red-500 text-red-600 font-bold text-sm rounded-lg hover:bg-red-50 transition-colors">
                 Go to Live SOS Map
@@ -368,7 +503,10 @@ export default function Dashboard() {
             <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 space-y-4">
               <div className="flex justify-between items-center mb-2">
                 <span className="font-bold text-gray-900">Verification Queue</span>
-                <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-xs font-bold">8+ NEW</span>
+                {/* ✅ Live pending badge */}
+                <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-xs font-bold">
+                  {usersLoading ? '…' : `${pendingUserCount} PENDING`}
+                </span>
               </div>
               <div className="space-y-3">
                 {verificationQueue.map((u) => (
@@ -380,11 +518,19 @@ export default function Dashboard() {
                       <div className="font-semibold text-gray-900 text-sm truncate">{u.name}</div>
                       <div className="text-xs text-gray-500 truncate">{u.role} • ID: {u.id}</div>
                     </div>
-                    <button className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-md transition-colors">REVIEW</button>
+                    <button
+                      onClick={() => navigate('/users')}
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-md transition-colors"
+                    >
+                      REVIEW
+                    </button>
                   </div>
                 ))}
               </div>
-              <button className="w-full text-center block text-blue-600 hover:text-blue-800 text-sm font-semibold pt-2 mt-2 border-t border-gray-100 transition-colors">
+              <button
+                onClick={() => navigate('/users')}
+                className="w-full text-center block text-blue-600 hover:text-blue-800 text-sm font-semibold pt-2 mt-2 border-t border-gray-100 transition-colors"
+              >
                 View Full User Directory
               </button>
             </div>
@@ -392,5 +538,5 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
-  );  
+  );
 }

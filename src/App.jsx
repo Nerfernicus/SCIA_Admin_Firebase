@@ -1,6 +1,7 @@
 import './App.css';
 import { createBrowserRouter, Outlet, RouterProvider } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { LangProvider } from './context/LangContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 
@@ -24,14 +25,8 @@ function Layout() {
 }
 
 const router = createBrowserRouter([
-  {
-    path: '/login',
-    element: <Login />,
-  },
-  {
-    path: '/unauthorized',
-    element: <AccessDenied />,
-  },
+  { path: '/login', element: <Login /> },
+  { path: '/unauthorized', element: <AccessDenied /> },
   {
     path: '/',
     element: (
@@ -41,8 +36,6 @@ const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Dashboard /> },
-
-      // Super Admin only
       {
         path: 'verification',
         element: (
@@ -75,8 +68,6 @@ const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-
-      // Sub Admin + Super Admin
       {
         path: 'announcements',
         element: (
@@ -107,8 +98,10 @@ const router = createBrowserRouter([
 
 export default function App() {
   return (
-    <AuthProvider>
-      <RouterProvider router={router} />
-    </AuthProvider>
+    <LangProvider>
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
+    </LangProvider>
   );
 }

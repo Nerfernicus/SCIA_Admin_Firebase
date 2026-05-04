@@ -281,7 +281,7 @@ export default function UserManagement() {
       {/* Toast Notification */}
       {toastMsg && (
         <div
-          className={`fixed top-6 right-6 z-[9999] text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-fade-in ${
+          className={`fixed top-6 right-6 z-9999 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-fade-in ${
             toastType === "error" ? "bg-red-600" : "bg-gray-900"
           }`}
         >

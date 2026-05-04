@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Bell, Settings, Plus, AlignLeft,
+  Plus, AlignLeft,
   Clock, ChevronDown,
-  Save, Send, CheckCircle2, Edit3, AlertCircle, BarChart2,
+  Send, CheckCircle2, Edit3, AlertCircle,
   X, Loader2, MapPin, Calendar, FileText
 } from 'lucide-react';
 import { db } from "../lib/firebase";
 import {
-  collection, addDoc, query, orderBy, limit, getDocs, onSnapshot, serverTimestamp
+  collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp
 } from "firebase/firestore";
 
 const COLLECTION_ID = "editorial_health";
@@ -25,7 +25,6 @@ export default function Announcements() {
   const [audience, setAudience] = useState("ALL");
   const [barangay, setBarangay] = useState("");
 
-  // 🔥 Real-time: fetch last 5 announcements from Firestore
   useEffect(() => {
     const q = query(collection(db, COLLECTION_ID), orderBy("createdAt", "desc"), limit(5));
     const unsub = onSnapshot(q, (snapshot) => {
@@ -39,50 +38,35 @@ export default function Announcements() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Clear form fields
   const resetForm = () => {
     setWhat(''); setWhen(''); setWhere(''); setDescription('');
     setPublishTime('Immediately'); setExpiration('Never');
   };
 
-  // Compute expiration date based on selected option
   const computeExpirationDate = (option) => {
     const now = new Date();
-
     switch (option) {
-      case "1 Week":
-        return new Date(now.setDate(now.getDate() + 7));
-      case "2 Weeks":
-        return new Date(now.setDate(now.getDate() + 14));
-      case "3 Weeks":
-        return new Date(now.setDate(now.getDate() + 21));
-      case "1 Month":
-        return new Date(now.setMonth(now.getMonth() + 1));
-      case "2 Months":
-        return new Date(now.setMonth(now.getMonth() + 2));
-      case "3 Months":
-        return new Date(now.setMonth(now.getMonth() + 3));
-      default:
-        return null; // Never
+      case "1 Week":   return new Date(now.setDate(now.getDate() + 7));
+      case "2 Weeks":  return new Date(now.setDate(now.getDate() + 14));
+      case "3 Weeks":  return new Date(now.setDate(now.getDate() + 21));
+      case "1 Month":  return new Date(now.setMonth(now.getMonth() + 1));
+      case "2 Months": return new Date(now.setMonth(now.getMonth() + 2));
+      case "3 Months": return new Date(now.setMonth(now.getMonth() + 3));
+      default:         return null;
     }
   };
 
-  // Save document to Firestore
   const saveDocument = async () => {
     if (!what || !when || !where || !description) {
       showToast("Please fill all fields", "error");
       return;
     }
-
     if (audience === "BARANGAY" && !barangay) {
       showToast("Please select a barangay", "error");
       return;
     }
-
     setSaving(true);
-
     try {
-      // 🔥 Write directly to Firestore — mobile app reads from this collection in real-time
       const expirationDate = computeExpirationDate(expiration);
       await addDoc(collection(db, COLLECTION_ID), {
         Title: what,
@@ -95,10 +79,8 @@ export default function Announcements() {
         Status: "PUBLISHED",
         createdAt: serverTimestamp(),
       });
-
       showToast("Announcement published!");
       resetForm();
-
     } catch (err) {
       console.error(err);
       showToast("Failed to publish", "error");
@@ -107,7 +89,6 @@ export default function Announcements() {
     }
   };
 
-  // Generate status metadata for recent activity items
   const statusMeta = (doc) => {
     const createdAt = doc.createdAt?.toDate ? doc.createdAt.toDate() : new Date(doc.createdAt);
     const diff = Math.round((Date.now() - createdAt) / 60000);
@@ -115,25 +96,18 @@ export default function Announcements() {
     return `${timeAgo} • Senior Citizens`;
   };
 
-  // Get icon and styles based on status
   const statusStyle = (status) => {
     if (status === 'PUBLISHED') return { icon: CheckCircle2, iconColor: 'text-blue-600',  iconBg: 'bg-blue-50',   badgeClass: 'bg-blue-50 text-blue-600' };
     if (status === 'DRAFT')     return { icon: Edit3,        iconColor: 'text-yellow-600', iconBg: 'bg-yellow-50', badgeClass: 'bg-yellow-50 text-yellow-700' };
     return                             { icon: AlertCircle,  iconColor: 'text-red-500',    iconBg: 'bg-red-50',    badgeClass: 'bg-red-50 text-red-500' };
   };
 
-  // Handle "New Announcement" button click
   const handleNewAnnouncement = () => {
-    const hasData = title || what || when || where || description;
-
+    const hasData = what || when || where || description;
     if (hasData) {
-      const confirmReset = window.confirm(
-        "This will clear the current announcement. Continue?"
-      );
-
+      const confirmReset = window.confirm("This will clear the current announcement. Continue?");
       if (!confirmReset) return;
     }
-
     resetForm();
   };
 
@@ -143,7 +117,6 @@ export default function Announcements() {
     "Malanday","Malinta","Palasan","Pariancillo Villa","Pasolo","Poblacion",
     "Pulo","Punturin","Rincon","Tagalag","Veinte Reales","Wawang Pulo"
   ];
-
   const district2Barangays = [
     "Bagbaguin","General T. de Leon","Karuhatan","Mapulang Lupa",
     "Marulas","Maysan","Parada","Paso de Blas","Ugong"
@@ -158,17 +131,7 @@ export default function Announcements() {
         </div>
       )}
 
-      {/* Top bar */}
-      <div className="flex items-center justify-between mb-8">
-        <span className="text-[#0f52ba] font-semibold text-lg">SCIA Admin</span>
-        <div className="flex items-center gap-4 text-gray-500">
-          <button className="hover:text-gray-800 transition-colors"><Bell size={20} /></button>
-          <button className="hover:text-gray-800 transition-colors"><Settings size={20} /></button>
-          <img src="https://i.pravatar.cc/150?u=admin" alt="Admin" className="w-8 h-8 rounded-full border border-gray-200" />
-        </div>
-      </div>
-
-      {/* Header */}
+      {/* Header — NO duplicate bell/settings/profile buttons */}
       <div className="flex justify-between items-end mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Announcements</h1>
@@ -187,10 +150,9 @@ export default function Announcements() {
             <div className="flex items-center gap-2 mb-6 text-gray-800 font-bold text-lg">
               <AlignLeft size={20} className="text-[#0f52ba]" /> Event Details
             </div>
-          
-            {/* What */}
+
             <div className="mb-5">
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                 <FileText size={13} /> What
               </label>
               <input
@@ -202,9 +164,8 @@ export default function Announcements() {
               />
             </div>
 
-            {/* When */}
             <div className="mb-5">
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                 <Calendar size={13} /> When
               </label>
               <input
@@ -216,9 +177,8 @@ export default function Announcements() {
               />
             </div>
 
-            {/* Where */}
             <div className="mb-5">
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                 <MapPin size={13} /> Where
               </label>
               <input
@@ -230,7 +190,6 @@ export default function Announcements() {
               />
             </div>
 
-            {/* Event Description */}
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Event Description</label>
               <textarea
@@ -275,7 +234,6 @@ export default function Announcements() {
         {/* Right: Scheduling + Actions */}
         <div className="space-y-6">
 
-          {/* Audience Badge */}
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
             <h3 className="font-bold text-gray-900 mb-3">Audience</h3>
             <div className="flex items-center gap-3 p-3.5 rounded-xl bg-blue-50 border-2 border-[#0f52ba]">
@@ -285,17 +243,13 @@ export default function Announcements() {
             <p className="text-xs text-gray-400 mt-3">All announcements are visible only to registered senior citizens.</p>
           </div>
 
-          {/* Scheduling */}
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
             <h3 className="font-bold text-gray-900 mb-4">Scheduling</h3>
             <div className="space-y-4 mb-6">
 
               <select
                 value={audience}
-                onChange={(e) => {
-                  setAudience(e.target.value);
-                  setBarangay(""); // reset when changing audience
-                }}
+                onChange={(e) => { setAudience(e.target.value); setBarangay(""); }}
                 className="w-full bg-gray-100 rounded-xl py-2 px-3"
               >
                 <option value="ALL">All</option>
@@ -311,21 +265,15 @@ export default function Announcements() {
                   className="w-full bg-gray-100 rounded-xl py-2 px-3 mt-2"
                 >
                   <option value="">Select Barangay</option>
-
                   <optgroup label="District 1">
-                    {district1Barangays.map((b) => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
+                    {district1Barangays.map((b) => (<option key={b} value={b}>{b}</option>))}
                   </optgroup>
-
                   <optgroup label="District 2">
-                    {district2Barangays.map((b) => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
+                    {district2Barangays.map((b) => (<option key={b} value={b}>{b}</option>))}
                   </optgroup>
                 </select>
               )}
-              
+
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Expiration</label>
                 <div className="relative">
@@ -343,18 +291,14 @@ export default function Announcements() {
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                 </div>
               </div>
-
             </div>
 
-            <div className="space-y-3">
-              <button onClick={saveDocument} disabled={saving}
-                className="w-full bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-md shadow-blue-500/20">
-                {saving ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                Publish Announcement
-              </button>
-            </div>
+            <button onClick={saveDocument} disabled={saving}
+              className="w-full bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-md shadow-blue-500/20">
+              {saving ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+              Publish Announcement
+            </button>
           </div>
-
         </div>
       </div>
     </div>

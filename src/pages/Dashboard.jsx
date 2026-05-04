@@ -30,10 +30,10 @@ function AnnouncementBanner({ announcements }) {
   const timeAgo = diff < 60 ? `${diff}m ago` : diff < 1440 ? `${Math.round(diff/60)}h ago` : `${Math.round(diff/1440)}d ago`;
 
   return (
-    <div className="relative bg-gradient-to-r from-[#0f52ba] to-blue-500 rounded-2xl px-5 py-4 shadow-md shadow-blue-500/20 flex items-start gap-4 overflow-hidden">
+    <div className="relative bg-linear-to-r from-[#0f52ba] to-blue-500 rounded-2xl px-5 py-4 shadow-md shadow-blue-500/20 flex items-start gap-4 overflow-hidden">
       <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
       <div className="absolute -right-2 -bottom-6 w-20 h-20 bg-white/5 rounded-full pointer-events-none" />
-      <div className="bg-white/20 rounded-xl p-2.5 flex-shrink-0 mt-0.5">
+      <div className="bg-white/20 rounded-xl p-2.5 shrink-0 mt-0.5">
         <Megaphone size={18} className="text-white" />
       </div>
       <div className="flex-1 min-w-0">
@@ -45,14 +45,14 @@ function AnnouncementBanner({ announcements }) {
         <p className="text-blue-100 text-xs mt-0.5 line-clamp-1">{a.Body}</p>
       </div>
       {announcements.length > 1 && (
-        <div className="flex flex-col gap-1 justify-center flex-shrink-0">
+        <div className="flex flex-col gap-1 justify-center shrink-0">
           {announcements.map((_, i) => (
             <button key={i} onClick={() => setCurrent(i)}
               className={`w-1.5 rounded-full transition-all ${i === current ? 'h-4 bg-white' : 'h-1.5 bg-white/40'}`} />
           ))}
         </div>
       )}
-      <button onClick={() => setDismiss(true)} className="flex-shrink-0 text-white/60 hover:text-white transition-colors mt-0.5">
+      <button onClick={() => setDismiss(true)} className="shrink-0 text-white/60 hover:text-white transition-colors mt-0.5">
         <X size={16} />
       </button>
     </div>
@@ -440,7 +440,7 @@ export default function Dashboard() {
 
                   return (
                     <div key={a.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-4 hover:shadow-md transition-shadow group">
-                      <img src={imgSrc} alt="" className="w-16 h-16 rounded-lg object-cover flex-shrink-0 bg-gray-100" />
+                      <img src={imgSrc} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0 bg-gray-100" />
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 mb-1">
                           <h3 className="font-semibold text-gray-900 text-base leading-tight">{a.Title}</h3>
@@ -517,7 +517,7 @@ export default function Dashboard() {
                 ) : (
                   recentPendingUsers.map((u) => (
                     <div key={u.id} className="flex items-center gap-3 p-2 -mx-2 hover:bg-gray-50 rounded-lg transition-colors">
-                      <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden flex-shrink-0 border border-gray-200">
+                      <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden shrink-0 border border-gray-200">
                         <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${u.id}`} alt="" className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">

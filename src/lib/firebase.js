@@ -1,4 +1,3 @@
-// Firebase SDK imports
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
@@ -15,19 +14,29 @@ const firebaseConfig = {
   measurementId: "G-GXDFVSFJME",
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize and export services
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 
-// Analytics only in browser
 let analytics = null;
 if (typeof window !== "undefined") {
   analytics = getAnalytics(app);
 }
 export { analytics };
+
+// ── Shared collection names (MUST match mobile app) ─────────────────────────
+export const COLLECTIONS = {
+  ADMINS: "admins",
+  USERS: "users",
+  EVENTS: "editorial_health",
+  EMERGENCIES: "emergencies",    // ✅ matches mobile app sendSOSAlert()
+  APPOINTMENTS: "appointments",
+  MEDICATIONS: "medications",
+  ID_VERIFICATIONS: "id_verifications",
+  ID_REQUESTS: "id_requests",
+  HEALTH_CENTERS: "health_centers",
+};
 
 export default app;

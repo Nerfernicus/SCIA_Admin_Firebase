@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, Clock, CheckCircle2, XCircle, Eye, Loader2 } from 'lucide-react';
-import { db, storage } from '../lib/firebase';
+import { ShieldCheck, Clock, CheckCircle2, XCircle, Eye, Loader2, FileText } from 'lucide-react';
+import { db } from '../lib/firebase';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 const StatusBadge = ({ status }) => {
@@ -14,16 +14,27 @@ const StatusBadge = ({ status }) => {
 };
 
 export default function IDVerification() {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [selected, setSelected] = useState(null);
+  const [requests, setRequests]   = useState([]);
+  const [idRequests, setIdRequests] = useState([]); // physical ID requests from mobile
+  const [loading, setLoading]     = useState(true);
+  const [selected, setSelected]   = useState(null);
   const [processing, setProcessing] = useState(false);
+  const [activeTab, setActiveTab] = useState('verifications'); // 'verifications' | 'id_requests'
 
+  // Listen to id_verifications (uploaded ID images for review)
   useEffect(() => {
     const q = query(collection(db, 'id_verifications'), orderBy('submittedAt', 'desc'));
     return onSnapshot(q, (snap) => {
       setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
+    });
+  }, []);
+
+  // Listen to id_requests (physical ID card requests submitted from mobile app)
+  useEffect(() => {
+    const q = query(collection(db, 'id_requests'), orderBy('createdAt', 'desc'));
+    return onSnapshot(q, (snap) => {
+      setIdRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
   }, []);
 
@@ -40,8 +51,21 @@ export default function IDVerification() {
     }
   }
 
+  async function handleIDRequestDecision(id, decision) {
+    setProcessing(true);
+    try {
+      await updateDoc(doc(db, 'id_requests', id), {
+        status: decision,
+        reviewedAt: serverTimestamp(),
+      });
+    } finally {
+      setProcessing(false);
+    }
+  }
+
   const pending  = requests.filter(r => r.status === 'pending');
   const reviewed = requests.filter(r => r.status !== 'pending');
+  const pendingIDReqs = idRequests.filter(r => !r.status || r.status === 'pending');
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -49,15 +73,16 @@ export default function IDVerification() {
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <ShieldCheck size={24} className="text-[#0f52ba]" /> ID Verification
         </h1>
-        <p className="text-sm text-gray-500 mt-1">Review and approve resident ID submissions</p>
+        <p className="text-sm text-gray-500 mt-1">Review resident ID submissions and physical ID card requests</p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-4 gap-4 mb-8">
         {[
           { label: 'Pending Review', value: pending.length, icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50' },
           { label: 'Approved',       value: requests.filter(r=>r.status==='approved').length, icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50' },
           { label: 'Rejected',       value: requests.filter(r=>r.status==='rejected').length, icon: XCircle,      color: 'text-red-600',   bg: 'bg-red-50' },
+          { label: 'ID Card Requests', value: pendingIDReqs.length, icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl border border-gray-100 p-5 flex items-center gap-4">
             <div className={`w-10 h-10 ${s.bg} rounded-xl flex items-center justify-center`}>
@@ -71,11 +96,27 @@ export default function IDVerification() {
         ))}
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+        <button
+          onClick={() => setActiveTab('verifications')}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'verifications' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          ID Submissions {pending.length > 0 && <span className="ml-1 bg-yellow-400 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pending.length}</span>}
+        </button>
+        <button
+          onClick={() => setActiveTab('id_requests')}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'id_requests' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          Physical ID Requests {pendingIDReqs.length > 0 && <span className="ml-1 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingIDReqs.length}</span>}
+        </button>
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 size={24} className="animate-spin text-blue-500" />
         </div>
-      ) : (
+      ) : activeTab === 'verifications' ? (
         <>
           {pending.length > 0 && (
             <div className="mb-6">
@@ -84,15 +125,12 @@ export default function IDVerification() {
                 {pending.map(r => (
                   <div key={r.id} className="bg-white border border-yellow-200 rounded-2xl p-5 flex items-center justify-between">
                     <div>
-                      <p className="font-semibold text-gray-900">{r.fullName || 'Unknown'}</p>
+                      <p className="font-semibold text-gray-900">{r.fullName || r.seniorName || 'Unknown'}</p>
                       <p className="text-xs text-gray-500 mt-0.5">{r.email} · Submitted {r.submittedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <StatusBadge status={r.status} />
-                      <button
-                        onClick={() => setSelected(r)}
-                        className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline"
-                      >
+                      <button onClick={() => setSelected(r)} className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline">
                         <Eye size={14} /> Review
                       </button>
                     </div>
@@ -101,7 +139,6 @@ export default function IDVerification() {
               </div>
             </div>
           )}
-
           {reviewed.length > 0 && (
             <div>
               <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Reviewed</h2>
@@ -109,7 +146,7 @@ export default function IDVerification() {
                 {reviewed.map(r => (
                   <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-gray-800">{r.fullName || 'Unknown'}</p>
+                      <p className="font-medium text-gray-800">{r.fullName || r.seniorName || 'Unknown'}</p>
                       <p className="text-xs text-gray-400 mt-0.5">{r.email}</p>
                     </div>
                     <StatusBadge status={r.status} />
@@ -118,11 +155,71 @@ export default function IDVerification() {
               </div>
             </div>
           )}
-
           {requests.length === 0 && (
             <div className="text-center py-20 text-gray-400">
               <ShieldCheck size={40} className="mx-auto mb-3 opacity-40" />
               <p className="font-medium">No verification requests yet</p>
+            </div>
+          )}
+        </>
+      ) : (
+        /* Physical ID Requests from mobile app */
+        <>
+          {pendingIDReqs.length > 0 && (
+            <div className="mb-6">
+              <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Pending ID Card Requests</h2>
+              <div className="space-y-3">
+                {pendingIDReqs.map(r => (
+                  <div key={r.id} className="bg-white border border-blue-100 rounded-2xl p-5 flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-900">{r.seniorName || 'Unknown'}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        ID: {r.seniorId} · {r.address} · {r.contactNumber}
+                      </p>
+                      {r.reason && <p className="text-xs text-gray-400 mt-0.5 italic">Reason: {r.reason}</p>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={processing}
+                        onClick={() => handleIDRequestDecision(r.id, 'approved')}
+                        className="text-xs bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white px-3 py-1.5 rounded-xl font-semibold transition-colors"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        disabled={processing}
+                        onClick={() => handleIDRequestDecision(r.id, 'rejected')}
+                        className="text-xs bg-red-100 hover:bg-red-200 disabled:opacity-50 text-red-600 px-3 py-1.5 rounded-xl font-semibold transition-colors"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {idRequests.filter(r => r.status && r.status !== 'pending').length > 0 && (
+            <div>
+              <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Processed Requests</h2>
+              <div className="space-y-2">
+                {idRequests.filter(r => r.status && r.status !== 'pending').map(r => (
+                  <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-800">{r.seniorName || 'Unknown'}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">ID: {r.seniorId}</p>
+                    </div>
+                    <StatusBadge status={r.status} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {idRequests.length === 0 && (
+            <div className="text-center py-20 text-gray-400">
+              <FileText size={40} className="mx-auto mb-3 opacity-40" />
+              <p className="font-medium">No physical ID requests yet</p>
+              <p className="text-xs mt-1">Requests submitted from the mobile app will appear here</p>
             </div>
           )}
         </>
@@ -133,9 +230,12 @@ export default function IDVerification() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full">
             <h3 className="text-lg font-bold text-gray-900 mb-1">Review ID Submission</h3>
-            <p className="text-sm text-gray-500 mb-6">{selected.fullName} · {selected.email}</p>
+            <p className="text-sm text-gray-500 mb-6">{selected.fullName || selected.seniorName} · {selected.email}</p>
             {selected.idImageUrl && (
               <img src={selected.idImageUrl} alt="ID" className="w-full rounded-xl border border-gray-200 mb-6 object-cover" />
+            )}
+            {selected.imageBase64 && (
+              <img src={`data:image/jpeg;base64,${selected.imageBase64}`} alt="ID" className="w-full rounded-xl border border-gray-200 mb-6 object-cover" />
             )}
             <div className="flex gap-3">
               <button

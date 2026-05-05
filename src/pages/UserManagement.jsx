@@ -125,10 +125,13 @@ export default function UserManagement() {
     setTimeout(() => setToastMsg(""), 3000);
   };
 
-  // ── Approve: PENDING → ACTIVE ──────────────────────────────────────────
+  // ── Approve: PENDING → ACTIVE + set isVerified = true ─────────────────
   const handleApprove = async (userId, userName) => {
-    await updateDoc(doc(db, "users", userId), { status: "ACTIVE" });
-    showToast(`✓ ${userName} approved successfully.`, "success");
+    await updateDoc(doc(db, "users", userId), {
+      status: "ACTIVE",
+      isVerified: true,
+    });
+    showToast(`✓ ${userName} approved and verified successfully.`, "success");
   };
 
   // ── Disapprove: delete from Firestore ─────────────────────────────────

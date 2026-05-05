@@ -3,17 +3,196 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // This rule allows anyone with your Firestore database reference to view, edit,
-    // and delete all data in your Firestore database. It is useful for getting
-    // started, but it is configured to expire after 30 days because it
-    // leaves your app open to attackers. At that time, all client
-    // requests to your Firestore database will be denied.
-    //
-    // Make sure to write security rules for your app before that time, or else
-    // all client requests to your Firestore database will be denied until you Update
-    // your rules
-    match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2026, 4, 8);
+    // ─────────────────────────────────────────────────────────────────────────
+    // HELPER FUNCTIONS
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Returns true if the caller has ANY admin document in /admins
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
+
+    // Returns the admin role string, or '' if not an admin
+    function adminRole() {
+      return isAdmin()
+        ? get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role
+        : '';
+    }
+
+    // Super admin only
+    function isSuperAdmin() {
+      return adminRole() == 'super_admin';
+    }
+
+    // Sub admin OR super admin
+    function isSubOrSuperAdmin() {
+      return adminRole() in ['sub_admin', 'super_admin'];
+    }
+
+    // Senior citizen (mobile app user) — has a document in /users
+    function isSenior() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // The caller owns this document (uid field matches)
+    function isOwner() {
+      return request.auth != null
+        && resource.data.uid == request.auth.uid;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // /admins — Admin accounts
+    // ─────────────────────────────────────────────────────────────────────────
+    match /admins/{uid} {
+      // Each admin can only read their own document (to load role on login)
+      allow read: if request.auth != null && request.auth.uid == uid;
+      // Never allow client writes — use Firebase Console or Admin SDK only
+      allow write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // /users — Senior citizen profiles
+    //   • Mobile app creates + reads its own document
+    //   • super_admin can read, update, delete all (User Management page)
+    // ─────────────────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      // Senior can read their own profile; super admin reads all
+      allow read: if request.auth != null
+        && (request.auth.uid == userId || isSuperAdmin());
+
+      // Mobile app creates the document on registration
+      allow create: if request.auth != null
+        && request.auth.uid == userId;
+
+      // Senior updates their own profile; super admin updates any (approve/suspend)
+      allow update: if request.auth != null
+        && (request.auth.uid == userId || isSuperAdmin());
+
+      // Only super admin can delete (disapprove)
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // /editorial_health — Announcements published by admin, read by mobile app
+    //   • sub_admin or super_admin writes (Announcements page)
+    //   • Any authenticated user reads (mobile app home screen)
+    // ─────────────────────────────────────────────────────────────────────────
+    match /editorial_health/{docId} {
+      allow read:   if request.auth != null;
+      allow create: if isSubOrSuperAdmin();
+      allow update: if isSubOrSuperAdmin();
+      allow delete: if isSubOrSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // /emergencies — SOS alerts sent from mobile app, shown on admin SOS Map
+    //   • Any authenticated senior creates (SOS button)
+    //   • sub_admin or super_admin reads + updates status (dispatch / resolve)
+    //   • Senior can read their own alert (to show status feedback in app)
+    // ─────────────────────────────────────────────────────────────────────────
+    match /emergencies/{docId} {
+      allow create: if request.auth != null;
+
+      allow read: if request.auth != null
+        && (isOwner() || isSubOrSuperAdmin());
+
+      // Only admin can update status (dispatched / resolved)
+      allow update: if isSubOrSuperAdmin();
+
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // /appointments — Booked by mobile app, managed by admin Health Centers
+    //   • Any authenticated user creates
+    //   • Senior reads their own; sub/super admin reads + updates all
+    // ─────────────────────────────────────────────────────────────────────────
+    match /appointments/{docId} {
+      allow create: if request.auth != null;
+
+      allow read: if request.auth != null
+        && (isOwner() || isSubOrSuperAdmin());
+
+      // Admin confirms / completes / cancels
+      allow update: if isSubOrSuperAdmin();
+
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // /medications — Created by admin Health Centers, read by mobile app
+    //   • sub/super admin writes (HealthCenters page Add Medication)
+    //   • Senior reads their own medication records
+    // ─────────────────────────────────────────────────────────────────────────
+    match /medications/{docId} {
+      allow read: if request.auth != null
+        && (isOwner() || isSubOrSuperAdmin());
+
+      allow create: if isSubOrSuperAdmin();
+      allow update: if isSubOrSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // /id_verifications — ID image submissions reviewed by super admin
+    //   • Senior creates (submits their ID for review)
+    //   • Senior reads their own (to check status)
+    //   • super_admin reads + updates all (approve / reject)
+    // ─────────────────────────────────────────────────────────────────────────
+    match /id_verifications/{docId} {
+      allow create: if request.auth != null;
+
+      allow read: if request.auth != null
+        && (isOwner() || isSuperAdmin());
+
+      // Super admin approves or rejects
+      allow update: if isSuperAdmin();
+
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // /id_requests — Physical ID card requests from mobile app
+    //   • Senior creates (Account page "Request Physical ID" button)
+    //   • Senior reads their own (to check if approved)
+    //   • super_admin reads + updates all (IDVerification → Physical ID Requests tab)
+    // ─────────────────────────────────────────────────────────────────────────
+    match /id_requests/{docId} {
+      allow create: if request.auth != null;
+
+      allow read: if request.auth != null
+        && (isOwner() || isSuperAdmin());
+
+      allow update: if isSuperAdmin();
+
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // /health_centers — Managed by admin, read by mobile app
+    //   • sub/super admin writes (HealthCenters page)
+    //   • Any authenticated user reads (mobile app healthcare screen)
+    // ─────────────────────────────────────────────────────────────────────────
+    match /health_centers/{docId} {
+      allow read:   if request.auth != null;
+      allow create: if isSubOrSuperAdmin();
+      allow update: if isSubOrSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // /sos_events — Legacy collection (keep for backward compat if any old
+    //               data exists); same rules as /emergencies
+    // ─────────────────────────────────────────────────────────────────────────
+    match /sos_events/{docId} {
+      allow create: if request.auth != null;
+      allow read:   if request.auth != null
+        && (isOwner() || isSubOrSuperAdmin());
+      allow update: if isSubOrSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
   }
 }

@@ -1,7 +1,7 @@
 import { db } from "../lib/firebase";
-import { collection, onSnapshot, orderBy, query, doc, updateDoc } from "firebase/firestore";
+import { collection, onSnapshot, orderBy, query, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import React, { useState, useEffect } from 'react';
-import { MapPin, Crosshair } from 'lucide-react';
+import { MapPin, Crosshair, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -51,23 +51,38 @@ const myLocationIcon = L.divIcon({
 export default function SOSMap() {
     const [myLocation, setMyLocation] = useState(null);
     const [isLocating, setIsLocating] = useState(false);
+    // Listen to BOTH "emergencies" (mobile FE collection) AND legacy "sos_events"
     const [liveAlerts, setLiveAlerts] = useState([]);
     const mapCenter = [14.7080, 120.9860];
 
     useEffect(() => {
-        const q = query(collection(db, "emergencies"), orderBy("createdAt", "desc"));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setLiveAlerts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        // Primary: "emergencies" collection written by mobile app sendSOSAlert()
+        const qEmergencies = query(collection(db, "emergencies"), orderBy("createdAt", "desc"));
+        const unsubEmergencies = onSnapshot(qEmergencies, (snapshot) => {
+            const alerts = snapshot.docs.map(d => ({ id: d.id, _source: 'emergencies', ...d.data() }));
+            setLiveAlerts(prev => {
+                const filtered = prev.filter(a => a._source !== 'emergencies');
+                return [...alerts, ...filtered];
+            });
         });
-        return () => unsubscribe();
+
+        return () => unsubEmergencies();
     }, []);
 
-    const handleDispatch = async (alertId) => {
-        await updateDoc(doc(db, "emergencies", alertId), { status: "dispatched" });
+    const handleDispatch = async (alertId, source) => {
+        const collName = source || 'emergencies';
+        await updateDoc(doc(db, collName, alertId), {
+            status: "dispatched",
+            dispatchedAt: serverTimestamp(),
+        });
     };
 
-    const handleResolve = async (alertId) => {
-        await updateDoc(doc(db, "emergencies", alertId), { status: "resolved" });
+    const handleResolve = async (alertId, source) => {
+        const collName = source || 'emergencies';
+        await updateDoc(doc(db, collName, alertId), {
+            status: "resolved",
+            resolvedAt: serverTimestamp(),
+        });
     };
 
     const handleLocateMe = () => {
@@ -86,7 +101,6 @@ export default function SOSMap() {
 
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden font-sans bg-white">
-            {/* Page title bar — NO duplicate Bell/Settings/Avatar (those are in Header) */}
             <div className="bg-white border-b border-gray-100 px-6 py-4 flex-none z-2000">
                 <h1 className="text-2xl font-bold text-gray-900">SOS Map</h1>
                 <p className="text-sm text-gray-500">Real-time emergency alerts in Valenzuela City</p>
@@ -182,7 +196,7 @@ export default function SOSMap() {
                                 </div>
                                 {alert.status === "pending" && (
                                     <div className="flex gap-2">
-                                        <button onClick={() => handleDispatch(alert.id)}
+                                        <button onClick={() => handleDispatch(alert.id, alert._source)}
                                             className="flex-1 bg-white hover:bg-gray-50 text-red-700 py-2.5 rounded-xl text-sm font-bold transition-colors">
                                             Dispatch Responder
                                         </button>
@@ -194,7 +208,7 @@ export default function SOSMap() {
                                     </div>
                                 )}
                                 {alert.status === "dispatched" && (
-                                    <button onClick={() => handleResolve(alert.id)}
+                                    <button onClick={() => handleResolve(alert.id, alert._source)}
                                         className="w-full bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-xl text-sm font-bold transition-colors">
                                         Mark Resolved
                                     </button>

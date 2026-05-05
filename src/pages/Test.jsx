@@ -23,7 +23,7 @@ function Test() {
           User: {user ? user.email : "None (not logged in)"}
         </div>
       )}
-      <Text>Test Page</Text>
+      <h1>Test Page</h1>
     </div>
   );
 }

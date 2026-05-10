@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Plus, AlignLeft,
-  Clock, ChevronDown,
+  ChevronDown,
   Send, CheckCircle2, Edit3, AlertCircle,
   X, Loader2, MapPin, Calendar, FileText
 } from 'lucide-react';

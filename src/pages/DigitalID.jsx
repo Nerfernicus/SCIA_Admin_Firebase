@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  CreditCard, CheckCircle2, Clock, XCircle, Eye, Loader2,
+  CreditCard, CheckCircle2, Clock as ClockIcon, XCircle, Eye, Loader2,
   Download, Send, ShieldCheck, User2, RefreshCw,
 } from 'lucide-react';
 import { db } from '../lib/firebase';
@@ -246,7 +246,7 @@ export default function DigitalID() {
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4 mb-8">
         {[
-          { label: 'Pending',    value: pending.length,         icon: Clock,         color: 'text-yellow-600', bg: 'bg-yellow-50' },
+          { label: 'Pending',    value: pending.length,         icon: ClockIcon,         color: 'text-yellow-600', bg: 'bg-yellow-50' },
           { label: 'Verified',   value: verified.length,        icon: CheckCircle2,  color: 'text-green-600',  bg: 'bg-green-50'  },
           { label: 'Rejected',   value: rejected.length,        icon: XCircle,       color: 'text-red-600',    bg: 'bg-red-50'    },
           { label: 'IDs Issued', value: releasedIDs.length,     icon: CreditCard,    color: 'text-blue-600',   bg: 'bg-blue-50'   },

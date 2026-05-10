@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Building2, BriefcaseMedical, Package,
-    MapPin, Calendar, Pill, Clock, CheckCircle2,
+    MapPin, Calendar, Pill, Clock as ClockIcon, CheckCircle2,
     XCircle, User, Phone, ChevronDown, X, Check,
     Loader2, AlertCircle
 } from 'lucide-react';
@@ -374,7 +374,7 @@ function CenterDetail({ center, onClose }) {
                     </div>
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Hours</p>
-                        <p className="text-xs font-medium text-gray-700 mt-0.5 flex items-center gap-1"><Clock size={10}/>{center.hours}</p>
+                        <p className="text-xs font-medium text-gray-700 mt-0.5 flex items-center gap-1"><ClockIcon size={10}/>{center.hours}</p>
                     </div>
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Phone</p>

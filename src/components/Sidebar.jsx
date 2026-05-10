@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   LayoutDashboard, Map, Megaphone, Users,
   ShieldCheck, Building2, LogOut, Crown, User2, CreditCard,
-  PanelLeftClose, PanelLeftOpen, FileText,
+  PanelLeftClose, PanelLeftOpen, FileText, IdCard,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -21,6 +21,7 @@ export default function Sidebar({ children }) {
     { key: 'dashboard',      icon: LayoutDashboard, path: '/' },
     { key: 'idVerification', icon: ShieldCheck,     path: '/verification' },
     { key: 'idRelease',      icon: CreditCard,      path: '/id-release' },
+    { key: 'digitalId',      icon: IdCard,          path: '/digital-id' },
     { key: 'userManagement', icon: Users,           path: '/users' },
     { key: 'analytics',      icon: LayoutDashboard, path: '/analytics' },
     { key: 'announcements',  icon: Megaphone,       path: '/announcements' },
@@ -28,6 +29,7 @@ export default function Sidebar({ children }) {
 
   const subAdminItems = [
     { key: 'dashboard',     icon: LayoutDashboard, path: '/' },
+    { key: 'digitalId',     icon: IdCard,          path: '/digital-id' },
     { key: 'announcements', icon: Megaphone,       path: '/announcements' },
     { key: 'sosMap',        icon: Map,             path: '/sos' },
     { key: 'healthCenters', icon: Building2,       path: '/health-centers' },
@@ -173,4 +175,3 @@ export default function Sidebar({ children }) {
     </div>
   );
 }
-// add

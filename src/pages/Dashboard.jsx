@@ -30,7 +30,7 @@ function AnnouncementBanner({ announcements }) {
   const timeAgo = diff < 60 ? `${diff}m ago` : diff < 1440 ? `${Math.round(diff/60)}h ago` : `${Math.round(diff/1440)}d ago`;
 
   return (
-    <div className="relative bg-linear-to-r from-[#0f52ba] to-blue-500 rounded-2xl px-5 py-4 shadow-md shadow-blue-500/20 flex items-start gap-4 overflow-hidden">
+    <div className="relative bg-gradient-to-r from-[#0f52ba] to-blue-500 rounded-2xl px-5 py-4 shadow-md shadow-blue-500/20 flex items-start gap-4 overflow-hidden">
       <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
       <div className="absolute -right-2 -bottom-6 w-20 h-20 bg-white/5 rounded-full pointer-events-none" />
       <div className="bg-white/20 rounded-xl p-2.5 shrink-0 mt-0.5">

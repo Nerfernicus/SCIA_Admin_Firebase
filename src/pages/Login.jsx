@@ -52,7 +52,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-900 via-[#0a2d6e] to-[#0f52ba] flex items-center justify-center p-4 font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#0a2d6e] to-[#0f52ba] flex items-center justify-center p-4 font-sans">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-300/10 rounded-full blur-3xl" />
@@ -60,7 +60,7 @@ export default function Login() {
 
       <div className="relative w-full max-w-md">
         <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl shadow-black/30 overflow-hidden">
-          <div className="h-1.5 bg-linear-to-r from-[#0f52ba] via-blue-400 to-blue-600" />
+          <div className="h-1.5 bg-gradient-to-r from-[#0f52ba] via-blue-400 to-blue-600" />
           <div className="p-10">
             <div className="flex items-center gap-3 mb-8">
               <div className="w-11 h-11 bg-[#0f52ba] rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/40">

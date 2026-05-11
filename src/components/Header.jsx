@@ -275,7 +275,7 @@ function AdminProfileModal({ onClose }) {
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md z-10 overflow-hidden">
 
-        <div className="h-24 bg-linear-to-r from-[#0f52ba] to-blue-400 relative">
+        <div className="h-24 bg-gradient-to-r from-[#0f52ba] to-blue-400 relative">
           <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors">
             <X size={20} />
           </button>

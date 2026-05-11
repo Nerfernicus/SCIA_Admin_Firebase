@@ -21,6 +21,7 @@ export default function Sidebar({ children }) {
     { key: 'dashboard',      icon: LayoutDashboard, path: '/' },
     { key: 'idVerification', icon: ShieldCheck,     path: '/verification' },
     { key: 'digitalId',      icon: Contact,         path: '/digital-id' },
+    { key: 'idRelease',      icon: CreditCard,      path: '/id-release' },
     { key: 'userManagement', icon: Users,           path: '/users' },
     { key: 'analytics',      icon: LayoutDashboard, path: '/analytics' },
     { key: 'announcements',  icon: Megaphone,       path: '/announcements' },
@@ -29,6 +30,7 @@ export default function Sidebar({ children }) {
   const subAdminItems = [
     { key: 'dashboard',     icon: LayoutDashboard, path: '/' },
     { key: 'digitalId',     icon: Contact,         path: '/digital-id' },
+    { key: 'idRelease',     icon: CreditCard,      path: '/id-release' },
     { key: 'announcements', icon: Megaphone,       path: '/announcements' },
     { key: 'sosMap',        icon: Map,             path: '/sos' },
     { key: 'healthCenters', icon: Building2,       path: '/health-centers' },

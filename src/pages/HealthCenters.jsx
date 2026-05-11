@@ -356,7 +356,7 @@ function CenterDetail({ center, onClose }) {
                         className="w-full h-full object-cover"
                         onError={e => { e.target.src = 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600&q=80'; }}
                     />
-                    <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
                     <button onClick={onClose}
                         className="absolute top-4 right-4 w-9 h-9 bg-white/20 backdrop-blur rounded-xl text-white hover:bg-white/30 flex items-center justify-center">
                         <X size={18} />
@@ -575,7 +575,7 @@ export default function HealthCenters() {
                                 className="w-full h-full object-cover"
                                 onError={e => { e.target.src = 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600&q=80'; }}
                             />
-                            <div className="absolute inset-0 bg-linear-to-t from-black/50 to-transparent" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                             {/* Gen T badge */}
                             <div className="absolute top-3 left-3">
                                 <span className="bg-white text-[#0f52ba] text-[10px] font-bold uppercase px-2.5 py-1 rounded-full shadow-sm">

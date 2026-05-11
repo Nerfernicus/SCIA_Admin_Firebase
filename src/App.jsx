@@ -13,6 +13,7 @@ import UserManagement from './pages/UserManagement';
 import SOSMap         from './pages/SOSMap';
 import AccessDenied   from './pages/Unauthorized';
 import IDVerification from './pages/IDVerification';
+import IDRelease      from './pages/IDRelease';
 import Analytics      from './pages/Analytics';
 import DigitalID      from './pages/DigitalID';
 
@@ -41,6 +42,14 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={['super_admin']}>
             <IDVerification />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'id-release',
+        element: (
+          <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
+            <IDRelease />
           </ProtectedRoute>
         ),
       },

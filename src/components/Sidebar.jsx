@@ -20,7 +20,6 @@ export default function Sidebar({ children }) {
   const superAdminItems = [
     { key: 'dashboard',      icon: LayoutDashboard, path: '/' },
     { key: 'idVerification', icon: ShieldCheck,     path: '/verification' },
-    { key: 'idRelease',      icon: CreditCard,      path: '/id-release' },
     { key: 'digitalId',      icon: Contact,         path: '/digital-id' },
     { key: 'userManagement', icon: Users,           path: '/users' },
     { key: 'analytics',      icon: LayoutDashboard, path: '/analytics' },

@@ -13,7 +13,6 @@ import UserManagement from './pages/UserManagement';
 import SOSMap         from './pages/SOSMap';
 import AccessDenied   from './pages/Unauthorized';
 import IDVerification from './pages/IDVerification';
-import IDRelease      from './pages/IDRelease';
 import Analytics      from './pages/Analytics';
 import DigitalID      from './pages/DigitalID';
 
@@ -46,14 +45,7 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: 'id-release',
-        element: (
-          <ProtectedRoute allowedRoles={['super_admin']}>
-            <IDRelease />
-          </ProtectedRoute>
-        ),
-      },
-      {
+        // DigitalID is now the unified ID management page (tabs: ID Release + Digital IDs List)
         path: 'digital-id',
         element: (
           <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>

@@ -102,17 +102,18 @@ export default function SOSMap() {
     return () => unsub();
   }, []);
 
-  // Detect repeat SOS users (same name or userId appearing more than once)
+  // Detect repeat SOS users (same userId/uid or name appearing more than once)
   const repeatKeys = (() => {
     const counts = {};
     liveAlerts.forEach(a => {
-      const key = a.userId || a.name;
+      // Mobile app writes `uid`; admin SOSMap previously wrote `userId` — check both
+      const key = a.userId || a.uid || a.name;
       if (key) counts[key] = (counts[key] || 0) + 1;
     });
     return new Set(Object.keys(counts).filter(k => counts[k] > 1));
   })();
 
-  const isRepeat = (a) => repeatKeys.has(a.userId || a.name);
+  const isRepeat = (a) => repeatKeys.has(a.userId || a.uid || a.name);
 
   function showToast(msg) {
     setToast(msg);

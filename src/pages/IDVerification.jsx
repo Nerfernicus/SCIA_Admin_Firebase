@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, Clock as ClockIcon, CheckCircle2, XCircle, Eye, Loader2, FileText, Trash2, AlertTriangle, X } from 'lucide-react';
+import { ShieldCheck, Clock as ClockIcon, CheckCircle2, XCircle, Eye, Loader2, FileText, Trash2, AlertTriangle, X, User } from 'lucide-react';
 import { db } from '../lib/firebase';
 import {
   collection, onSnapshot, query, orderBy,
@@ -105,10 +105,25 @@ export default function IDVerification() {
   async function handleDecision(id, decision) {
     setProcessing(true);
     try {
+      // Update the id_verifications record
       await updateDoc(doc(db, 'id_verifications', id), {
         status: decision,
         reviewedAt: serverTimestamp(),
       });
+
+      // If approved and the record has a uid, mark the user as verified in the users collection
+      if (decision === 'approved' && selected?.uid) {
+        try {
+          await updateDoc(doc(db, 'users', selected.uid), {
+            isVerified: true,
+            status: 'VERIFIED',
+            verifiedAt: serverTimestamp(),
+          });
+        } catch (e) {
+          console.warn('Could not update user isVerified:', e);
+        }
+      }
+
       setSelected(null);
       showToast(`Request ${decision} successfully.`);
     } finally {
@@ -177,7 +192,7 @@ export default function IDVerification() {
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <ShieldCheck size={24} className="text-[#0f52ba]" /> ID Verification
         </h1>
-        <p className="text-sm text-gray-500 mt-1">Review resident ID submissions and physical ID card requests</p>
+        <p className="text-sm text-gray-500 mt-1">Verify resident OSCA IDs submitted at signup · Manage physical ID card requests</p>
       </div>
 
       {/* Stats */}
@@ -256,7 +271,7 @@ export default function IDVerification() {
                           )}
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          {r.email} · Submitted {r.submittedAt?.toDate?.()?.toLocaleDateString?.() || '—'}
+                          {r.idNumber ? `OSCA ID: ${r.idNumber}` : r.email} · Submitted {r.submittedAt?.toDate?.()?.toLocaleDateString?.() || '—'}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 ml-4 shrink-0">
@@ -305,7 +320,7 @@ export default function IDVerification() {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-400 mt-0.5">{r.email}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{r.idNumber ? `OSCA ID: ${r.idNumber}` : r.email}</p>
                       </div>
                       <div className="flex items-center gap-2 ml-4 shrink-0">
                         <StatusBadge status={r.status} />
@@ -357,7 +372,7 @@ export default function IDVerification() {
                           )}
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          ID: {r.seniorId} · {r.address} · {r.contactNumber}
+                          {r.seniorId ? `OSCA ID: ${r.seniorId}` : ''} {r.address ? `· 📍 ${r.address}` : ''} {r.contactNumber ? `· 📞 ${r.contactNumber}` : ''}
                         </p>
                         {r.reason && <p className="text-xs text-gray-400 mt-0.5 italic">Reason: {r.reason}</p>}
                       </div>
@@ -413,7 +428,7 @@ export default function IDVerification() {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-400 mt-0.5">ID: {r.seniorId}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{r.seniorId ? `OSCA ID: ${r.seniorId}` : ''}</p>
                       </div>
                       <div className="flex items-center gap-2 ml-4 shrink-0">
                         <StatusBadge status={r.status} />
@@ -446,14 +461,50 @@ export default function IDVerification() {
       {selected && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full">
-            <h3 className="text-lg font-bold text-gray-900 mb-1">Review ID Submission</h3>
-            <p className="text-sm text-gray-500 mb-6">{selected.fullName || selected.seniorName} · {selected.email}</p>
+            <div className="flex items-center gap-3 mb-1">
+              <ShieldCheck size={22} className="text-[#0f52ba]" />
+              <h3 className="text-lg font-bold text-gray-900">OSCA ID Verification</h3>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">
+              Verify that the ID image matches the OSCA ID number the user registered with.
+            </p>
+
+            {/* User info */}
+            <div className="bg-gray-50 rounded-2xl px-4 py-3 mb-5 space-y-1.5">
+              <div className="flex items-center gap-2">
+                <User size={14} className="text-gray-400" />
+                <span className="text-sm font-bold text-gray-800">{selected.fullName || selected.seniorName || 'Unknown'}</span>
+              </div>
+              {selected.idNumber && (
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={14} className="text-blue-400" />
+                  <span className="text-xs text-gray-600">OSCA ID registered: <strong className="text-blue-700">{selected.idNumber}</strong></span>
+                </div>
+              )}
+              {selected.email && (
+                <p className="text-xs text-gray-400 pl-5">{selected.email}</p>
+              )}
+              {selected.submittedAt && (
+                <p className="text-xs text-gray-400 pl-5">
+                  Submitted: {selected.submittedAt?.toDate?.()?.toLocaleDateString?.() || '—'}
+                </p>
+              )}
+            </div>
+
+            {/* ID image */}
             {selected.idImageUrl && (
-              <img src={selected.idImageUrl} alt="ID" className="w-full rounded-xl border border-gray-200 mb-6 object-cover" />
+              <img src={selected.idImageUrl} alt="ID" className="w-full rounded-xl border border-gray-200 mb-5 object-cover" />
             )}
             {selected.imageBase64 && (
-              <img src={`data:image/jpeg;base64,${selected.imageBase64}`} alt="ID" className="w-full rounded-xl border border-gray-200 mb-6 object-cover" />
+              <img src={`data:image/jpeg;base64,${selected.imageBase64}`} alt="ID" className="w-full rounded-xl border border-gray-200 mb-5 object-cover" />
             )}
+            {!selected.idImageUrl && !selected.imageBase64 && (
+              <div className="w-full rounded-xl border border-dashed border-gray-200 mb-5 py-8 flex flex-col items-center gap-2 text-gray-400">
+                <ShieldCheck size={28} className="opacity-30" />
+                <p className="text-xs">No ID image attached</p>
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button
                 disabled={processing}
@@ -467,7 +518,7 @@ export default function IDVerification() {
                 onClick={() => handleDecision(selected.id, 'approved')}
                 className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm transition-colors disabled:opacity-50"
               >
-                {processing ? 'Saving…' : 'Approve'}
+                {processing ? 'Saving…' : '✓ Approve & Verify'}
               </button>
             </div>
             <button onClick={() => setSelected(null)} className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600">Cancel</button>

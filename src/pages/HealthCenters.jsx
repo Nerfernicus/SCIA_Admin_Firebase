@@ -90,6 +90,10 @@ function AppointmentRow({ appt, onUpdate }) {
         cancelled: 'bg-red-100 text-red-700',
     }[appt.status] || 'bg-gray-100 text-gray-600';
 
+    // Support both admin-created (patientName/reason) and mobile-submitted (seniorName/type)
+    const displayName   = appt.patientName || appt.seniorName || 'Unknown Patient';
+    const displayReason = appt.reason      || appt.type        || 'General Consultation';
+
     return (
         <div className="flex items-start justify-between p-4 rounded-2xl bg-gray-50 border border-gray-100 hover:bg-white transition-colors">
             <div className="flex items-start gap-3">
@@ -97,11 +101,12 @@ function AppointmentRow({ appt, onUpdate }) {
                     <User size={16} className="text-[#0f52ba]" />
                 </div>
                 <div>
-                    <p className="font-bold text-gray-900 text-sm">{appt.patientName || 'Unknown Patient'}</p>
+                    <p className="font-bold text-gray-900 text-sm">{displayName}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                        {appt.date} {appt.time && `at ${appt.time}`} — {appt.reason || 'General Consultation'}
+                        {appt.date} {appt.time && `at ${appt.time}`} — {displayReason}
                     </p>
                     {appt.notes && <p className="text-xs text-gray-400 mt-0.5 italic">{appt.notes}</p>}
+                    {appt.seniorId && <p className="text-xs text-gray-400 mt-0.5">ID: {appt.seniorId}</p>}
                 </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -318,7 +323,8 @@ function CenterDetail({ center, onClose }) {
         const unsubA = onSnapshot(qA, snap => {
             setAppointments(snap.docs
                 .map(d => ({ id: d.id, ...d.data() }))
-                .filter(a => a.centerId === center.id));
+                // Show if centerId matches OR no centerId set (mobile-submitted)
+                .filter(a => a.centerId === center.id || (!a.centerId && center.id === 'gen-t-1')));
             setLoadingAppt(false);
         }, () => setLoadingAppt(false));
 

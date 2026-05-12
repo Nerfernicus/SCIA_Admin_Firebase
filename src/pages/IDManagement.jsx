@@ -16,7 +16,7 @@ import {
   ShieldCheck, Clock as ClockIcon, CheckCircle2, XCircle, Eye,
   Loader2, Trash2, AlertTriangle, X, User, Search, Database,
   FileImage, RotateCcw, FileText, MapPin, Phone, CreditCard,
-  Globe, WifiOff, Send, Bell, Package, ChevronRight,
+  Globe, WifiOff, Send, Bell, Package, ChevronRight, RefreshCw,
 } from 'lucide-react';
 import { db, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -439,83 +439,133 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
   );
 }
 
-/* ─── OSCA ID Card (flippable) ───────────────────────────────────────────────── */
+/* ─── OSCA ID Card (flippable) — redesigned to match real Valenzuela OSCA card ── */
 function OSCAIDCard({ record }) {
   const [flipped, setFlipped] = useState(false);
-  const name       = (record.seniorName || record.fullName || 'UNKNOWN').toUpperCase();
-  const address    = record.address || '—';
-  const dob        = record.dob || record.dateOfBirth || '—';
-  const sex        = record.sex || '—';
-  const controlNo  = record.controlNumber || record.seniorId || (record.id?.slice(-6).toUpperCase()) || '——————';
-  const dateIssued = record.releasedAt?.toDate?.()?.toLocaleDateString('en-PH') || new Date().toLocaleDateString('en-PH');
+
+  const name      = (record.seniorName || record.fullName || 'UNKNOWN').toUpperCase();
+  const address   = record.address || '—';
+  const dob       = record.dob || record.dateOfBirth || '—';
+  const sex       = (record.sex || '—').toUpperCase();
+  const controlNo = record.controlNumber || record.seniorId || (record.id?.slice(-6).toUpperCase()) || '——————';
+  const dateIssued = record.releasedAt?.toDate?.()
+    ? record.releasedAt.toDate().toLocaleDateString('en-PH', { month:'2-digit', day:'2-digit', year:'numeric' })
+    : new Date().toLocaleDateString('en-PH', { month:'2-digit', day:'2-digit', year:'numeric' });
+
+  // Format DOB as MM-DD-YY to match the real card style
+  let dobFormatted = dob;
+  if (dob && dob !== '—') {
+    const isoM   = dob.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const slashM = dob.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (isoM)   dobFormatted = `${isoM[2]}-${isoM[3]}-${isoM[1].slice(2)}`;
+    else if (slashM) dobFormatted = `${slashM[1].padStart(2,'0')}-${slashM[2].padStart(2,'0')}-${slashM[3].slice(2)}`;
+  }
+
+  const CARD_W = 360, CARD_H = 228;
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <div className="cursor-pointer select-none" style={{ perspective: 800, width: 340, height: 200 }} onClick={() => setFlipped(f => !f)} title="Click to flip">
-        <div style={{ position: 'relative', width: '100%', height: '100%', transformStyle: 'preserve-3d', transition: 'transform 0.6s cubic-bezier(0.4,0,0.2,1)', transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}>
-          {/* FRONT */}
-          <div style={{ position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', fontFamily: 'Arial, sans-serif', border: '1.5px solid #ccc', borderRadius: 10, overflow: 'hidden', background: '#fff', boxShadow: '0 4px 18px rgba(0,0,0,0.12)' }}>
-            <div style={{ background: '#0f52ba', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 34, height: 34, background: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 11, color: '#0f52ba', fontWeight: 'bold' }}>🇵🇭</span>
+      <div className="cursor-pointer select-none" style={{ perspective: 1000, width: CARD_W, height: CARD_H }} onClick={() => setFlipped(f => !f)} title="Click to flip">
+        <div style={{ position: 'relative', width: '100%', height: '100%', transformStyle: 'preserve-3d', transition: 'transform 0.65s cubic-bezier(0.4,0,0.2,1)', transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}>
+
+          {/* ══ FRONT ══ */}
+          <div style={{ position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', fontFamily: "'Times New Roman', Times, serif", borderRadius: 10, overflow: 'hidden', background: '#ffffff', boxShadow: '0 6px 24px rgba(0,0,0,0.18)', border: '1px solid #bbb' }}>
+
+            {/* Header */}
+            <div style={{ background: 'linear-gradient(90deg, #0a3d91 0%, #1155cc 60%, #0a3d91 100%)', padding: '7px 10px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '3px solid #c8102e' }}>
+              <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#fff', border: '2px solid #ddd', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 20 }}>🏛️</span>
               </div>
-              <div style={{ color: '#fff' }}>
-                <div style={{ fontSize: 7, opacity: 0.85 }}>Republic of the Philippines</div>
-                <div style={{ fontSize: 11, fontWeight: 'bold' }}>CITY OF VALENZUELA</div>
-                <div style={{ fontSize: 7, opacity: 0.85 }}>Office of the Senior Citizens Affairs (OSCA)</div>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: 7.5, letterSpacing: 0.3 }}>Republic of the Philippines</div>
+                <div style={{ color: '#FFD700', fontSize: 13.5, fontWeight: 'bold', letterSpacing: 0.5, fontFamily: 'Impact, Arial Black, sans-serif', textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>CITY OF VALENZUELA</div>
+                <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: 7.5, letterSpacing: 0.2 }}>Office of the Senior Citizens Affairs (OSCA)</div>
               </div>
-              <div style={{ marginLeft: 'auto' }}>
-                <div style={{ width: 28, height: 28, background: 'rgba(255,255,255,0.2)', borderRadius: 4, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                  <div style={{ flex: 1, background: '#e63946' }} />
-                  <div style={{ flex: 1, background: '#fff' }} />
-                  <div style={{ flex: 1, background: '#0f52ba' }} />
+              <div style={{ width: 36, height: 36, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2, padding: 3, background: 'rgba(255,255,255,0.15)', borderRadius: 4 }}>
+                <div style={{ height: 10, background: '#e63946', borderRadius: 2 }} />
+                <div style={{ height: 10, background: '#fff', borderRadius: 2 }} />
+                <div style={{ height: 10, background: '#0a3d91', borderRadius: 2 }} />
+              </div>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '9px 10px 6px', display: 'flex', gap: 10 }}>
+              <div style={{ width: 68, height: 84, flexShrink: 0, background: '#e9eef5', border: '1.5px solid #aab', borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, color: '#7a8ba0', overflow: 'hidden' }}>
+                {record.photoURL ? <img src={record.photoURL} alt="photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '👤'}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 5 }}>
+                  <span style={{ fontSize: 8, color: '#444', minWidth: 38 }}>Name:</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 'bold', color: '#111', fontFamily: "'Courier New', Courier, monospace", letterSpacing: 0.5 }}>{name}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4, marginBottom: 5 }}>
+                  <span style={{ fontSize: 8, color: '#444', minWidth: 38, flexShrink: 0 }}>Address:</span>
+                  <span style={{ fontSize: 9, color: '#222', lineHeight: 1.3, fontFamily: "'Courier New', Courier, monospace" }}>{address}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 4 }}>
+                  <div style={{ fontSize: 10, fontWeight: 'bold', color: '#111', fontFamily: "'Courier New', Courier, monospace", letterSpacing: 0.3 }}>{dobFormatted}</div>
+                  <div style={{ fontSize: 10, fontWeight: 'bold', color: '#111', fontFamily: "'Courier New', Courier, monospace" }}>{sex}</div>
+                  <div style={{ fontSize: 10, fontWeight: 'bold', color: '#111', fontFamily: "'Courier New', Courier, monospace", letterSpacing: 0.3 }}>{dateIssued}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ fontSize: 6.5, color: '#777', borderTop: '0.75px solid #ccc', paddingTop: 1, minWidth: 60 }}>Date of Birth</div>
+                  <div style={{ fontSize: 6.5, color: '#777', borderTop: '0.75px solid #ccc', paddingTop: 1, minWidth: 16 }}>Sex</div>
+                  <div style={{ fontSize: 6.5, color: '#777', borderTop: '0.75px solid #ccc', paddingTop: 1, minWidth: 60 }}>Date Issued</div>
                 </div>
               </div>
             </div>
-            <div style={{ padding: '8px 12px', display: 'flex', gap: 10 }}>
-              <div style={{ width: 60, height: 72, background: '#e5e7eb', borderRadius: 4, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, border: '1px solid #d1d5db' }}>👤</div>
-              <div style={{ flex: 1, fontSize: 9 }}>
-                <div style={{ fontSize: 10, fontWeight: 'bold', color: '#111', marginBottom: 2 }}>Name: {name}</div>
-                <div style={{ color: '#555', fontSize: 8, marginBottom: 4 }}>Address: {address}</div>
-                <div style={{ display: 'flex', gap: 12, fontSize: 8, color: '#333' }}>
-                  <div><div style={{ color: '#888', fontSize: 7 }}>Date of Birth</div><div style={{ fontWeight: 600 }}>{dob}</div></div>
-                  <div><div style={{ color: '#888', fontSize: 7 }}>Sex</div><div style={{ fontWeight: 600 }}>{sex}</div></div>
-                  <div><div style={{ color: '#888', fontSize: 7 }}>Date Issued</div><div style={{ fontWeight: 600 }}>{dateIssued}</div></div>
-                </div>
-              </div>
-            </div>
-            <div style={{ padding: '2px 12px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+
+            {/* Signature + Control No */}
+            <div style={{ padding: '4px 10px 6px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: 7, color: '#888' }}>Control No. ___________</div>
-                <div style={{ fontSize: 20, fontWeight: 'bold', color: '#e63946', letterSpacing: 2 }}>{controlNo}</div>
+                <div style={{ width: 90, height: 26, borderBottom: '1px solid #888', marginBottom: 2 }} />
+                <div style={{ fontSize: 6.5, color: '#777' }}>Signature / Thumbmark</div>
               </div>
-              <div style={{ textAlign: 'right', fontSize: 7, color: '#888' }}>
-                <div style={{ marginBottom: 2 }}>Signature/Thumbmark</div>
-                <div style={{ width: 60, height: 24, borderBottom: '1px solid #ccc' }} />
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 26, fontWeight: 'bold', color: '#c8102e', fontFamily: "'Courier New', Courier, monospace", letterSpacing: 3, lineHeight: 1 }}>{controlNo}</div>
+                <div style={{ fontSize: 7, color: '#777', borderTop: '0.75px solid #ccc', paddingTop: 1 }}>Control No.__________</div>
               </div>
             </div>
-            <div style={{ background: '#0f52ba', padding: '4px 12px', textAlign: 'center', fontSize: 9, color: '#fff', letterSpacing: 0.5 }}>This card is non-transferable</div>
-          </div>
-          {/* BACK */}
-          <div style={{ position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', fontFamily: 'Arial, sans-serif', border: '1.5px solid #ccc', borderRadius: 10, overflow: 'hidden', background: '#fff', boxShadow: '0 4px 18px rgba(0,0,0,0.12)' }}>
-            <div style={{ padding: '8px 12px', fontSize: 8, color: '#333', lineHeight: 1.7 }}>
-              <div style={{ fontWeight: 'bold', fontSize: 9, color: '#0f52ba', marginBottom: 4 }}>Benefits and Privileges under R.A. 9994</div>
-              1. Free medical/dental, diagnostic &amp; laboratory services in all govt. facilities<br />
-              2. 20% discount for medicines<br />3. 20% discount in hotels, restaurants &amp; recreation centers<br />
-              4. 20% discount in theaters, cinema houses &amp; concert halls<br />5. 20% discount in medical/dental services in private facilities<br />
-              6. 20% discount in fare for domestic air, sea &amp; land transportation<br />7. 5% discount in basic necessities &amp; primary commodities<br />
-              8. 12% VAT-exemption on purchases with the 20% discount<br />9. 5% discount on monthly water &amp; electricity bills
-            </div>
-            <div style={{ fontSize: 7, color: '#666', padding: '0 12px 6px', fontStyle: 'italic' }}>Persons and corporations violating R.A. 9994 shall be penalized.</div>
-            <div style={{ borderTop: '1px solid #e5e7eb', padding: '5px 12px', display: 'flex', justifyContent: 'space-between', fontSize: 8 }}>
-              <div style={{ textAlign: 'center' }}><div style={{ width: 80, borderBottom: '1px solid #333', marginBottom: 2 }} /><div style={{ color: '#888' }}>OSCA Head</div></div>
-              <div style={{ textAlign: 'center' }}><div style={{ width: 80, borderBottom: '1px solid #333', marginBottom: 2 }} /><div style={{ color: '#888' }}>City Mayor</div></div>
-            </div>
-            <div style={{ background: '#0f52ba', padding: '4px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ color: '#4ade80', fontSize: 8, fontWeight: 'bold' }}>Tuloy-PROGRESO, Valenzuela!</div>
-              <div style={{ color: '#fff', fontSize: 7 }}>www.valenzuela.gov.ph</div>
+
+            {/* Footer */}
+            <div style={{ background: 'linear-gradient(90deg, #0a3d91 0%, #1155cc 60%, #0a3d91 100%)', padding: '4px 12px', textAlign: 'center', fontSize: 8.5, color: '#fff', letterSpacing: 1.5, fontStyle: 'italic' }}>
+              This card is non-transferable
             </div>
           </div>
+
+          {/* ══ BACK ══ */}
+          <div style={{ position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', fontFamily: 'Arial, Helvetica, sans-serif', borderRadius: 10, overflow: 'hidden', background: '#ffffff', boxShadow: '0 6px 24px rgba(0,0,0,0.18)', border: '1px solid #bbb' }}>
+            <div style={{ background: 'linear-gradient(90deg, #0a3d91 0%, #1155cc 60%, #0a3d91 100%)', height: 7, borderBottom: '3px solid #c8102e' }} />
+            <div style={{ padding: '8px 12px 4px' }}>
+              <div style={{ fontWeight: 'bold', fontSize: 8.5, color: '#0a3d91', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.3 }}>Benefits and Privileges under R.A. 9994</div>
+              {[
+                'Free medical/dental, diagnostic & laboratory services in all govt. facilities',
+                '20% discount for medicines',
+                '20% discount in hotels, restaurants & recreation centers',
+                '20% discount in theaters, cinema houses & concert halls',
+                '20% discount in medical/dental services in private facilities',
+                '20% discount in fare for domestic air, sea & land transportation',
+                '5% discount in basic necessities & primary commodities',
+                '12% VAT-exemption on purchases with the 20% discount',
+                '5% discount on monthly water & electricity bills',
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 4, marginBottom: 2, fontSize: 7.5, color: '#333', lineHeight: 1.35 }}>
+                  <span style={{ color: '#0a3d91', fontWeight: 'bold', minWidth: 12 }}>{i + 1}.</span>
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 6.5, color: '#888', padding: '0 12px 5px', fontStyle: 'italic' }}>Persons and corporations violating R.A. 9994 shall be penalized.</div>
+            <div style={{ borderTop: '1px solid #e0e0e0', padding: '5px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+              <div style={{ textAlign: 'center' }}><div style={{ width: 88, borderBottom: '1px solid #333', marginBottom: 2 }} /><div style={{ fontSize: 7, color: '#555' }}>OSCA Head</div></div>
+              <div style={{ textAlign: 'center' }}><div style={{ width: 88, borderBottom: '1px solid #333', marginBottom: 2 }} /><div style={{ fontSize: 7, color: '#555' }}>City Mayor</div></div>
+            </div>
+            <div style={{ background: 'linear-gradient(90deg, #0a3d91 0%, #1155cc 60%, #0a3d91 100%)', padding: '4px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ color: '#4ade80', fontSize: 8, fontWeight: 'bold', fontStyle: 'italic' }}>Tuloy-PROGRESO, Valenzuela!</div>
+              <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 7 }}>www.valenzuela.gov.ph</div>
+            </div>
+          </div>
+
         </div>
       </div>
       <p className="text-xs text-gray-400 flex items-center gap-1"><RotateCcw size={11} /> Click card to flip</p>
@@ -523,17 +573,24 @@ function OSCAIDCard({ record }) {
   );
 }
 
-/* ─── Release Modal ──────────────────────────────────────────────────────────── */
+/* ─── Release Modal — with NCSC live check ───────────────────────────────────── */
 function ReleaseModal({ record, onClose, onRelease, processing }) {
   const [verified, setVerified] = useState(false);
+  const [ncscStatus, setNcscStatus] = useState('checking');
   const missingBirthday = !hasBirthday(record);
+
+  function doCheck() {
+    setNcscStatus('checking');
+    runNCSCVerify(record).then(setNcscStatus);
+  }
+  useEffect(() => { doCheck(); }, [record]);
 
   const hasAllInfo = !!(
     (record.seniorName || record.fullName) &&
     record.address &&
     (record.seniorId || record.controlNumber || record.idNumber) &&
     (record.barangay || record.sub_admin_barangay) &&
-    !missingBirthday   // birthday is now a required field for release
+    !missingBirthday
   );
 
   const checks = [
@@ -544,19 +601,50 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
     { label: 'Barangay Assignment',  ok: !!(record.barangay || record.sub_admin_barangay) },
   ];
 
+  const ncscBg =
+    ncscStatus === 'found' || ncscStatus === 'found_name_only' ? 'bg-green-50 border-green-200' :
+    ncscStatus === 'not_found'   ? 'bg-red-50 border-red-200' :
+    ncscStatus === 'unreachable' ? 'bg-orange-50 border-orange-200' :
+    'bg-blue-50 border-blue-100';
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-lg w-full max-h-[92vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-xl w-full max-h-[92vh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Send size={18} className="text-[#0f52ba]" /> Release Physical ID
+              <Send size={18} className="text-[#0a3d91]" /> Release Physical ID
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">Final verification before releasing to sub-admin</p>
           </div>
           <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
 
+        {/* NCSC Live Check banner */}
+        <div className={`rounded-xl px-4 py-3 mb-4 border ${ncscBg}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Database size={14} className="text-gray-500" />
+              <span className="text-xs font-semibold text-gray-700">NCSC Live Registration Check</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {ncscStatus === 'checking'        && <span className="text-xs text-blue-600 flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> Checking NCSC…</span>}
+              {ncscStatus === 'found'           && <span className="text-xs text-green-700 font-semibold flex items-center gap-1"><CheckCircle2 size={11} /> Registered in NCSC</span>}
+              {ncscStatus === 'found_name_only' && <span className="text-xs text-green-700 font-semibold flex items-center gap-1"><CheckCircle2 size={11} /> Registered (name match)</span>}
+              {ncscStatus === 'not_found'       && <span className="text-xs text-red-600 font-semibold flex items-center gap-1"><XCircle size={11} /> NOT Found in NCSC</span>}
+              {ncscStatus === 'unreachable'     && <span className="text-xs text-orange-600 font-semibold flex items-center gap-1"><WifiOff size={11} /> NCSC Unreachable</span>}
+              {ncscStatus !== 'checking' && (
+                <button onClick={doCheck} className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 ml-1">
+                  <RefreshCw size={10} /> Re-check
+                </button>
+              )}
+            </div>
+          </div>
+          {ncscStatus === 'not_found' && <p className="text-xs text-red-600 mt-1.5">This senior was <strong>not found</strong> in NCSC records. Verify their identity manually before releasing.</p>}
+          {ncscStatus === 'unreachable' && <p className="text-xs text-orange-600 mt-1.5">The NCSC website is currently <strong>unreachable</strong>. Falling back to local records. Proceed with caution.</p>}
+        </div>
+
+        {/* ID Card preview */}
         <div className="mb-5">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">ID Card Preview</p>
           <OSCAIDCard record={record} />
@@ -574,13 +662,10 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
           ))}
         </div>
 
-        {/* Birthday-specific block */}
         {missingBirthday && (
           <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={13} className="text-red-500 mt-0.5 shrink-0" />
-            <span>
-              <strong>Cannot release</strong> — birthday is not on record. Please update the senior's birthday before releasing the ID.
-            </span>
+            <span><strong>Cannot release</strong> — birthday is not on record. Please update the senior's birthday before releasing the ID.</span>
           </div>
         )}
 
@@ -588,6 +673,13 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
           <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-2">
             <AlertTriangle size={13} className="text-red-500" />
             Cannot release — required information is incomplete. Please update the senior's record first.
+          </div>
+        )}
+
+        {ncscStatus === 'not_found' && hasAllInfo && (
+          <div className="mb-4 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-medium flex items-start gap-2">
+            <AlertTriangle size={13} className="mt-0.5 text-orange-500 shrink-0" />
+            Senior not found in NCSC. Ensure identity has been manually verified before releasing.
           </div>
         )}
 
@@ -603,9 +695,9 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50">Cancel</button>
           <button
-            disabled={processing || !hasAllInfo || !verified}
+            disabled={processing || !hasAllInfo || !verified || ncscStatus === 'checking'}
             onClick={() => onRelease(record)}
-            className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 text-white font-semibold text-sm disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 py-3 rounded-xl bg-[#0a3d91] hover:bg-blue-800 text-white font-semibold text-sm disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
           >
             {processing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             Release to Sub-Admin

@@ -65,8 +65,22 @@ async function runNCSCVerify(record) {
     else if (textMatch)  { month = textMatch[1].charAt(0).toUpperCase()+textMatch[1].slice(1,3).toLowerCase(); day = String(parseInt(textMatch[2],10)); }
   }
 
-  if (!ln || !fn || !month || !day) {
+  if (!ln || !fn) {
     return runLocalNCSIDCheck(record);
+  }
+
+  // If birthday is missing, we can only do a name-only check — returns special status
+  if (!month || !day) {
+    try {
+      // Try name-only by passing empty month/day — server may still match by name
+      const result = await ncscVerifyFn({ lastName: ln, firstName: fn, middleName: mn, month: '', day: '' });
+      const { found, error } = result.data;
+      if (error === 'ncsc_unreachable') return 'unreachable';
+      // Even if found by name, birthday wasn't verified — use special status
+      return found ? 'found_name_only' : 'not_found';
+    } catch (err) {
+      return runLocalNCSIDCheck(record);
+    }
   }
 
   try {
@@ -121,24 +135,27 @@ const StatusBadge = ({ status }) => {
 
 /* ─── NCSC status indicator ──────────────────────────────────────────────────── */
 function NCSCStatusBadge({ status }) {
-  if (status === 'checking')    return <span className="flex items-center gap-1 text-xs text-blue-600 font-medium"><Loader2 size={11} className="animate-spin" /> Checking NCSC…</span>;
-  if (status === 'found')       return <span className="flex items-center gap-1 text-xs text-green-700 font-semibold bg-green-50 px-2 py-0.5 rounded-full"><CheckCircle2 size={11} /> Registered in NCSC</span>;
-  if (status === 'not_found')   return <span className="flex items-center gap-1 text-xs text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded-full"><XCircle size={11} /> NOT Found in NCSC</span>;
-  if (status === 'unreachable') return <span className="flex items-center gap-1 text-xs text-orange-600 font-semibold bg-orange-50 px-2 py-0.5 rounded-full"><WifiOff size={11} /> NCSC Unreachable</span>;
+  if (status === 'checking')        return <span className="flex items-center gap-1 text-xs text-blue-600 font-medium"><Loader2 size={11} className="animate-spin" /> Checking NCSC…</span>;
+  if (status === 'found')           return <span className="flex items-center gap-1 text-xs text-green-700 font-semibold bg-green-50 px-2 py-0.5 rounded-full"><CheckCircle2 size={11} /> Registered in NCSC</span>;
+  if (status === 'found_name_only') return <span className="flex items-center gap-1 text-xs text-orange-600 font-semibold bg-orange-50 px-2 py-0.5 rounded-full"><AlertTriangle size={11} /> Name Found — Birthday Unverified</span>;
+  if (status === 'not_found')       return <span className="flex items-center gap-1 text-xs text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded-full"><XCircle size={11} /> NOT Registered in NCSC</span>;
+  if (status === 'unreachable')     return <span className="flex items-center gap-1 text-xs text-orange-600 font-semibold bg-orange-50 px-2 py-0.5 rounded-full"><WifiOff size={11} /> NCSC Unreachable</span>;
   return null;
 }
 
 /* ─── NCSC Banner ────────────────────────────────────────────────────────────── */
-function NCSCBanner({ status, onRecheck }) {
+function NCSCBanner({ status, onRecheck, missingBirthday }) {
   const bannerCls =
-    status === 'found'       ? 'bg-green-50 border-green-200' :
-    status === 'not_found'   ? 'bg-red-50 border-red-200' :
-    status === 'unreachable' ? 'bg-orange-50 border-orange-200' :
+    status === 'found'            ? 'bg-green-50 border-green-200' :
+    status === 'found_name_only'  ? 'bg-orange-50 border-orange-300' :
+    status === 'not_found'        ? 'bg-red-50 border-red-300' :
+    status === 'unreachable'      ? 'bg-orange-50 border-orange-200' :
     'bg-blue-50 border-blue-100';
   const iconCls =
-    status === 'found'       ? 'text-green-600' :
-    status === 'not_found'   ? 'text-red-500' :
-    status === 'unreachable' ? 'text-orange-500' :
+    status === 'found'            ? 'text-green-600' :
+    status === 'found_name_only'  ? 'text-orange-500' :
+    status === 'not_found'        ? 'text-red-500' :
+    status === 'unreachable'      ? 'text-orange-500' :
     'text-blue-500';
 
   return (
@@ -154,10 +171,23 @@ function NCSCBanner({ status, onRecheck }) {
         </button>
       </div>
 
-      {status === 'not_found' && (
-        <div className="mb-4 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-medium flex items-start gap-2">
+      {status === 'found_name_only' && (
+        <div className="mb-4 px-4 py-2.5 bg-orange-50 border border-orange-300 rounded-xl text-xs text-orange-700 font-semibold flex items-start gap-2">
           <AlertTriangle size={13} className="text-orange-500 mt-0.5 shrink-0" />
-          <span>This senior was <strong>not found</strong> in NCSC records. Approving will still grant access, but please verify their identity manually first.</span>
+          <span>
+            <strong>Cannot approve</strong> — NCSC found this senior by name only. Birthday is missing so full verification could not be completed. Please update the senior's birthday before approving.
+          </span>
+        </div>
+      )}
+      {status === 'not_found' && (
+        <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
+          <AlertTriangle size={13} className="text-red-500 mt-0.5 shrink-0" />
+          <span>
+            <strong>Cannot approve</strong> —{' '}
+            {missingBirthday
+              ? 'name and birthday are not registered in NCSC. Please update the senior\'s birthday and verify their identity before approving.'
+              : 'this senior\'s name and birthday were not found in NCSC records. Please verify their identity before approving.'}
+          </span>
         </div>
       )}
       {status === 'unreachable' && (
@@ -217,9 +247,10 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
 
   useEffect(() => { doCheck(); }, [doCheck]);
 
+  // Block approve if birthday is missing OR NCSC says not found
+  const canApprove = !processing && ncscStatus !== 'checking' && ncscStatus !== 'not_found' && ncscStatus !== 'found_name_only';
+
   const name = record.fullName || record.seniorName || 'Unknown';
-  // Block approve if birthday is missing
-  const canApprove = !processing && ncscStatus !== 'checking' && !missingBirthday;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -235,10 +266,10 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1"><X size={18} /></button>
         </div>
 
-        <NCSCBanner status={ncscStatus} onRecheck={doCheck} />
+        <NCSCBanner status={ncscStatus} onRecheck={doCheck} missingBirthday={missingBirthday} />
 
-        {/* Birthday missing — hard block */}
-        {missingBirthday && (
+        {/* Birthday missing — hard block (only shown when NCSC found by name only, not when not_found since banner covers that) */}
+        {missingBirthday && ncscStatus !== 'not_found' && ncscStatus !== 'found_name_only' && (
           <div className="mb-4 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
             <span>
@@ -334,7 +365,8 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
   useEffect(() => { doCheck(); }, [doCheck]);
 
   const name = record.seniorName || record.fullName || 'Unknown';
-  const canApprove = !processing && ncscStatus !== 'checking' && !missingBirthday;
+  // Block approve if birthday missing OR NCSC says not found
+  const canApprove = !processing && ncscStatus !== 'checking' && ncscStatus !== 'not_found' && ncscStatus !== 'found_name_only';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -349,10 +381,10 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
           <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
 
-        <NCSCBanner status={ncscStatus} onRecheck={doCheck} />
+        <NCSCBanner status={ncscStatus} onRecheck={doCheck} missingBirthday={missingBirthday} />
 
-        {/* Birthday hard block */}
-        {missingBirthday && (
+        {/* Birthday hard block — only show when found by name only (not when not_found, banner handles that) */}
+        {missingBirthday && ncscStatus !== 'not_found' && ncscStatus !== 'found_name_only' && (
           <div className="mb-4 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
             <span>

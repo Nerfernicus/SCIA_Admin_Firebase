@@ -21,7 +21,7 @@ const NCSC_VERIFY_PAGE = "https://www.ncsc.gov.ph/verification";
 const NCSC_SEARCH_URL  = "https://www.ncsc.gov.ph/verification/search";
 
 exports.ncscVerify = onCall(
-  { timeoutSeconds: 30, memory: "256MiB" },
+  { timeoutSeconds: 30, memory: "256MiB", region: "asia-southeast1" },
   async (request) => {
     const { lastName = "", firstName = "", middleName = "", month = "", day = "" } = request.data;
 

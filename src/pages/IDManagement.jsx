@@ -201,7 +201,8 @@ function NCSCBanner({ status, onRecheck, missingBirthday }) {
 }
 
 /* ─── Birthday warning pill ──────────────────────────────────────────────────── */
-function BirthdayWarning() {
+function BirthdayWarning({ ncscStatus }) {
+  if (ncscStatus === "unreachable") return null;
   return (
     <p className="text-xs text-orange-500 pl-5 font-semibold flex items-center gap-1">
       <AlertTriangle size={11} /> Birthday not on record — NCSC check used name only
@@ -248,7 +249,7 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
   useEffect(() => { doCheck(); }, [doCheck]);
 
   // Block approve if birthday is missing OR NCSC says not found
-  const canApprove = !processing && ncscStatus !== 'checking' && ncscStatus !== 'not_found' && ncscStatus !== 'found_name_only';
+  const canApprove = !processing && ncscStatus === 'found';
 
   const name = record.fullName || record.seniorName || 'Unknown';
 
@@ -269,7 +270,7 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
         <NCSCBanner status={ncscStatus} onRecheck={doCheck} missingBirthday={missingBirthday} />
 
         {/* Birthday missing — hard block (only shown when NCSC found by name only, not when not_found since banner covers that) */}
-        {missingBirthday && ncscStatus !== 'not_found' && ncscStatus !== 'found_name_only' && (
+        {missingBirthday && ncscStatus !== 'not_found' && ncscStatus !== 'found_name_only' && ncscStatus !== 'unreachable' && (
           <div className="mb-4 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
             <span>
@@ -299,7 +300,7 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
           {record.submittedAt && (
             <p className="text-xs text-gray-400 pl-5">Submitted: {record.submittedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>
           )}
-          {missingBirthday && <BirthdayWarning />}
+          {missingBirthday && <BirthdayWarning ncscStatus={ncscStatus} />}
         </div>
 
         {/* Uploaded ID photo */}
@@ -366,7 +367,7 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
 
   const name = record.seniorName || record.fullName || 'Unknown';
   // Block approve if birthday missing OR NCSC says not found
-  const canApprove = !processing && ncscStatus !== 'checking' && ncscStatus !== 'not_found' && ncscStatus !== 'found_name_only';
+  const canApprove = !processing && ncscStatus === 'found';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -384,7 +385,7 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
         <NCSCBanner status={ncscStatus} onRecheck={doCheck} missingBirthday={missingBirthday} />
 
         {/* Birthday hard block — only show when found by name only (not when not_found, banner handles that) */}
-        {missingBirthday && ncscStatus !== 'not_found' && ncscStatus !== 'found_name_only' && (
+        {missingBirthday && ncscStatus !== 'not_found' && ncscStatus !== 'found_name_only' && ncscStatus !== 'unreachable' && (
           <div className="mb-4 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
             <span>
@@ -411,7 +412,7 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
           </p>
           {record.reason    && <p className="text-xs text-gray-400 pl-5 italic">Reason: {record.reason}</p>}
           {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
-          {missingBirthday && <BirthdayWarning />}
+          {missingBirthday && <BirthdayWarning ncscStatus={ncscStatus} />}
         </div>
 
         <div className="flex gap-3">
@@ -646,7 +647,7 @@ function RequestDetailModal({ record, onClose, onApprove, onReject, processing }
           <p className="text-xs text-gray-500 pl-5">🏘 Barangay: {record.barangay ? <strong>{record.barangay}</strong> : <span className="text-orange-500 italic font-semibold">Not specified</span>}</p>
           {record.reason    && <p className="text-xs text-gray-400 pl-5 italic">Reason: {record.reason}</p>}
           {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
-          {missingBirthday && <BirthdayWarning />}
+          {missingBirthday && <BirthdayWarning ncscStatus={ncscStatus} />}
         </div>
 
         <div className="flex gap-3">

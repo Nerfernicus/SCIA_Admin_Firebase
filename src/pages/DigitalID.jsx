@@ -50,17 +50,77 @@ async function checkNCSID(record) {
   } catch { return false; }
 }
 
+/* ─── Valenzuela City seal SVG (inline, upper-left) ────────────────────────── */
+function ValenzuelaSeal({ size = 38 }) {
+  // Simplified stylized city seal — blue/gold/green tones
+  return (
+    <svg width={size} height={size} viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      {/* Outer ring */}
+      <circle cx="40" cy="40" r="38" fill="#fff" stroke="#c8a200" strokeWidth="3"/>
+      <circle cx="40" cy="40" r="34" fill="none" stroke="#0a3d91" strokeWidth="1.5"/>
+      {/* Background fill */}
+      <circle cx="40" cy="40" r="32" fill="#e8f0ff"/>
+      {/* Shield shape */}
+      <path d="M40 12 L62 22 L62 42 Q62 60 40 68 Q18 60 18 42 L18 22 Z" fill="#0a3d91"/>
+      <path d="M40 16 L58 25 L58 42 Q58 57 40 64 Q22 57 22 42 L22 25 Z" fill="#1155cc"/>
+      {/* Gold cross/star */}
+      <path d="M40 24 L42 34 L52 34 L44 40 L47 50 L40 44 L33 50 L36 40 L28 34 L38 34 Z" fill="#FFD700"/>
+      {/* Green base (land) */}
+      <ellipse cx="40" cy="58" rx="14" ry="6" fill="#16a34a" opacity="0.8"/>
+      {/* River lines */}
+      <path d="M26 52 Q33 48 40 52 Q47 56 54 52" fill="none" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+/* ─── OSCA logo SVG (inline, upper-right) ──────────────────────────────────── */
+function OscaLogo({ size = 38 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      {/* Outer ring */}
+      <circle cx="40" cy="40" r="38" fill="#fff" stroke="#c8102e" strokeWidth="3"/>
+      <circle cx="40" cy="40" r="33" fill="#fff3f3"/>
+      {/* Inner circle background */}
+      <circle cx="40" cy="40" r="28" fill="#0a3d91"/>
+      {/* OSCA text ring suggestion — arc */}
+      <circle cx="40" cy="40" r="22" fill="#1155cc"/>
+      {/* Senior figure — simplified icon */}
+      {/* Head */}
+      <circle cx="40" cy="26" r="6" fill="#FFD700"/>
+      {/* Body with cane */}
+      <path d="M40 32 L40 50" stroke="#FFD700" strokeWidth="3" strokeLinecap="round"/>
+      {/* Arms */}
+      <path d="M40 38 L32 44 M40 38 L52 36" stroke="#FFD700" strokeWidth="2.5" strokeLinecap="round"/>
+      {/* Legs */}
+      <path d="M40 50 L35 60 M40 50 L45 60" stroke="#FFD700" strokeWidth="2.5" strokeLinecap="round"/>
+      {/* Cane */}
+      <path d="M52 36 L56 56" stroke="#FFD700" strokeWidth="2" strokeLinecap="round"/>
+      {/* Heart above */}
+      <path d="M37 18 Q38 15 40 17 Q42 15 43 18 Q43 21 40 23 Q37 21 37 18 Z" fill="#c8102e"/>
+    </svg>
+  );
+}
+
 /* ─── Flippable OSCA Digital ID Card ───────────────────────────────────────── */
 function DigitalIDCard({ senior }) {
   const [flipped, setFlipped] = useState(false);
   const cardRef = useRef(null);
 
-  const name       = (senior.fullName || 'UNKNOWN').toUpperCase();
-  const address    = senior.address || '—';
-  const dob        = senior.dob || '—';
-  const sex        = senior.sex || '—';
-  const controlNo  = senior.controlNumber || senior.id?.slice(-6).toUpperCase() || '——————';
+  const name      = (senior.fullName || 'UNKNOWN').toUpperCase();
+  const address   = senior.address || '—';
+  const dob       = senior.dob || '—';
+  const sex       = (senior.sex || '—').toUpperCase();
+  const controlNo = senior.controlNumber || senior.id?.slice(-6).toUpperCase() || '——————';
   const dateIssued = fmt(senior.releasedAt);
+
+  // Format DOB as MM-DD-YY
+  let dobFormatted = dob;
+  if (dob && dob !== '—') {
+    const isoM   = dob.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const slashM = dob.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (isoM)        dobFormatted = `${isoM[2]}-${isoM[3]}-${isoM[1].slice(2)}`;
+    else if (slashM) dobFormatted = `${slashM[1].padStart(2,'0')}-${slashM[2].padStart(2,'0')}-${slashM[3].slice(2)}`;
+  }
 
   const handlePrint = () => {
     const content = cardRef.current?.innerHTML;
@@ -75,12 +135,13 @@ function DigitalIDCard({ senior }) {
     w.print();
   };
 
+  const CARD_W = 380, CARD_H = 240;
+
   return (
     <div className="flex flex-col items-center gap-3">
       <div ref={cardRef}>
-        {/* 3D flip container */}
         <div
-          style={{ perspective: 900, width: 340, height: 210, cursor: 'pointer' }}
+          style={{ perspective: 1000, width: CARD_W, height: CARD_H, cursor: 'pointer' }}
           onClick={() => setFlipped(f => !f)}
           title="Click to flip"
         >
@@ -90,118 +151,228 @@ function DigitalIDCard({ senior }) {
             transition: 'transform 0.65s cubic-bezier(0.4,0,0.2,1)',
             transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
           }}>
-            {/* ── FRONT ── */}
+
+            {/* ══════════ FRONT ══════════ */}
             <div style={{
               position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden',
-              fontFamily: 'Arial, sans-serif', border: '1.5px solid #bbb',
-              borderRadius: 10, overflow: 'hidden', background: '#fff',
-              boxShadow: '0 6px 24px rgba(0,0,0,0.14)',
+              fontFamily: "'Times New Roman', Times, serif",
+              borderRadius: 12, overflow: 'hidden', background: '#ffffff',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.10)',
+              border: '1px solid #b0b8c8',
             }}>
-              {/* Blue header */}
-              <div style={{ background: '#0f52ba', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, background: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>
-                  🇵🇭
+
+              {/* ── Header: logos + title ── */}
+              <div style={{
+                background: 'linear-gradient(135deg, #062a6e 0%, #0a3d91 40%, #1155cc 70%, #0a3d91 100%)',
+                padding: '8px 12px',
+                display: 'flex', alignItems: 'center',
+                borderBottom: '3px solid #c8102e',
+                gap: 8,
+              }}>
+                {/* LEFT: Valenzuela City Seal */}
+                <div style={{ flexShrink: 0, filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.3))' }}>
+                  <ValenzuelaSeal size={42} />
                 </div>
-                <div style={{ color: '#fff', flex: 1 }}>
-                  <div style={{ fontSize: 7.5, opacity: 0.88 }}>Republic of the Philippines</div>
-                  <div style={{ fontSize: 12, fontWeight: 'bold', letterSpacing: 0.3 }}>CITY OF VALENZUELA</div>
-                  <div style={{ fontSize: 7.5, opacity: 0.88 }}>Office of the Senior Citizens Affairs (OSCA)</div>
+
+                {/* CENTER: Title */}
+                <div style={{ flex: 1, textAlign: 'center', color: '#fff' }}>
+                  <div style={{ fontSize: 7, opacity: 0.85, letterSpacing: 0.5 }}>Republic of the Philippines</div>
+                  <div style={{
+                    fontSize: 13, fontWeight: 'bold', letterSpacing: 0.8,
+                    color: '#FFD700', fontFamily: 'Impact, Arial Black, sans-serif',
+                    textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+                    lineHeight: 1.2,
+                  }}>CITY OF VALENZUELA</div>
+                  <div style={{ fontSize: 7.5, opacity: 0.9, letterSpacing: 0.2 }}>
+                    Office of the Senior Citizens Affairs
+                  </div>
+                  <div style={{
+                    marginTop: 2, display: 'inline-block',
+                    background: 'rgba(255,255,255,0.15)', borderRadius: 3,
+                    padding: '1px 8px', fontSize: 7, letterSpacing: 1,
+                    color: '#fff', fontStyle: 'italic',
+                  }}>
+                    DIGITAL ID
+                  </div>
                 </div>
-                {/* Colorful logo placeholder */}
-                <div style={{ width: 30, height: 30, borderRadius: 4, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.4)', flexShrink: 0 }}>
-                  <div style={{ height: '33%', background: '#e63946' }} />
-                  <div style={{ height: '33%', background: '#fff' }} />
-                  <div style={{ height: '34%', background: '#0f52ba' }} />
+
+                {/* RIGHT: OSCA Logo */}
+                <div style={{ flexShrink: 0, filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.3))' }}>
+                  <OscaLogo size={42} />
                 </div>
               </div>
 
-              {/* Body */}
-              <div style={{ padding: '9px 12px', display: 'flex', gap: 10 }}>
-                <div style={{ width: 64, height: 78, background: '#e5e7eb', borderRadius: 4, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, border: '1px solid #d1d5db', color: '#9ca3af' }}>
-                  👤
+              {/* ── Body ── */}
+              <div style={{ padding: '10px 12px 6px', display: 'flex', gap: 0 }}>
+
+                {/* LEFT SECTION: text fields */}
+                <div style={{ flex: 1, paddingRight: 10 }}>
+
+                  {/* Name */}
+                  <div style={{ marginBottom: 6 }}>
+                    <div style={{ fontSize: 6.5, color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 1 }}>Name</div>
+                    <div style={{
+                      fontSize: 12, fontWeight: 'bold', color: '#0a3d91',
+                      fontFamily: "'Courier New', Courier, monospace",
+                      letterSpacing: 0.4, lineHeight: 1.2,
+                    }}>{name}</div>
+                  </div>
+
+                  {/* Address */}
+                  <div style={{ marginBottom: 6 }}>
+                    <div style={{ fontSize: 6.5, color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 1 }}>Address</div>
+                    <div style={{
+                      fontSize: 8.5, color: '#333', lineHeight: 1.35,
+                      fontFamily: "'Courier New', Courier, monospace",
+                    }}>{address}</div>
+                  </div>
+
+                  {/* DOB / Sex / Date Issued row */}
+                  <div style={{ display: 'flex', gap: 14, marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 6.5, color: '#888', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 1 }}>Date of Birth</div>
+                      <div style={{ fontSize: 9.5, fontWeight: 'bold', color: '#111', fontFamily: "'Courier New', Courier, monospace" }}>{dobFormatted}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 6.5, color: '#888', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 1 }}>Sex</div>
+                      <div style={{ fontSize: 9.5, fontWeight: 'bold', color: '#111', fontFamily: "'Courier New', Courier, monospace" }}>{sex}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 6.5, color: '#888', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 1 }}>Date Issued</div>
+                      <div style={{ fontSize: 9.5, fontWeight: 'bold', color: '#111', fontFamily: "'Courier New', Courier, monospace" }}>{dateIssued}</div>
+                    </div>
+                  </div>
+
+                  {/* Signature + Control No */}
+                  <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ width: 80, height: 20, borderBottom: '1px solid #999', marginBottom: 2 }} />
+                      <div style={{ fontSize: 6.5, color: '#888' }}>Signature / Thumbmark</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{
+                        fontSize: 22, fontWeight: 'bold', color: '#c8102e',
+                        fontFamily: "'Courier New', Courier, monospace",
+                        letterSpacing: 2, lineHeight: 1,
+                      }}>{controlNo}</div>
+                      <div style={{ fontSize: 6.5, color: '#888', borderTop: '0.75px solid #ccc', paddingTop: 1 }}>Control No.</div>
+                    </div>
+                  </div>
                 </div>
-                <div style={{ flex: 1, fontSize: 9 }}>
-                  <div style={{ fontSize: 9.5, fontWeight: 'bold', color: '#111', marginBottom: 3 }}>Name: <span style={{ color: '#0f52ba' }}>{name}</span></div>
-                  <div style={{ color: '#555', fontSize: 8, marginBottom: 5 }}>Address: {address}</div>
-                  <div style={{ display: 'flex', gap: 14, fontSize: 8 }}>
-                    <div>
-                      <div style={{ color: '#888', fontSize: 7 }}>Date of Birth</div>
-                      <div style={{ fontWeight: 600, color: '#333' }}>{dob}</div>
-                    </div>
-                    <div>
-                      <div style={{ color: '#888', fontSize: 7 }}>Sex</div>
-                      <div style={{ fontWeight: 600, color: '#333' }}>{sex}</div>
-                    </div>
-                    <div>
-                      <div style={{ color: '#888', fontSize: 7 }}>Date Issued</div>
-                      <div style={{ fontWeight: 600, color: '#333' }}>{dateIssued}</div>
-                    </div>
+
+                {/* RIGHT SECTION: photo */}
+                <div style={{
+                  width: 72, flexShrink: 0,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                }}>
+                  {/* Photo box */}
+                  <div style={{
+                    width: 70, height: 88,
+                    background: 'linear-gradient(135deg, #dde6f5 0%, #eef2f8 100%)',
+                    border: '2px solid #0a3d91',
+                    borderRadius: 4,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden',
+                    fontSize: 34, color: '#7a8ba0',
+                    flexShrink: 0,
+                  }}>
+                    {senior.photoURL
+                      ? <img src={senior.photoURL} alt="ID photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : '👤'}
+                  </div>
+                  {/* Verified chip */}
+                  <div style={{
+                    background: '#dcfce7', border: '1px solid #16a34a',
+                    borderRadius: 20, padding: '2px 6px',
+                    fontSize: 6, color: '#15803d', fontWeight: 'bold',
+                    display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap',
+                  }}>
+                    ✓ Verified
                   </div>
                 </div>
               </div>
 
-              {/* Control number row */}
-              <div style={{ padding: '2px 12px 7px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                <div>
-                  <div style={{ fontSize: 7, color: '#888', marginBottom: 1 }}>Control No. ___________</div>
-                  <div style={{ fontSize: 22, fontWeight: 'bold', color: '#e63946', letterSpacing: 2 }}>{controlNo}</div>
-                </div>
-                <div style={{ textAlign: 'right', fontSize: 7, color: '#888' }}>
-                  <div style={{ marginBottom: 2 }}>Signature / Thumbmark</div>
-                  <div style={{ width: 70, height: 22, borderBottom: '1px solid #bbb' }} />
-                </div>
+              {/* ── Green verified strip ── */}
+              <div style={{
+                background: 'linear-gradient(90deg, #15803d, #16a34a)',
+                padding: '3px 12px',
+                fontSize: 7.5, color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                letterSpacing: 0.3,
+              }}>
+                <span>✓ Digitally Verified — Valid OSCA Senior Citizen ID</span>
+                <span style={{ opacity: 0.8, fontSize: 7 }}>www.valenzuela.gov.ph</span>
               </div>
 
-              {/* Green verified bar */}
-              <div style={{ background: '#16a34a', padding: '3px 12px', fontSize: 8, color: '#fff', display: 'flex', alignItems: 'center', gap: 5 }}>
-                ✓ Digitally Verified — Valid OSCA ID
-              </div>
-
-              {/* Blue footer */}
-              <div style={{ background: '#0f52ba', padding: '4px 12px', textAlign: 'center', fontSize: 8.5, color: '#fff', letterSpacing: 0.5 }}>
+              {/* ── Blue footer ── */}
+              <div style={{
+                background: 'linear-gradient(90deg, #062a6e 0%, #0a3d91 50%, #062a6e 100%)',
+                padding: '4px 12px',
+                textAlign: 'center', fontSize: 8, color: '#fff',
+                letterSpacing: 1.5, fontStyle: 'italic',
+              }}>
                 This card is non-transferable
               </div>
             </div>
 
-            {/* ── BACK ── */}
+            {/* ══════════ BACK ══════════ */}
             <div style={{
               position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden',
               transform: 'rotateY(180deg)',
-              fontFamily: 'Arial, sans-serif', border: '1.5px solid #bbb',
-              borderRadius: 10, overflow: 'hidden', background: '#fff',
-              boxShadow: '0 6px 24px rgba(0,0,0,0.14)',
+              fontFamily: 'Arial, Helvetica, sans-serif',
+              borderRadius: 12, overflow: 'hidden', background: '#ffffff',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.10)',
+              border: '1px solid #b0b8c8',
             }}>
-              <div style={{ padding: '9px 12px', fontSize: 8, color: '#333', lineHeight: 1.75 }}>
-                <div style={{ fontWeight: 'bold', fontSize: 9.5, color: '#0f52ba', marginBottom: 5 }}>Benefits and Privileges under R.A. 9994</div>
-                1. Free medical / dental, diagnostic &amp; laboratory services in all government facilities<br />
-                2. 20% discount for medicines<br />
-                3. 20% discount in hotels, restaurants &amp; recreation centers<br />
-                4. 20% discount in theaters, cinema houses &amp; concert halls<br />
-                5. 20% discount in medical / dental services, diagnostic &amp; laboratory fees in private facilities<br />
-                6. 20% discount in fare for domestic air, sea travel &amp; public land transportations<br />
-                7. 5% discount in basic necessities &amp; primary commodities<br />
-                8. 12% VAT-exemption on the purchase of goods &amp; services entitled to the 20% discount<br />
-                9. 5% discount for monthly water &amp; electricity (meter under senior's name)
+              {/* Top accent strip */}
+              <div style={{ background: 'linear-gradient(90deg, #062a6e 0%, #0a3d91 50%, #062a6e 100%)', height: 8, borderBottom: '3px solid #c8102e' }} />
+
+              <div style={{ padding: '8px 12px 4px' }}>
+                <div style={{ fontWeight: 'bold', fontSize: 8.5, color: '#0a3d91', marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '1px solid #e0e7ff', paddingBottom: 3 }}>
+                  Benefits &amp; Privileges under R.A. 9994 (Expanded Senior Citizens Act)
+                </div>
+                {[
+                  'Free medical/dental, diagnostic & laboratory services in all govt. facilities',
+                  '20% discount for medicines',
+                  '20% discount in hotels, restaurants & recreation centers',
+                  '20% discount in theaters, cinema houses & concert halls',
+                  '20% discount in medical/dental services in private facilities',
+                  '20% discount in fare for domestic air, sea & land transportation',
+                  '5% discount in basic necessities & primary commodities',
+                  '12% VAT-exemption on purchases entitled to the 20% discount',
+                  '5% discount on monthly water & electricity bills',
+                ].map((item, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 5, marginBottom: 2.5, fontSize: 7.5, color: '#222', lineHeight: 1.3 }}>
+                    <span style={{ color: '#0a3d91', fontWeight: 'bold', minWidth: 13, flexShrink: 0 }}>{i + 1}.</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
               </div>
-              <div style={{ fontSize: 7, color: '#666', padding: '0 12px 5px', fontStyle: 'italic' }}>
+
+              <div style={{ fontSize: 6.5, color: '#888', padding: '0 12px 5px', fontStyle: 'italic', lineHeight: 1.4 }}>
                 Persons and corporations violating R.A. 9994 shall be penalized.<br />
-                Only for the exclusive use of senior citizens; abuse of privileges is punishable by law.
+                For exclusive use of senior citizens only. Abuse of privileges is punishable by law.
               </div>
-              <div style={{ borderTop: '1px solid #e5e7eb', padding: '5px 12px', display: 'flex', justifyContent: 'space-between', fontSize: 8 }}>
+
+              {/* Signatories */}
+              <div style={{ borderTop: '1px solid #e0e0e0', padding: '5px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ width: 90, borderBottom: '1px solid #444', marginBottom: 2 }} />
-                  <div style={{ color: '#555', fontWeight: 600 }}>OSCA Head</div>
+                  <div style={{ width: 90, borderBottom: '1px solid #333', marginBottom: 3 }} />
+                  <div style={{ fontSize: 7, color: '#444', fontWeight: '600' }}>OSCA Head</div>
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ width: 90, borderBottom: '1px solid #444', marginBottom: 2 }} />
-                  <div style={{ color: '#555', fontWeight: 600 }}>City Mayor</div>
+                  <div style={{ width: 90, borderBottom: '1px solid #333', marginBottom: 3 }} />
+                  <div style={{ fontSize: 7, color: '#444', fontWeight: '600' }}>City Mayor</div>
                 </div>
               </div>
-              <div style={{ background: '#0f52ba', padding: '5px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ color: '#4ade80', fontSize: 8, fontWeight: 'bold' }}>Tuloy-PROGRESO, Valenzuela!</div>
-                <div style={{ color: '#fff', fontSize: 7.5 }}>www.valenzuela.gov.ph</div>
+
+              {/* Footer */}
+              <div style={{ background: 'linear-gradient(90deg, #062a6e 0%, #0a3d91 50%, #062a6e 100%)', padding: '5px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ color: '#4ade80', fontSize: 8, fontWeight: 'bold', fontStyle: 'italic' }}>Tuloy-PROGRESO, Valenzuela!</div>
+                <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 7 }}>www.valenzuela.gov.ph</div>
               </div>
             </div>
+
           </div>
         </div>
       </div>
@@ -214,7 +385,7 @@ function DigitalIDCard({ senior }) {
       {/* Print/download */}
       <button
         onClick={handlePrint}
-        className="w-full flex items-center justify-center gap-2 bg-[#0f52ba] hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+        className="w-full flex items-center justify-center gap-2 bg-[#0a3d91] hover:bg-blue-800 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
       >
         <Download size={15} /> Download / Print ID
       </button>

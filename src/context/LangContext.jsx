@@ -35,8 +35,8 @@ export const LANGUAGES = {
     announcements: 'Announcements',
     sosMap: 'SOS Map',
     healthCenters: 'Health Centers',
-    idVerification: 'ID Verification',
-    idRelease: 'ID Release',
+    idManagement: 'ID Management',
+    
     digitalId: 'Digital ID',
     userManagement: 'User Management',
     analytics: 'Analytics',
@@ -78,8 +78,8 @@ export const LANGUAGES = {
     announcements: 'Mga Anunsyo',
     sosMap: 'Mapa ng SOS',
     healthCenters: 'Mga Health Center',
-    idVerification: 'Pag-verify ng ID',
-    idRelease: 'Pagpapalabas ng ID',
+    idManagement: 'Pamamahala ng ID',
+    
     digitalId: 'Digital ID',
     userManagement: 'Pamamahala ng User',
     analytics: 'Analytics',
@@ -121,8 +121,8 @@ export const LANGUAGES = {
     announcements: 'Mga Pahibalo',
     sosMap: 'Mapa sa SOS',
     healthCenters: 'Mga Health Center',
-    idVerification: 'Pag-verify sa ID',
-    idRelease: 'Pagpagawas sa ID',
+    idManagement: 'Pagdumala sa ID',
+    
     digitalId: 'Digital ID',
     userManagement: 'Pagdumala sa User',
     analytics: 'Analytics',

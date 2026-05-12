@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard, Map, Megaphone, Users,
-  ShieldCheck, Building2, LogOut, Crown, User2, CreditCard,
+  Building2, LogOut, Crown, User2, CreditCard,
   PanelLeftClose, PanelLeftOpen, FileText, Contact,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
@@ -19,9 +19,8 @@ export default function Sidebar({ children }) {
 
   const superAdminItems = [
     { key: 'dashboard',      icon: LayoutDashboard, path: '/' },
-    { key: 'idVerification', icon: ShieldCheck,     path: '/verification' },
+    { key: 'idManagement',   icon: CreditCard,      path: '/id-management' },
     { key: 'digitalId',      icon: Contact,         path: '/digital-id' },
-    { key: 'idRelease',      icon: CreditCard,      path: '/id-release' },
     { key: 'userManagement', icon: Users,           path: '/users' },
     { key: 'analytics',      icon: LayoutDashboard, path: '/analytics' },
     { key: 'announcements',  icon: Megaphone,       path: '/announcements' },
@@ -29,8 +28,8 @@ export default function Sidebar({ children }) {
 
   const subAdminItems = [
     { key: 'dashboard',     icon: LayoutDashboard, path: '/' },
+    { key: 'idManagement',  icon: CreditCard,      path: '/id-management' },
     { key: 'digitalId',     icon: Contact,         path: '/digital-id' },
-    { key: 'idRelease',     icon: CreditCard,      path: '/id-release' },
     { key: 'announcements', icon: Megaphone,       path: '/announcements' },
     { key: 'sosMap',        icon: Map,             path: '/sos' },
     { key: 'healthCenters', icon: Building2,       path: '/health-centers' },

@@ -12,8 +12,7 @@ import HealthCenters  from './pages/HealthCenters';
 import UserManagement from './pages/UserManagement';
 import SOSMap         from './pages/SOSMap';
 import AccessDenied   from './pages/Unauthorized';
-import IDVerification from './pages/IDVerification';
-import IDRelease      from './pages/IDRelease';
+import IDManagement   from './pages/IDManagement';   // unified module
 import Analytics      from './pages/Analytics';
 import DigitalID      from './pages/DigitalID';
 
@@ -38,23 +37,15 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       {
-        path: 'verification',
-        element: (
-          <ProtectedRoute allowedRoles={['super_admin']}>
-            <IDVerification />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: 'id-release',
+        // Unified ID Management: Verification + Release in one page
+        path: 'id-management',
         element: (
           <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
-            <IDRelease />
+            <IDManagement />
           </ProtectedRoute>
         ),
       },
       {
-        // DigitalID is now the unified ID management page (tabs: ID Release + Digital IDs List)
         path: 'digital-id',
         element: (
           <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>

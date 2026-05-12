@@ -1,3 +1,4 @@
+import './Header.css';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Bell, Settings, X, Check, AlertTriangle, Megaphone,

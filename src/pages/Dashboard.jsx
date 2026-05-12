@@ -6,6 +6,8 @@ import {
   doc, updateDoc, deleteDoc, onSnapshot
 } from "firebase/firestore";
 import { X, Megaphone, ChevronRight, Pencil, Trash2, Save, Loader2 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { useLang } from "../context/LangContext";
 
 
 const COLLECTION_ID = "editorial_health";
@@ -180,6 +182,8 @@ function DeleteModal({ announcement, onClose, onDeleted }) {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { isSuperAdmin, isSubAdmin } = useAuth();
+  const { t } = useLang();
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading]             = useState(true);
   const [editTarget, setEditTarget]       = useState(null);

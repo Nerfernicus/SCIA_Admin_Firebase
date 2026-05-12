@@ -10,6 +10,7 @@ import {
   updateDoc, serverTimestamp, getDocs, where, deleteDoc,
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
+import OSCAIdCard from '../components/Oscaidcard';
 
 const fmt = (ts) => ts?.toDate?.()?.toLocaleDateString('en-PH') ?? '—';
 
@@ -50,70 +51,9 @@ async function checkNCSID(record) {
   } catch { return false; }
 }
 
-/* ─── Valenzuela City seal SVG (inline, upper-left) ────────────────────────── */
-function ValenzuelaSeal({ size = 38 }) {
-  // Simplified stylized city seal — blue/gold/green tones
-  return (
-    <svg width={size} height={size} viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-      {/* Outer ring */}
-      <circle cx="40" cy="40" r="38" fill="#fff" stroke="#c8a200" strokeWidth="3"/>
-      <circle cx="40" cy="40" r="34" fill="none" stroke="#0a3d91" strokeWidth="1.5"/>
-      {/* Background fill */}
-      <circle cx="40" cy="40" r="32" fill="#e8f0ff"/>
-      {/* Shield shape */}
-      <path d="M40 12 L62 22 L62 42 Q62 60 40 68 Q18 60 18 42 L18 22 Z" fill="#0a3d91"/>
-      <path d="M40 16 L58 25 L58 42 Q58 57 40 64 Q22 57 22 42 L22 25 Z" fill="#1155cc"/>
-      {/* Gold cross/star */}
-      <path d="M40 24 L42 34 L52 34 L44 40 L47 50 L40 44 L33 50 L36 40 L28 34 L38 34 Z" fill="#FFD700"/>
-      {/* Green base (land) */}
-      <ellipse cx="40" cy="58" rx="14" ry="6" fill="#16a34a" opacity="0.8"/>
-      {/* River lines */}
-      <path d="M26 52 Q33 48 40 52 Q47 56 54 52" fill="none" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  );
-}
-
-/* ─── OSCA logo SVG (inline, upper-right) ──────────────────────────────────── */
-function OscaLogo({ size = 38 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-      {/* Outer ring */}
-      <circle cx="40" cy="40" r="38" fill="#fff" stroke="#c8102e" strokeWidth="3"/>
-      <circle cx="40" cy="40" r="33" fill="#fff3f3"/>
-      {/* Inner circle background */}
-      <circle cx="40" cy="40" r="28" fill="#0a3d91"/>
-      {/* OSCA text ring suggestion — arc */}
-      <circle cx="40" cy="40" r="22" fill="#1155cc"/>
-      {/* Senior figure — simplified icon */}
-      {/* Head */}
-      <circle cx="40" cy="26" r="6" fill="#FFD700"/>
-      {/* Body with cane */}
-      <path d="M40 32 L40 50" stroke="#FFD700" strokeWidth="3" strokeLinecap="round"/>
-      {/* Arms */}
-      <path d="M40 38 L32 44 M40 38 L52 36" stroke="#FFD700" strokeWidth="2.5" strokeLinecap="round"/>
-      {/* Legs */}
-      <path d="M40 50 L35 60 M40 50 L45 60" stroke="#FFD700" strokeWidth="2.5" strokeLinecap="round"/>
-      {/* Cane */}
-      <path d="M52 36 L56 56" stroke="#FFD700" strokeWidth="2" strokeLinecap="round"/>
-      {/* Heart above */}
-      <path d="M37 18 Q38 15 40 17 Q42 15 43 18 Q43 21 40 23 Q37 21 37 18 Z" fill="#c8102e"/>
-    </svg>
-  );
-}
-
-/* ─── Flippable OSCA Digital ID Card ───────────────────────────────────────── */
-function DigitalIDCard({ senior }) {
-  const [flipped, setFlipped] = useState(false);
-  const cardRef = useRef(null);
-
-  const name      = (senior.fullName || 'UNKNOWN').toUpperCase();
-  const address   = senior.address || '—';
-  const dob       = senior.dob || '—';
-  const sex       = (senior.sex || '—').toUpperCase();
-  const controlNo = senior.controlNumber || senior.id?.slice(-6).toUpperCase() || '——————';
-  const dateIssued = fmt(senior.releasedAt);
-
-  // Format DOB as MM-DD-YY
+/* ─── Helper: normalise a senior record to OSCAIdCard props ─────────────────── */
+function seniorToCardProps(senior) {
+  const dob = senior.dob || '—';
   let dobFormatted = dob;
   if (dob && dob !== '—') {
     const isoM   = dob.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -121,6 +61,65 @@ function DigitalIDCard({ senior }) {
     if (isoM)        dobFormatted = `${isoM[2]}-${isoM[3]}-${isoM[1].slice(2)}`;
     else if (slashM) dobFormatted = `${slashM[1].padStart(2,'0')}-${slashM[2].padStart(2,'0')}-${slashM[3].slice(2)}`;
   }
+
+  return {
+    mode: 'digital',
+    name: (senior.fullName || 'UNKNOWN').toUpperCase(),
+    address: senior.address || '—',
+    dateOfBirth: dobFormatted,
+    sex: (senior.sex || '—').toUpperCase(),
+    dateIssued: fmt(senior.releasedAt),
+    controlNo: senior.controlNumber || senior.id?.slice(-6).toUpperCase() || '——————',
+    photoUrl: senior.photoURL || null,
+  };
+}
+
+/* ─── Blank template preview — shows the ID design without personal data ──────── */
+function IDTemplatePreview() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="mb-6">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 text-sm font-semibold text-[#0f52ba] hover:text-blue-800 transition-colors"
+      >
+        <CreditCard size={15} />
+        {open ? 'Hide' : 'View'} ID Card Template Design
+        <span className="ml-1 text-xs font-normal text-gray-400">(blank sample)</span>
+      </button>
+
+      {open && (
+        <div className="mt-4 bg-gray-50 border border-gray-200 rounded-2xl p-6 flex flex-col items-center gap-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+            Digital ID Template — Sample Design (No Personal Data)
+          </p>
+          <OSCAIdCard
+            mode="digital"
+            name="JUAN DELA CRUZ"
+            address="123 Sample St., Valenzuela City"
+            dateOfBirth="01-01-60"
+            sex="M"
+            dateIssued={new Date().toLocaleDateString('en-PH', { month: '2-digit', day: '2-digit', year: 'numeric' })}
+            controlNo="SAMPLE-001"
+            photoUrl={null}
+          />
+          <p className="text-xs text-gray-400 flex items-center gap-1.5">
+            <RotateCcw size={11} /> Click the card to flip and see benefits layout
+          </p>
+          <div className="mt-2 px-4 py-2 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-600 text-center max-w-sm">
+            This is the official OSCA Valenzuela digital ID template with real logos.
+            Actual IDs will display the senior's personal information.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Wrapper with print/download button ───────────────────────────────────── */
+function DigitalIDCard({ senior }) {
+  const cardRef = useRef(null);
 
   const handlePrint = () => {
     const content = cardRef.current?.innerHTML;
@@ -135,254 +134,18 @@ function DigitalIDCard({ senior }) {
     w.print();
   };
 
-  const CARD_W = 380, CARD_H = 240;
+  const props = seniorToCardProps(senior);
 
   return (
     <div className="flex flex-col items-center gap-3">
       <div ref={cardRef}>
-        <div
-          style={{ perspective: 1000, width: CARD_W, height: CARD_H, cursor: 'pointer' }}
-          onClick={() => setFlipped(f => !f)}
-          title="Click to flip"
-        >
-          <div style={{
-            position: 'relative', width: '100%', height: '100%',
-            transformStyle: 'preserve-3d',
-            transition: 'transform 0.65s cubic-bezier(0.4,0,0.2,1)',
-            transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
-          }}>
-
-            {/* ══════════ FRONT ══════════ */}
-            <div style={{
-              position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden',
-              fontFamily: "'Times New Roman', Times, serif",
-              borderRadius: 12, overflow: 'hidden', background: '#ffffff',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.10)',
-              border: '1px solid #b0b8c8',
-            }}>
-
-              {/* ── Header: logos + title ── */}
-              <div style={{
-                background: 'linear-gradient(135deg, #062a6e 0%, #0a3d91 40%, #1155cc 70%, #0a3d91 100%)',
-                padding: '8px 12px',
-                display: 'flex', alignItems: 'center',
-                borderBottom: '3px solid #c8102e',
-                gap: 8,
-              }}>
-                {/* LEFT: Valenzuela City Seal */}
-                <div style={{ flexShrink: 0, filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.3))' }}>
-                  <ValenzuelaSeal size={42} />
-                </div>
-
-                {/* CENTER: Title */}
-                <div style={{ flex: 1, textAlign: 'center', color: '#fff' }}>
-                  <div style={{ fontSize: 7, opacity: 0.85, letterSpacing: 0.5 }}>Republic of the Philippines</div>
-                  <div style={{
-                    fontSize: 13, fontWeight: 'bold', letterSpacing: 0.8,
-                    color: '#FFD700', fontFamily: 'Impact, Arial Black, sans-serif',
-                    textShadow: '0 1px 4px rgba(0,0,0,0.5)',
-                    lineHeight: 1.2,
-                  }}>CITY OF VALENZUELA</div>
-                  <div style={{ fontSize: 7.5, opacity: 0.9, letterSpacing: 0.2 }}>
-                    Office of the Senior Citizens Affairs
-                  </div>
-                  <div style={{
-                    marginTop: 2, display: 'inline-block',
-                    background: 'rgba(255,255,255,0.15)', borderRadius: 3,
-                    padding: '1px 8px', fontSize: 7, letterSpacing: 1,
-                    color: '#fff', fontStyle: 'italic',
-                  }}>
-                    DIGITAL ID
-                  </div>
-                </div>
-
-                {/* RIGHT: OSCA Logo */}
-                <div style={{ flexShrink: 0, filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.3))' }}>
-                  <OscaLogo size={42} />
-                </div>
-              </div>
-
-              {/* ── Body ── */}
-              <div style={{ padding: '10px 12px 6px', display: 'flex', gap: 0 }}>
-
-                {/* LEFT SECTION: text fields */}
-                <div style={{ flex: 1, paddingRight: 10 }}>
-
-                  {/* Name */}
-                  <div style={{ marginBottom: 6 }}>
-                    <div style={{ fontSize: 6.5, color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 1 }}>Name</div>
-                    <div style={{
-                      fontSize: 12, fontWeight: 'bold', color: '#0a3d91',
-                      fontFamily: "'Courier New', Courier, monospace",
-                      letterSpacing: 0.4, lineHeight: 1.2,
-                    }}>{name}</div>
-                  </div>
-
-                  {/* Address */}
-                  <div style={{ marginBottom: 6 }}>
-                    <div style={{ fontSize: 6.5, color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 1 }}>Address</div>
-                    <div style={{
-                      fontSize: 8.5, color: '#333', lineHeight: 1.35,
-                      fontFamily: "'Courier New', Courier, monospace",
-                    }}>{address}</div>
-                  </div>
-
-                  {/* DOB / Sex / Date Issued row */}
-                  <div style={{ display: 'flex', gap: 14, marginBottom: 8 }}>
-                    <div>
-                      <div style={{ fontSize: 6.5, color: '#888', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 1 }}>Date of Birth</div>
-                      <div style={{ fontSize: 9.5, fontWeight: 'bold', color: '#111', fontFamily: "'Courier New', Courier, monospace" }}>{dobFormatted}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 6.5, color: '#888', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 1 }}>Sex</div>
-                      <div style={{ fontSize: 9.5, fontWeight: 'bold', color: '#111', fontFamily: "'Courier New', Courier, monospace" }}>{sex}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 6.5, color: '#888', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 1 }}>Date Issued</div>
-                      <div style={{ fontSize: 9.5, fontWeight: 'bold', color: '#111', fontFamily: "'Courier New', Courier, monospace" }}>{dateIssued}</div>
-                    </div>
-                  </div>
-
-                  {/* Signature + Control No */}
-                  <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ width: 80, height: 20, borderBottom: '1px solid #999', marginBottom: 2 }} />
-                      <div style={{ fontSize: 6.5, color: '#888' }}>Signature / Thumbmark</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{
-                        fontSize: 22, fontWeight: 'bold', color: '#c8102e',
-                        fontFamily: "'Courier New', Courier, monospace",
-                        letterSpacing: 2, lineHeight: 1,
-                      }}>{controlNo}</div>
-                      <div style={{ fontSize: 6.5, color: '#888', borderTop: '0.75px solid #ccc', paddingTop: 1 }}>Control No.</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* RIGHT SECTION: photo */}
-                <div style={{
-                  width: 72, flexShrink: 0,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                }}>
-                  {/* Photo box */}
-                  <div style={{
-                    width: 70, height: 88,
-                    background: 'linear-gradient(135deg, #dde6f5 0%, #eef2f8 100%)',
-                    border: '2px solid #0a3d91',
-                    borderRadius: 4,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    overflow: 'hidden',
-                    fontSize: 34, color: '#7a8ba0',
-                    flexShrink: 0,
-                  }}>
-                    {senior.photoURL
-                      ? <img src={senior.photoURL} alt="ID photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : '👤'}
-                  </div>
-                  {/* Verified chip */}
-                  <div style={{
-                    background: '#dcfce7', border: '1px solid #16a34a',
-                    borderRadius: 20, padding: '2px 6px',
-                    fontSize: 6, color: '#15803d', fontWeight: 'bold',
-                    display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap',
-                  }}>
-                    ✓ Verified
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Green verified strip ── */}
-              <div style={{
-                background: 'linear-gradient(90deg, #15803d, #16a34a)',
-                padding: '3px 12px',
-                fontSize: 7.5, color: '#fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                letterSpacing: 0.3,
-              }}>
-                <span>✓ Digitally Verified — Valid OSCA Senior Citizen ID</span>
-                <span style={{ opacity: 0.8, fontSize: 7 }}>www.valenzuela.gov.ph</span>
-              </div>
-
-              {/* ── Blue footer ── */}
-              <div style={{
-                background: 'linear-gradient(90deg, #062a6e 0%, #0a3d91 50%, #062a6e 100%)',
-                padding: '4px 12px',
-                textAlign: 'center', fontSize: 8, color: '#fff',
-                letterSpacing: 1.5, fontStyle: 'italic',
-              }}>
-                This card is non-transferable
-              </div>
-            </div>
-
-            {/* ══════════ BACK ══════════ */}
-            <div style={{
-              position: 'absolute', width: '100%', height: '100%', backfaceVisibility: 'hidden',
-              transform: 'rotateY(180deg)',
-              fontFamily: 'Arial, Helvetica, sans-serif',
-              borderRadius: 12, overflow: 'hidden', background: '#ffffff',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.10)',
-              border: '1px solid #b0b8c8',
-            }}>
-              {/* Top accent strip */}
-              <div style={{ background: 'linear-gradient(90deg, #062a6e 0%, #0a3d91 50%, #062a6e 100%)', height: 8, borderBottom: '3px solid #c8102e' }} />
-
-              <div style={{ padding: '8px 12px 4px' }}>
-                <div style={{ fontWeight: 'bold', fontSize: 8.5, color: '#0a3d91', marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '1px solid #e0e7ff', paddingBottom: 3 }}>
-                  Benefits &amp; Privileges under R.A. 9994 (Expanded Senior Citizens Act)
-                </div>
-                {[
-                  'Free medical/dental, diagnostic & laboratory services in all govt. facilities',
-                  '20% discount for medicines',
-                  '20% discount in hotels, restaurants & recreation centers',
-                  '20% discount in theaters, cinema houses & concert halls',
-                  '20% discount in medical/dental services in private facilities',
-                  '20% discount in fare for domestic air, sea & land transportation',
-                  '5% discount in basic necessities & primary commodities',
-                  '12% VAT-exemption on purchases entitled to the 20% discount',
-                  '5% discount on monthly water & electricity bills',
-                ].map((item, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 5, marginBottom: 2.5, fontSize: 7.5, color: '#222', lineHeight: 1.3 }}>
-                    <span style={{ color: '#0a3d91', fontWeight: 'bold', minWidth: 13, flexShrink: 0 }}>{i + 1}.</span>
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ fontSize: 6.5, color: '#888', padding: '0 12px 5px', fontStyle: 'italic', lineHeight: 1.4 }}>
-                Persons and corporations violating R.A. 9994 shall be penalized.<br />
-                For exclusive use of senior citizens only. Abuse of privileges is punishable by law.
-              </div>
-
-              {/* Signatories */}
-              <div style={{ borderTop: '1px solid #e0e0e0', padding: '5px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ width: 90, borderBottom: '1px solid #333', marginBottom: 3 }} />
-                  <div style={{ fontSize: 7, color: '#444', fontWeight: '600' }}>OSCA Head</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ width: 90, borderBottom: '1px solid #333', marginBottom: 3 }} />
-                  <div style={{ fontSize: 7, color: '#444', fontWeight: '600' }}>City Mayor</div>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div style={{ background: 'linear-gradient(90deg, #062a6e 0%, #0a3d91 50%, #062a6e 100%)', padding: '5px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ color: '#4ade80', fontSize: 8, fontWeight: 'bold', fontStyle: 'italic' }}>Tuloy-PROGRESO, Valenzuela!</div>
-                <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 7 }}>www.valenzuela.gov.ph</div>
-              </div>
-            </div>
-
-          </div>
-        </div>
+        <OSCAIdCard {...props} />
       </div>
 
-      {/* Flip hint */}
       <p className="text-xs text-gray-400 flex items-center gap-1.5">
-        <RotateCcw size={11} /> Click the card to flip and see benefits
+        <RotateCcw size={11} /> Digital ID Preview
       </p>
 
-      {/* Print/download */}
       <button
         onClick={handlePrint}
         className="w-full flex items-center justify-center gap-2 bg-[#0a3d91] hover:bg-blue-800 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
@@ -416,17 +179,13 @@ export default function DigitalID() {
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 3500); }
 
-  // Verify a single record against NCSID
   async function verifyNCSID(record) {
     setNcsidMap(m => ({ ...m, [record.id]: 'checking' }));
     const found = await checkNCSID(record);
     setNcsidMap(m => ({ ...m, [record.id]: found }));
-    if (!found) {
-      showToast(`⚠️ ${record.fullName} may not be registered in NCSID.`);
-    }
+    if (!found) showToast(`⚠️ ${record.fullName} may not be registered in NCSID.`);
   }
 
-  // Super admin: invalidate a digital ID (senior not actually registered)
   async function handleInvalidate(record) {
     if (!window.confirm(`Invalidate digital ID for ${record.fullName}? This will mark it as revoked.`)) return;
     setInvalidating(record.id);
@@ -462,7 +221,7 @@ export default function DigitalID() {
       {/* ID preview modal */}
       {previewID && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full max-h-[92vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-2xl w-full max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <CreditCard size={18} className="text-[#0f52ba]" /> Digital ID
@@ -472,7 +231,6 @@ export default function DigitalID() {
               </button>
             </div>
 
-            {/* NCSID status in modal */}
             {ncsidMap[previewID.id] !== undefined && (
               <div className={`mb-4 px-4 py-2.5 rounded-xl text-xs font-medium flex items-center gap-2 ${
                 ncsidMap[previewID.id] === 'checking' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
@@ -511,12 +269,15 @@ export default function DigitalID() {
         </p>
       </div>
 
+      {/* ── ID Template Preview ── */}
+      <IDTemplatePreview />
+
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
-          { label: 'Active IDs',      value: active.length,      color: 'text-green-600', bg: 'bg-green-50',  icon: Shield },
-          { label: 'Invalidated',     value: invalidated.length, color: 'text-red-600',   bg: 'bg-red-50',    icon: XCircle },
-          { label: 'Total Issued',    value: digitalIDs.length,  color: 'text-blue-600',  bg: 'bg-blue-50',   icon: CreditCard },
+          { label: 'Active IDs',   value: active.length,      color: 'text-green-600', bg: 'bg-green-50', icon: Shield },
+          { label: 'Invalidated',  value: invalidated.length, color: 'text-red-600',   bg: 'bg-red-50',   icon: XCircle },
+          { label: 'Total Issued', value: digitalIDs.length,  color: 'text-blue-600',  bg: 'bg-blue-50',  icon: CreditCard },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl border border-gray-100 p-5 flex items-center gap-4">
             <div className={`w-10 h-10 ${s.bg} rounded-xl flex items-center justify-center`}>
@@ -530,12 +291,11 @@ export default function DigitalID() {
         ))}
       </div>
 
-      {/* NCSID verification banner */}
       {isSuperAdmin && (
         <div className="mb-5 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 flex items-start gap-2">
           <Database size={13} className="text-blue-500 mt-0.5 shrink-0" />
           <span>
-            As super admin, you can verify each ID holder against the NCSID database. Click the <strong>Check NCSID</strong> button on any record. If a holder is not found, you may <strong>invalidate</strong> their digital ID.
+            As super admin, you can verify each ID holder against the NCSID database. Click <strong>Check NCSID</strong> on any record. If not found, you may <strong>invalidate</strong> their digital ID.
           </span>
         </div>
       )}
@@ -556,7 +316,6 @@ export default function DigitalID() {
         </div>
       ) : (
         <>
-          {/* Active IDs */}
           {active.length > 0 && (
             <div className="mb-6">
               <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Active Digital IDs ({active.length})</h2>
@@ -570,7 +329,6 @@ export default function DigitalID() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-gray-900">{r.fullName}</p>
-                          {/* NCSID status inline */}
                           {ncsidMap[r.id] === true && (
                             <span className="flex items-center gap-1 text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                               <CheckCircle2 size={9} /> NCSID ✓
@@ -614,7 +372,6 @@ export default function DigitalID() {
             </div>
           )}
 
-          {/* Invalidated IDs */}
           {invalidated.length > 0 && (
             <div>
               <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Invalidated IDs ({invalidated.length})</h2>
@@ -656,4 +413,3 @@ export default function DigitalID() {
     </div>
   );
 }
-// comment

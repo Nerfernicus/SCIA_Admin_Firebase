@@ -1,3 +1,4 @@
+import './Sidebar.css';
 import React, { useState } from 'react';
 import {
   LayoutDashboard, Map, Megaphone, Users,

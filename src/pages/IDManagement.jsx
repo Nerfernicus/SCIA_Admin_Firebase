@@ -21,7 +21,7 @@ import {
   Globe, WifiOff, Send, Bell, Package, ChevronRight,
 } from 'lucide-react';
 import { db, functions } from '../lib/firebase';
-import { httpsCallable, getFunctions } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
 import {
   collection, onSnapshot, query, orderBy, where,
   doc, updateDoc, setDoc, deleteDoc, serverTimestamp,
@@ -31,10 +31,7 @@ import { useAuth } from '../context/AuthContext';
 import OSCAIdCard from '../components/Oscaidcard';
 
 /* ─── Cloud Function ─────────────────────────────────────────────────────────── */
-const ncscVerifyFn = httpsCallable(
-  getFunctions(undefined, 'asia-southeast1'),
-  'ncscVerify'
-);
+const ncscVerifyFn = httpsCallable(functions, 'ncscVerify');
 
 /* ─── NCSC live verification ─────────────────────────────────────────────────── */
 async function runNCSCVerify(record) {
@@ -473,9 +470,6 @@ function OSCAIDCard({ record }) {
         controlNo={record.controlNumber || record.seniorId || record.idNumber || (record.id?.slice(-6).toUpperCase()) || '——————'}
         photoUrl={record.photoURL || null}
       />
-      <p className="text-xs text-gray-400 flex items-center gap-1.5">
-        <RotateCcw size={11} /> Click the card to flip and see benefits
-      </p>
     </div>
   );
 }

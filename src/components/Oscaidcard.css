@@ -1,39 +1,72 @@
-/* ── OSCAIdCard.css ──────────────────────────────────────────── */
+/* ── OSCAIdCard.css — flip card, same-size front & back ──────── */
 
+/* Wrapper: fixed card dimensions, perspective for 3D flip */
 .osca-id-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 28px;
   align-items: center;
-  padding: 16px 0;
+  padding: 8px 0;
+
+  /* Perspective container */
+  perspective: 1200px;
 }
 
-/* ── Card base ───────────────────────────────────────────────── */
-.osca-card {
+/* ── Flip container ── */
+.osca-flip-container {
   width: 540px;
+  height: 340px;       /* fixed height — same for front & back */
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.osca-flip-container.flipped {
+  transform: rotateY(180deg);
+}
+
+/* Both faces: same absolute position, same size, backface hidden */
+.osca-card {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   border-radius: 10px;
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
   background: #ffffff;
   font-family: "Courier New", Courier, monospace;
+  /* Allow internal scrolling only if content overflows */
+  overflow-y: auto;
+}
+
+.osca-card-front {
+  /* Faces forward by default */
+}
+
+.osca-card-back {
+  transform: rotateY(180deg);
+  overflow-y: auto;
 }
 
 /* ═══════════════════════════════════
    FRONT
 ═══════════════════════════════════ */
 
-/* Header bar */
 .front-header {
   background: linear-gradient(90deg, #1a3a6b 0%, #1e4d99 50%, #1a3a6b 100%);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 76px;
+  min-height: 72px;
   padding: 6px 0;
+  flex-shrink: 0;
 }
 
 .front-header-logo {
-  width: 72px;
+  width: 68px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -42,8 +75,8 @@
 }
 
 .front-header-logo img {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   object-fit: contain;
 }
 
@@ -63,7 +96,7 @@
 
 .header-city {
   color: #ffd700;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 900;
   font-family: "Arial Black", Arial, sans-serif;
   letter-spacing: 1.2px;
@@ -73,13 +106,12 @@
 
 .header-osca {
   color: #ffffff;
-  font-size: 8.5px;
+  font-size: 8px;
   font-family: Arial, sans-serif;
   letter-spacing: 0.2px;
   margin: 0;
 }
 
-/* Digital badge — only shown in digital mode, rendered inside header */
 .digital-badge {
   display: inline-block;
   background: rgba(255, 255, 255, 0.15);
@@ -95,52 +127,53 @@
   font-style: italic;
 }
 
-/* Body */
 .front-body {
   display: flex;
-  gap: 14px;
-  padding: 14px 16px 10px 16px;
+  gap: 12px;
+  padding: 10px 14px 8px 14px;
   background: #ffffff;
+  flex: 1;
 }
 
 .front-fields {
   flex: 1;
+  min-width: 0;
 }
 
 .field-row {
   display: flex;
   align-items: flex-start;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   gap: 4px;
 }
 
 .field-label {
-  font-size: 10.5px;
+  font-size: 10px;
   font-family: Arial, sans-serif;
   font-weight: 700;
   color: #111111;
-  min-width: 60px;
+  min-width: 56px;
   padding-top: 1px;
   flex-shrink: 0;
 }
 
 .field-value {
-  font-size: 13px;
+  font-size: 12px;
   font-family: "Courier New", Courier, monospace;
   color: #111111;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.2;
+  word-break: break-word;
 }
 
 .address-value {
-  font-size: 11.5px;
+  font-size: 10.5px;
 }
 
-/* Meta row (DOB / Sex / Date Issued) */
 .front-meta {
   display: flex;
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: 1px solid #cccccc;
 }
 
@@ -150,28 +183,27 @@
 }
 
 .meta-val {
-  font-size: 12px;
+  font-size: 11px;
   font-family: "Courier New", Courier, monospace;
   font-weight: 700;
   color: #111111;
 }
 
 .meta-lbl {
-  font-size: 7.5px;
+  font-size: 7px;
   font-family: Arial, sans-serif;
   color: #555555;
   margin-top: 2px;
 }
 
-/* Photo */
 .front-photo {
-  width: 92px;
+  width: 84px;
   flex-shrink: 0;
 }
 
 .photo-box {
-  width: 92px;
-  height: 112px;
+  width: 84px;
+  height: 100px;
   border: 1.5px solid #aaaaaa;
   background: #efefef;
   display: flex;
@@ -187,14 +219,14 @@
   object-fit: cover;
 }
 
-/* Bottom strip */
 .front-bottom {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  padding: 8px 16px 10px 16px;
+  padding: 6px 14px 8px 14px;
   background: #ffffff;
   border-top: 1px solid #dddddd;
+  flex-shrink: 0;
 }
 
 .sig-area {
@@ -203,13 +235,13 @@
 
 .sig-line {
   border-top: 1px solid #333333;
-  width: 150px;
-  margin-top: 30px;
+  width: 140px;
+  margin-top: 22px;
   margin-bottom: 3px;
 }
 
 .sig-label {
-  font-size: 8px;
+  font-size: 7.5px;
   font-family: Arial, sans-serif;
   color: #333333;
 }
@@ -219,7 +251,7 @@
 }
 
 .control-no {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   color: #cc1111;
   font-family: "Courier New", Courier, monospace;
@@ -228,45 +260,46 @@
 }
 
 .control-label {
-  font-size: 8px;
+  font-size: 7.5px;
   font-family: Arial, sans-serif;
   color: #333333;
   margin-top: 2px;
 }
 
-/* Footer */
 .front-footer {
   background: #1a3a6b;
   text-align: center;
-  padding: 5px;
+  padding: 4px;
+  flex-shrink: 0;
 }
 
 .front-footer span {
   color: #ffffff;
-  font-size: 9px;
+  font-size: 8px;
   font-family: Arial, sans-serif;
   font-style: italic;
   letter-spacing: 0.3px;
 }
 
 /* ═══════════════════════════════════
-   BACK — matches actual physical card
+   BACK — same fixed height, scrollable
 ═══════════════════════════════════ */
 
-/* No top stripe logo — just a thin blue accent line */
 .back-top-stripe {
   background: linear-gradient(90deg, #1a3a6b 0%, #1e4d99 50%, #1a3a6b 100%);
   height: 6px;
+  flex-shrink: 0;
 }
 
 .back-title-bar {
   background: #ffffff;
-  padding: 10px 16px 6px 16px;
+  padding: 8px 14px 5px 14px;
   border-bottom: 1px solid #dddddd;
+  flex-shrink: 0;
 }
 
 .back-title {
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 900;
   font-family: "Arial Black", Arial, sans-serif;
   color: #111111;
@@ -275,42 +308,42 @@
 }
 
 .back-body {
-  padding: 12px 16px 0 16px;
+  padding: 8px 14px 0 14px;
   background: #ffffff;
 }
 
 .benefits-list {
   list-style: decimal;
-  padding-left: 20px;
+  padding-left: 18px;
   margin: 0;
 }
 
 .benefits-list li {
-  font-size: 9.5px;
+  font-size: 8.5px;
   font-family: Arial, sans-serif;
   color: #111111;
-  padding: 2.5px 0;
-  line-height: 1.4;
+  padding: 2px 0;
+  line-height: 1.35;
 }
 
 .back-notice {
-  margin-top: 8px;
-  padding-top: 6px;
+  margin-top: 6px;
+  padding-top: 5px;
   border-top: 1px solid #dddddd;
 }
 
 .back-notice p {
-  font-size: 8.5px;
+  font-size: 7.5px;
   font-family: Arial, sans-serif;
   color: #333333;
   font-style: italic;
-  margin: 2px 0;
+  margin: 1.5px 0;
 }
 
 .back-signers {
   display: flex;
   justify-content: space-between;
-  padding: 8px 12px 12px 12px;
+  padding: 6px 10px 8px 10px;
 }
 
 .signer {
@@ -318,41 +351,41 @@
 }
 
 .signer-sig-space {
-  height: 26px;
+  height: 20px;
 }
 
 .signer-line {
   border-top: 1px solid #333333;
-  width: 180px;
+  width: 160px;
   margin-bottom: 3px;
 }
 
 .signer-name {
-  font-size: 9.5px;
+  font-size: 8.5px;
   font-weight: 700;
   font-family: Arial, sans-serif;
   color: #111111;
 }
 
 .signer-title {
-  font-size: 8px;
+  font-size: 7.5px;
   font-family: Arial, sans-serif;
   color: #555555;
 }
 
-/* Back footer — red-blue split matching actual card photo */
 .back-footer {
   display: flex;
   align-items: stretch;
+  margin-top: auto;
 }
 
 .back-footer-left {
   background: #cc1111;
-  padding: 7px 14px;
+  padding: 6px 12px;
   display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 165px;
+  min-width: 155px;
 }
 
 .progreso-text {
@@ -361,14 +394,14 @@
 
 .progreso-tuloy {
   color: #ffffff;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
   font-family: Arial, sans-serif;
 }
 
 .progreso-city {
   color: #ffd700;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 900;
   font-family: "Arial Black", Arial, sans-serif;
 }
@@ -376,7 +409,7 @@
 .back-footer-right {
   flex: 1;
   background: linear-gradient(90deg, #1e4d99, #1a3a6b);
-  padding: 7px 14px;
+  padding: 6px 12px;
   text-align: right;
   display: flex;
   flex-direction: column;
@@ -385,14 +418,14 @@
 
 .footer-web {
   color: #ffffff;
-  font-size: 9.5px;
+  font-size: 8.5px;
   font-weight: 700;
   font-family: Arial, sans-serif;
 }
 
 .footer-socials {
   color: rgba(255, 255, 255, 0.8);
-  font-size: 7.5px;
+  font-size: 7px;
   font-family: Arial, sans-serif;
   margin-top: 2px;
 }

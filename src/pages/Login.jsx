@@ -133,10 +133,10 @@ export default function Login() {
 
         <div className="flex items-center justify-center gap-3 mt-6">
           <span className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm text-white/70 text-xs font-medium px-3 py-1.5 rounded-full">
-            <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full" />Super Admin
+            <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full" />OSCA Admin
           </span>
           <span className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm text-white/70 text-xs font-medium px-3 py-1.5 rounded-full">
-            <span className="w-1.5 h-1.5 bg-blue-300 rounded-full" />Sub Admin
+            <span className="w-1.5 h-1.5 bg-blue-300 rounded-full" />Barangay Admin
           </span>
         </div>
       </div>

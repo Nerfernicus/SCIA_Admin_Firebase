@@ -91,22 +91,26 @@ export default function SOSMap() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [showHistory, setShowHistory]   = useState(false);
   const [toast, setToast]               = useState('');
+  const [toastType, setToastType]       = useState('success');
   const mapCenter = [14.7080, 120.9860];
 
   useEffect(() => {
     const qEmergencies = query(collection(db, "emergencies"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(qEmergencies, (snapshot) => {
-      const alerts = snapshot.docs.map(d => ({ id: d.id, _source: 'emergencies', ...d.data() }));
+      const alerts = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data(),
+        _source: 'emergencies', // AFTER spread so it can't be overwritten
+      }));
       setLiveAlerts(alerts);
     });
     return () => unsub();
   }, []);
 
-  // Detect repeat SOS users (same userId/uid or name appearing more than once)
+  // Detect repeat SOS users
   const repeatKeys = (() => {
     const counts = {};
     liveAlerts.forEach(a => {
-      // Mobile app writes `uid`; admin SOSMap previously wrote `userId` — check both
       const key = a.userId || a.uid || a.name;
       if (key) counts[key] = (counts[key] || 0) + 1;
     });
@@ -115,30 +119,50 @@ export default function SOSMap() {
 
   const isRepeat = (a) => repeatKeys.has(a.userId || a.uid || a.name);
 
-  function showToast(msg) {
+  function showToast(msg, type = 'success') {
     setToast(msg);
-    setTimeout(() => setToast(''), 3000);
+    setToastType(type);
+    setTimeout(() => setToast(''), 3500);
   }
 
   const handleDispatch = async (alertId, source) => {
-    await updateDoc(doc(db, source || 'emergencies', alertId), {
-      status: "dispatched",
-      dispatchedAt: serverTimestamp(),
-    });
+    try {
+      await updateDoc(doc(db, source || 'emergencies', alertId), {
+        status: "dispatched",
+        dispatchedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("Dispatch failed:", err);
+      showToast("Failed to dispatch: " + err.message, 'error');
+    }
   };
 
   const handleResolve = async (alertId, source) => {
-    await updateDoc(doc(db, source || 'emergencies', alertId), {
-      status: "resolved",
-      resolvedAt: serverTimestamp(),
-    });
+    try {
+      await updateDoc(doc(db, source || 'emergencies', alertId), {
+        status: "resolved",
+        resolvedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("Resolve failed:", err);
+      showToast("Failed to resolve: " + err.message, 'error');
+    }
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    await deleteDoc(doc(db, deleteTarget._source || 'emergencies', deleteTarget.id));
-    showToast(`Alert from "${deleteTarget.name}" deleted.`);
-    setDeleteTarget(null);
+    const colName = deleteTarget._source || 'emergencies';
+    const id      = deleteTarget.id;
+    const name    = deleteTarget.name;
+    try {
+      await deleteDoc(doc(db, colName, id));
+      showToast(`Alert from "${name}" deleted.`, 'success');
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error("Delete failed:", err);
+      showToast("Delete failed: " + err.message, 'error');
+      setDeleteTarget(null);
+    }
   };
 
   const handleLocateMe = () => {
@@ -157,7 +181,6 @@ export default function SOSMap() {
   const latestPendingAlert = activeAlerts.find(a => a.status === 'pending' && a.latitude && a.longitude);
   const mapFocusTarget = myLocation ?? (latestPendingAlert ? [latestPendingAlert.latitude, latestPendingAlert.longitude] : null);
 
-  // Alerts to show in the panel (active always shown; history toggled)
   const panelAlerts = showHistory ? liveAlerts : activeAlerts;
 
   return (
@@ -165,8 +188,13 @@ export default function SOSMap() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed top-6 right-6 z-[9999] bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3">
-          <CheckCircle2 size={16} className="text-green-400" />
+        <div className={`fixed top-6 right-6 z-[9999] text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 ${
+          toastType === 'error' ? 'bg-red-600' : 'bg-gray-900'
+        }`}>
+          {toastType === 'error'
+            ? <AlertTriangle size={16} className="text-red-200" />
+            : <CheckCircle2 size={16} className="text-green-400" />
+          }
           {toast}
           <button onClick={() => setToast('')}><X size={14} className="text-white/60 hover:text-white" /></button>
         </div>
@@ -187,6 +215,7 @@ export default function SOSMap() {
       </div>
 
       <div className="relative flex-1 w-full bg-blue-50/20">
+
         {/* Map */}
         <div className="absolute inset-0 z-0">
           <MapContainer center={mapCenter} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
@@ -290,7 +319,7 @@ export default function SOSMap() {
             )}
 
             {panelAlerts.map((alert) => {
-              const repeat = isRepeat(alert);
+              const repeat     = isRepeat(alert);
               const isResolved = alert.status === 'resolved';
 
               return (
@@ -310,7 +339,7 @@ export default function SOSMap() {
                           : 'bg-yellow-50 border-yellow-200'
                   }`}
                 >
-                  {/* Delete button — top right */}
+                  {/* Delete button */}
                   <button
                     onClick={() => setDeleteTarget(alert)}
                     title="Delete alert"
@@ -340,7 +369,7 @@ export default function SOSMap() {
                       </p>
                     </div>
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ml-2 shrink-0 ${
-                      alert.status === "pending"   ? "bg-white text-red-700"
+                      alert.status === "pending"      ? "bg-white text-red-700"
                       : alert.status === "dispatched" ? "bg-yellow-200 text-yellow-800"
                       : "bg-gray-200 text-gray-600"
                     }`}>{alert.status}</span>

@@ -295,7 +295,7 @@ export default function DigitalID() {
         <div className="mb-5 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 flex items-start gap-2">
           <Database size={13} className="text-blue-500 mt-0.5 shrink-0" />
           <span>
-            As super admin, you can verify each ID holder against the NCSID database. Click <strong>Check NCSID</strong> on any record. If not found, you may <strong>invalidate</strong> their digital ID.
+            As OSCA admin, you can verify each ID holder against the NCSID database. Click <strong>Check NCSID</strong> on any record. If not found, you may <strong>invalidate</strong> their digital ID.
           </span>
         </div>
       )}

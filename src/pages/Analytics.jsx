@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { BarChart3, Users, ShieldCheck, Megaphone, Map, Building2, TrendingUp, Loader2 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, getCountFromServer, query, where } from 'firebase/firestore';
+import { useAuth } from '../context/AuthContext';
 
 function StatCard({ icon: Icon, label, value, color, bg, sub }) {
   return (
@@ -24,6 +25,7 @@ async function count(collectionName, conditions = []) {
 }
 
 export default function Analytics() {
+  const { isSuperAdmin } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -87,10 +89,10 @@ export default function Analytics() {
           </div>
 
           <div className="mb-6">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Sub Admin Activity</h2>
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Barangay Admin Activity</h2>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               <StatCard icon={Megaphone}   label="Announcements"  value={stats?.announcements} color="text-purple-600" bg="bg-purple-50" sub="Total posted" />
-              <StatCard icon={Map}         label="SOS Events"     value={stats?.sosEvents}     color="text-red-600"    bg="bg-red-50"    sub="Recorded incidents" />
+              {!isSuperAdmin && <StatCard icon={Map}         label="SOS Events"     value={stats?.sosEvents}     color="text-red-600"    bg="bg-red-50"    sub="Recorded incidents" />}
               <StatCard icon={Building2}   label="Health Centers" value={stats?.healthCenters} color="text-teal-600"   bg="bg-teal-50"   sub="Listed facilities" />
             </div>
           </div>

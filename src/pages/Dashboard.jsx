@@ -480,6 +480,7 @@ export default function Dashboard() {
           {/* Urgent Operations */}
           <div className="space-y-6">
             <h2 className="text-lg font-bold text-gray-900 mb-2">Urgent Operations</h2>
+            {!isSuperAdmin && (
             <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 space-y-4">
               <div className="bg-blue-50 h-32 rounded-lg flex items-center justify-center text-4xl border border-blue-100">🌍</div>
               <div className="flex justify-between items-center">
@@ -502,6 +503,7 @@ export default function Dashboard() {
                 Go to Live SOS Map
               </button>
             </div>
+            )}
 
             <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 space-y-4">
               <div className="flex justify-between items-center mb-2">

@@ -17,7 +17,7 @@ export default function Unauthorized() {
         <p className="text-sm text-gray-500 mb-8">
           You don't have permission to view this page.
           {role === 'sub_admin' && (
-            <> This section is reserved for Super Admins only.</>
+            <> This section is reserved for OSCA Admins only.</>
           )}
         </p>
         <button

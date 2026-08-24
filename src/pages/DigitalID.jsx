@@ -116,6 +116,39 @@ function IDCardPreview({ record, mode = 'digital' }) {
   );
 }
 
+/* ─── Sample Digital ID Preview (shown when no real data yet) ───────────────── */
+const SAMPLE_RECORD = {
+  id:            'sample-001',
+  fullName:      'Juan dela Cruz',
+  address:       'Blk 5 Lot 3, Brgy. San Antonio, Parañaque City',
+  dob:           '1950-03-15',
+  sex:           'M',
+  controlNumber: 'JDC-001',
+  status:        'active',
+  releasedAt:    null,
+  notifiedAt:    null,
+  photoURL:      null,
+  _isSample:     true,
+};
+
+function SampleIDCard() {
+  return (
+    <div className="mb-8 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-dashed border-blue-200 rounded-3xl p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center">
+          <CreditCard size={16} className="text-blue-600" />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-blue-800">Sample Digital ID</p>
+          <p className="text-xs text-blue-500">This is how a digital OSCA ID looks when issued</p>
+        </div>
+        <span className="ml-auto text-xs font-bold bg-blue-100 text-blue-600 px-2.5 py-1 rounded-full">PREVIEW</span>
+      </div>
+      <IDCardPreview record={SAMPLE_RECORD} mode="digital" />
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════════
    SUPER ADMIN VIEW — Digital IDs from digital_ids collection
    Can verify against NCSID and invalidate
@@ -199,7 +232,7 @@ function SuperAdminDigitalID() {
               </div>
             )}
 
-            {/* Digital ID shown to super admin */}
+            {/* Uses your existing OSCAIdCard exactly — no design changes */}
             <IDCardPreview record={previewID} mode="digital" />
 
             <button
@@ -256,6 +289,9 @@ function SuperAdminDigitalID() {
         </div>
       ) : (
         <>
+          {/* ── Sample ID shown when no real IDs have been issued yet ── */}
+          {digitalIDs.length === 0 && !search && <SampleIDCard />}
+
           {active.length > 0 && (
             <div className="mb-6">
               <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Active Digital IDs ({active.length})</h2>
@@ -297,6 +333,21 @@ function SuperAdminDigitalID() {
             </div>
           )}
 
+          {/* ── Sample shown alongside real IDs as a reference card ── */}
+          {digitalIDs.length > 0 && !search && (
+            <div className="mb-6">
+              <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <CreditCard size={13} /> Sample ID Reference
+              </h2>
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-dashed border-blue-200 rounded-2xl p-5">
+                <p className="text-xs text-blue-600 font-semibold mb-4 flex items-center gap-1.5">
+                  <ShieldCheck size={12} /> This is how an issued digital OSCA ID looks (sample data)
+                </p>
+                <IDCardPreview record={SAMPLE_RECORD} mode="digital" />
+              </div>
+            </div>
+          )}
+
           {invalidated.length > 0 && (
             <div>
               <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Invalidated IDs ({invalidated.length})</h2>
@@ -322,7 +373,7 @@ function SuperAdminDigitalID() {
             </div>
           )}
 
-          {filtered.length === 0 && (
+          {filtered.length === 0 && digitalIDs.length > 0 && (
             <div className="text-center py-20 text-gray-400">
               <CreditCard size={40} className="mx-auto mb-3 opacity-40" />
               <p className="font-medium">{search ? 'No results found' : 'No digital IDs issued yet'}</p>
@@ -399,7 +450,7 @@ function BarangayAdminDigitalID({ adminData }) {
               <button onClick={() => setPreviewRecord(null)}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
             </div>
 
-            {/* ✅ Physical mode — no "DIGITAL ID" badge shown */}
+            {/* physical mode — no "DIGITAL ID" badge shown, uses your OSCAIdCard exactly */}
             <IDCardPreview record={previewRecord} mode="physical" />
 
             {previewRecord.status !== 'collected' && (
@@ -447,6 +498,11 @@ function BarangayAdminDigitalID({ adminData }) {
           </div>
         ))}
       </div>
+
+      {/* Sample card shown when no IDs released to this barangay yet */}
+      {!loading && barangay && releasedIDs.length === 0 && (
+        <SampleIDCard />
+      )}
 
       {/* Search */}
       <div className="relative mb-6">
@@ -553,14 +609,6 @@ function BarangayAdminDigitalID({ adminData }) {
               <MapPin size={40} className="mx-auto mb-3 opacity-40" />
               <p className="font-medium">No barangay assigned to your account</p>
               <p className="text-xs mt-1">Contact the OSCA super admin to assign your barangay.</p>
-            </div>
-          )}
-
-          {barangay && releasedIDs.length === 0 && (
-            <div className="text-center py-20 text-gray-400">
-              <Package size={40} className="mx-auto mb-3 opacity-40" />
-              <p className="font-medium">No IDs released to Brgy. {barangay} yet</p>
-              <p className="text-xs mt-1">The OSCA admin will release IDs when they are ready for distribution.</p>
             </div>
           )}
 

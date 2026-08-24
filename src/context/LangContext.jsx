@@ -33,6 +33,7 @@ export const LANGUAGES = {
     // Sidebar
     dashboard: 'Dashboard',
     announcements: 'Announcements',
+    eventCheckIn: 'Event Check-In',
     sosMap: 'SOS Map',
     healthCenters: 'Health Centers',
     idManagement: 'ID Management',
@@ -76,6 +77,7 @@ export const LANGUAGES = {
     editProfile: 'I-edit ang profile',
     dashboard: 'Dashboard',
     announcements: 'Mga Anunsyo',
+    eventCheckIn: 'Pag-check-in sa Event',
     sosMap: 'Mapa ng SOS',
     healthCenters: 'Mga Health Center',
     idManagement: 'Pamamahala ng ID',

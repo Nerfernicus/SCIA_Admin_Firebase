@@ -43,3 +43,8 @@ export const COLLECTIONS = {
 };
 
 export default app;
+// ── Event join/check-in subcollection ────────────────────────────────────────
+// Path: editorial_health/{eventId}/attendees/{uid}
+// Written by the mobile app on Join (formResponses, checkedIn: false).
+// Flipped to checkedIn: true by the admin scanner in EventCheckIn.jsx.
+export const EVENT_ATTENDEES_SUBCOLLECTION = "attendees";

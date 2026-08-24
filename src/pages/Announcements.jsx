@@ -1,9 +1,11 @@
+// src/pages/Announcements.jsx — full replacement
 import React, { useState, useEffect } from 'react';
 import {
   Plus, AlignLeft,
   ChevronDown,
   Send, CheckCircle2, Edit3, AlertCircle,
-  X, Loader2, MapPin, Calendar, FileText
+  X, Loader2, MapPin, Calendar, FileText,
+  QrCode, ListPlus, Trash2, GripVertical
 } from 'lucide-react';
 import { db } from "../lib/firebase";
 import {
@@ -25,6 +27,45 @@ export default function Announcements() {
   const [audience, setAudience] = useState("ALL");
   const [barangay, setBarangay] = useState("");
 
+  // Joinable event + dynamic sign-up form (drives the mobile app's
+  // swipeable "Join" carousel — see EventJoinFormModal.tsx on the FE)
+  const [isJoinable, setIsJoinable] = useState(false);
+  const [formFields, setFormFields] = useState([]); // { id, label, type, required, options? }
+
+  const FIELD_TYPES = [
+    { value: "text",     label: "Short text" },
+    { value: "number",   label: "Number" },
+    { value: "textarea", label: "Long text" },
+    { value: "select",   label: "Multiple choice" },
+  ];
+
+  const addFormField = () => {
+    setFormFields((prev) => [
+      ...prev,
+      {
+        id: `f_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        label: "",
+        type: "text",
+        required: false,
+        options: [],
+      },
+    ]);
+  };
+
+  const updateFormField = (id, patch) => {
+    setFormFields((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  };
+
+  const removeFormField = (id) => {
+    setFormFields((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  const updateFieldOptions = (id, rawText) => {
+    // one option per line in the textarea, trimmed, empty lines dropped
+    const options = rawText.split("\n").map((o) => o.trim()).filter(Boolean);
+    updateFormField(id, { options });
+  };
+
   useEffect(() => {
     const q = query(collection(db, COLLECTION_ID), orderBy("createdAt", "desc"), limit(5));
     const unsub = onSnapshot(q, (snapshot) => {
@@ -41,6 +82,7 @@ export default function Announcements() {
   const resetForm = () => {
     setWhat(''); setWhen(''); setWhere(''); setDescription('');
     setPublishTime('Immediately'); setExpiration('Never');
+    setIsJoinable(false); setFormFields([]);
   };
 
   const computeExpirationDate = (option) => {
@@ -65,6 +107,18 @@ export default function Announcements() {
       showToast("Please select a barangay", "error");
       return;
     }
+    if (isJoinable) {
+      const blankLabel = formFields.some((f) => !f.label.trim());
+      if (blankLabel) {
+        showToast("Every sign-up field needs a label", "error");
+        return;
+      }
+      const badSelect = formFields.some((f) => f.type === "select" && f.options.length < 2);
+      if (badSelect) {
+        showToast("Multiple-choice fields need at least 2 options", "error");
+        return;
+      }
+    }
     setSaving(true);
     try {
       const expirationDate = computeExpirationDate(expiration);
@@ -78,6 +132,15 @@ export default function Announcements() {
         barangay: audience === "BARANGAY" ? barangay : null,
         Status: "PUBLISHED",
         createdAt: serverTimestamp(),
+        // ── Join + QR check-in (read by the mobile app's EventCarousel /
+        // EventJoinFormModal, and by EventCheckIn.jsx on this dashboard) ──
+        isJoinable,
+        formFields: isJoinable
+          ? formFields.map(({ id, label, type, required, options }) => ({
+              id, label: label.trim(), type, required,
+              ...(type === "select" ? { options } : {}),
+            }))
+          : [],
       });
       showToast("Announcement published!");
       resetForm();
@@ -200,6 +263,94 @@ export default function Announcements() {
                 className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none resize-none"
               />
             </div>
+          </div>
+
+          {/* Joinable event + QR check-in sign-up form */}
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2 text-gray-800 font-bold text-lg">
+                <QrCode size={20} className="text-[#0f52ba]" /> Joinable Event
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsJoinable((v) => !v)}
+                className={`relative w-12 h-7 rounded-full transition-colors ${isJoinable ? 'bg-[#0f52ba]' : 'bg-gray-200'}`}
+              >
+                <span className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${isJoinable ? 'translate-x-5' : ''}`} />
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">
+              Seniors can tap "Join" on this event in the app and get QR-checked-in on arrival.
+              {" "}Leave off for a plain announcement.
+            </p>
+
+            {isJoinable && (
+              <>
+                <div className="rounded-2xl bg-blue-50/60 border border-blue-100 p-4 mb-4">
+                  <p className="text-xs text-blue-800 leading-relaxed">
+                    Add fields below only if you need info beyond the senior's existing profile
+                    (e.g. current medications, household size). No fields = one-tap join.
+                    On event day, scan each attendee's account QR on the <strong>Event Check-In</strong> page
+                    to mark them present.
+                  </p>
+                </div>
+
+                <div className="space-y-3 mb-4">
+                  {formFields.map((field, idx) => (
+                    <div key={field.id} className="rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <GripVertical size={16} className="text-gray-300 shrink-0" />
+                        <input
+                          type="text"
+                          value={field.label}
+                          onChange={(e) => updateFormField(field.id, { label: e.target.value })}
+                          placeholder={`Field ${idx + 1} label — e.g. Household size`}
+                          className="flex-1 bg-white rounded-lg py-2 px-3 text-sm border border-gray-200 focus:ring-2 focus:ring-blue-100 outline-none"
+                        />
+                        <select
+                          value={field.type}
+                          onChange={(e) => updateFormField(field.id, { type: e.target.value, options: e.target.value === 'select' ? field.options : [] })}
+                          className="bg-white rounded-lg py-2 px-2 text-sm border border-gray-200 outline-none"
+                        >
+                          {FIELD_TYPES.map((t) => (
+                            <option key={t.value} value={t.value}>{t.label}</option>
+                          ))}
+                        </select>
+                        <label className="flex items-center gap-1.5 text-xs text-gray-500 shrink-0 px-1">
+                          <input
+                            type="checkbox"
+                            checked={field.required}
+                            onChange={(e) => updateFormField(field.id, { required: e.target.checked })}
+                          />
+                          Required
+                        </label>
+                        <button type="button" onClick={() => removeFormField(field.id)} className="text-gray-300 hover:text-red-500 shrink-0">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+
+                      {field.type === "select" && (
+                        <textarea
+                          rows={3}
+                          value={field.options.join("\n")}
+                          onChange={(e) => updateFieldOptions(field.id, e.target.value)}
+                          placeholder={"One option per line, e.g.\nFood\nMedicine\nFinancial"}
+                          className="w-full bg-white rounded-lg py-2 px-3 text-sm border border-gray-200 focus:ring-2 focus:ring-blue-100 outline-none resize-none"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addFormField}
+                  className="flex items-center gap-2 text-sm font-semibold text-[#0f52ba] hover:underline"
+                >
+                  <ListPlus size={16} /> Add sign-up field
+                </button>
+              </>
+            )}
           </div>
 
           {/* Recent Activity */}

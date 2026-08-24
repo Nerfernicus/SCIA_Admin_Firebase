@@ -10,6 +10,12 @@ import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import GenerateReportModal from './GenerateReportModal';
 import Header from './Header';
+import {
+  LayoutDashboard, Map, Megaphone, Users,
+  Building2, LogOut, Crown, User2, CreditCard,
+  PanelLeftClose, PanelLeftOpen, FileText, Contact,
+  QrCode,
+} from 'lucide-react';
 
 export default function Sidebar({ children }) {
   const location = useLocation();
@@ -25,6 +31,7 @@ export default function Sidebar({ children }) {
     { key: 'userManagement', icon: Users,           path: '/users' },
     { key: 'analytics',      icon: LayoutDashboard, path: '/analytics' },
     { key: 'announcements',  icon: Megaphone,       path: '/announcements' },
+    { key: 'eventCheckIn', icon: QrCode, path: '/event-check-in' },
   ];
 
   const subAdminItems = [
@@ -34,6 +41,7 @@ export default function Sidebar({ children }) {
     { key: 'announcements', icon: Megaphone,       path: '/announcements' },
     { key: 'sosMap',        icon: Map,             path: '/sos' },
     { key: 'healthCenters', icon: Building2,       path: '/health-centers' },
+    { key: 'eventCheckIn', icon: QrCode, path: '/event-check-in' },
   ];
 
   const navItems = isSuperAdmin ? superAdminItems : subAdminItems;

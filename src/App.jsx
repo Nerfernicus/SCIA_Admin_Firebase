@@ -15,6 +15,7 @@ import AccessDenied   from './pages/Unauthorized';
 import IDManagement   from './pages/IDManagement';   // unified module
 import Analytics      from './pages/Analytics';
 import DigitalID      from './pages/DigitalID';
+import EventCheckIn from './pages/EventCheckIn';
 
 function Layout() {
   return (
@@ -74,6 +75,14 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
             <Announcements />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'event-check-in',
+        element: (
+          <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
+            <EventCheckIn />
           </ProtectedRoute>
         ),
       },

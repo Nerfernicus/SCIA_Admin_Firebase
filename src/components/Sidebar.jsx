@@ -4,18 +4,13 @@ import {
   LayoutDashboard, Map, Megaphone, Users,
   Building2, LogOut, Crown, User2, CreditCard,
   PanelLeftClose, PanelLeftOpen, FileText, Contact,
+  QrCode,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import GenerateReportModal from './GenerateReportModal';
 import Header from './Header';
-import {
-  LayoutDashboard, Map, Megaphone, Users,
-  Building2, LogOut, Crown, User2, CreditCard,
-  PanelLeftClose, PanelLeftOpen, FileText, Contact,
-  QrCode,
-} from 'lucide-react';
 
 export default function Sidebar({ children }) {
   const location = useLocation();

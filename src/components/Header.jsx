@@ -12,7 +12,7 @@ import { db, auth } from '../lib/firebase';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 
 // ── Notifications Panel ───────────────────────────────────────────────────────
-function NotificationsPanel({ onClose }) {
+function NotificationsPanel({ onClose, myBarangay }) {
   const { t } = useLang();
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +26,8 @@ function NotificationsPanel({ onClose }) {
       try {
         const [sosSnap, annSnap] = await Promise.all([
           getDocs(query(collection(db, 'emergencies'), orderBy('createdAt', 'desc'), limit(5))),
-          getDocs(query(collection(db, 'editorial_health'), orderBy('createdAt', 'desc'), limit(3))),
+          // Fetch a few extra so filtering out other barangays' posts doesn't leave us short
+          getDocs(query(collection(db, 'editorial_health'), orderBy('createdAt', 'desc'), limit(10))),
         ]);
 
         if (!mounted) return;
@@ -40,13 +41,18 @@ function NotificationsPanel({ onClose }) {
           status: d.data().status,
         }));
 
-        const ann = annSnap.docs.map(d => ({
-          id: d.id,
-          type: 'announcement',
-          title: d.data().Title || 'Announcement',
-          body: d.data().Body || '',
-          time: d.data().createdAt?.toDate?.() || new Date(),
-        }));
+        const ann = annSnap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          // A barangay-scoped admin doesn't get notified about other barangays' posts
+          .filter(d => !myBarangay || d.Audience !== 'BARANGAY' || d.barangay === myBarangay)
+          .slice(0, 3)
+          .map(d => ({
+            id: d.id,
+            type: 'announcement',
+            title: d.Title || 'Announcement',
+            body: d.Body || '',
+            time: d.createdAt?.toDate?.() || new Date(),
+          }));
 
         const combined = [...sos, ...ann]
           .sort((a, b) => b.time - a.time)
@@ -62,7 +68,7 @@ function NotificationsPanel({ onClose }) {
 
     fetchNotifs();
     return () => { mounted = false; };
-  }, []);
+  }, [myBarangay]);
 
   const timeAgo = (date) => {
     const diff = Math.round((Date.now() - date) / 60000);
@@ -421,7 +427,7 @@ export default function Header() {
                 </span>
               )}
             </button>
-            {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} />}
+            {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} myBarangay={adminData?.barangay || null} />}
           </div>
 
           {/* Settings */}

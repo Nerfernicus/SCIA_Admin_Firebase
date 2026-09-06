@@ -182,7 +182,8 @@ function DeleteModal({ announcement, onClose, onDeleted }) {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { isSuperAdmin, isSubAdmin } = useAuth();
+  const { isSuperAdmin, isSubAdmin, adminData } = useAuth();
+  const myBarangay = adminData?.barangay || null; // null for OSCA + the generic sub_admin
   const { t } = useLang();
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading]             = useState(true);
@@ -208,6 +209,7 @@ export default function Dashboard() {
       const docs = snapshot.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(d => !d.Status || d.Status === 'PUBLISHED')
+        .filter(d => !myBarangay || d.Audience !== 'BARANGAY' || d.barangay === myBarangay)
         .slice(0, 5);
       setAnnouncements(docs);
       setLoading(false);
@@ -216,7 +218,7 @@ export default function Dashboard() {
       setLoading(false);
     });
     return () => unsub();
-  }, []);
+  }, [myBarangay]);
 
   // ── SOS alerts real-time listener ─────────────────────────────────────────
   useEffect(() => {

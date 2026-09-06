@@ -75,12 +75,21 @@ export default function Announcements() {
   };
 
   useEffect(() => {
-    const q = query(collection(db, COLLECTION_ID), orderBy("createdAt", "desc"), limit(5));
+    // Fetch more than we'll show so filtering doesn't leave us short —
+    // Firestore can't filter "not my barangay" server-side in one query.
+    const q = query(collection(db, COLLECTION_ID), orderBy("createdAt", "desc"), limit(30));
     const unsub = onSnapshot(q, (snapshot) => {
-      setRecentActivity(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // A barangay-scoped admin sees everything EXCEPT another barangay's
+      // BARANGAY-audience posts — OSCA's and the generic sub_admin's ALL/
+      // DISTRICT/their-own-barangay posts still show.
+      const visible = myBarangay
+        ? docs.filter((d) => d.Audience !== "BARANGAY" || d.barangay === myBarangay)
+        : docs;
+      setRecentActivity(visible.slice(0, 5));
     });
     return () => unsub();
-  }, []);
+  }, [myBarangay]);
 
   // adminData can load a beat after first render — re-lock once it arrives
   useEffect(() => {

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLang, LANGUAGES } from '../context/LangContext';
-import { doc, updateDoc, collection, onSnapshot, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, collection, onSnapshot, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 
@@ -24,12 +24,18 @@ function NotificationsPanel({ onClose, myBarangay }) {
     // Firestore internal assertion errors from concurrent listeners
     const fetchNotifs = async () => {
       try {
+        // A barangay-scoped sub-admin MUST filter released_ids server-side (via
+        // where()) — the security rule denies the whole query if it could return
+        // another barangay's doc, so we can't just filter client-side here.
+        const releasedIdsQuery = myBarangay
+          ? query(collection(db, 'released_ids'), where('barangay', '==', myBarangay), orderBy('releasedAt', 'desc'), limit(5))
+          : query(collection(db, 'released_ids'), orderBy('releasedAt', 'desc'), limit(10));
+
         const [sosSnap, annSnap, idSnap] = await Promise.all([
           getDocs(query(collection(db, 'emergencies'), orderBy('createdAt', 'desc'), limit(5))),
           // Fetch a few extra so filtering out other barangays' posts doesn't leave us short
           getDocs(query(collection(db, 'editorial_health'), orderBy('createdAt', 'desc'), limit(10))),
-          // Fetch a few extra so filtering out other barangays' releases doesn't leave us short
-          getDocs(query(collection(db, 'released_ids'), orderBy('releasedAt', 'desc'), limit(10))),
+          getDocs(releasedIdsQuery),
         ]);
 
         if (!mounted) return;

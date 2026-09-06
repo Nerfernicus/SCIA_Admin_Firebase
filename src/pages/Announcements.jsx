@@ -1,4 +1,3 @@
-// src/pages/Announcements.jsx — full replacement
 import React, { useState, useEffect } from 'react';
 import {
   Plus, AlignLeft,
@@ -11,10 +10,14 @@ import { db } from "../lib/firebase";
 import {
   collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp
 } from "firebase/firestore";
+import { useAuth } from "../context/AuthContext";
 
 const COLLECTION_ID = "editorial_health";
 
 export default function Announcements() {
+  const { adminData } = useAuth();
+  const myBarangay = adminData?.barangay || null; // null for OSCA + the generic sub_admin
+
   const [publishTime, setPublishTime] = useState('Immediately');
   const [expiration, setExpiration]   = useState('Never');
   const [what, setWhat]               = useState('');
@@ -24,8 +27,13 @@ export default function Announcements() {
   const [saving, setSaving]           = useState(false);
   const [toast, setToast]             = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
-  const [audience, setAudience] = useState("ALL");
-  const [barangay, setBarangay] = useState("");
+  const [audience, setAudience] = useState(myBarangay ? "BARANGAY" : "ALL");
+  const [barangay, setBarangay] = useState(myBarangay || "");
+
+  // A barangay-scoped admin's audience is always their own barangay,
+  // regardless of what local state says — this is what saveDocument uses.
+  const effectiveAudience = myBarangay ? "BARANGAY" : audience;
+  const effectiveBarangay = myBarangay ? myBarangay : barangay;
 
   // Joinable event + dynamic sign-up form (drives the mobile app's
   // swipeable "Join" carousel — see EventJoinFormModal.tsx on the FE)
@@ -74,6 +82,14 @@ export default function Announcements() {
     return () => unsub();
   }, []);
 
+  // adminData can load a beat after first render — re-lock once it arrives
+  useEffect(() => {
+    if (myBarangay) {
+      setAudience("BARANGAY");
+      setBarangay(myBarangay);
+    }
+  }, [myBarangay]);
+
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
@@ -103,7 +119,7 @@ export default function Announcements() {
       showToast("Please fill all fields", "error");
       return;
     }
-    if (audience === "BARANGAY" && !barangay) {
+    if (effectiveAudience === "BARANGAY" && !effectiveBarangay) {
       showToast("Please select a barangay", "error");
       return;
     }
@@ -128,8 +144,8 @@ export default function Announcements() {
         Location: where,
         Date: when,
         expiration: expirationDate ? expirationDate.toISOString() : null,
-        Audience: audience,
-        barangay: audience === "BARANGAY" ? barangay : null,
+        Audience: effectiveAudience,
+        barangay: effectiveAudience === "BARANGAY" ? effectiveBarangay : null,
         Status: "PUBLISHED",
         createdAt: serverTimestamp(),
         // ── Join + QR check-in (read by the mobile app's EventCarousel /
@@ -391,38 +407,50 @@ export default function Announcements() {
               <div className="w-8 h-8 rounded-full bg-[#0f52ba] flex items-center justify-center text-white text-sm">👴</div>
               <span className="text-sm font-bold text-[#0f52ba]">Senior Citizens Only</span>
             </div>
-            <p className="text-xs text-gray-400 mt-3">All announcements are visible only to registered senior citizens.</p>
+            <p className="text-xs text-gray-400 mt-3">
+              {myBarangay
+                ? `Visible only to registered senior citizens in Brgy. ${myBarangay}.`
+                : "All announcements are visible only to registered senior citizens."}
+            </p>
           </div>
 
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
             <h3 className="font-bold text-gray-900 mb-4">Scheduling</h3>
             <div className="space-y-4 mb-6">
 
-              <select
-                value={audience}
-                onChange={(e) => { setAudience(e.target.value); setBarangay(""); }}
-                className="w-full bg-gray-100 rounded-xl py-2 px-3"
-              >
-                <option value="ALL">All</option>
-                <option value="DISTRICT_1">Valenzuela District 1</option>
-                <option value="DISTRICT_2">Valenzuela District 2</option>
-                <option value="BARANGAY">Specific Barangay</option>
-              </select>
+              {myBarangay ? (
+                <div className="w-full bg-blue-50 border-2 border-[#0f52ba] rounded-xl py-2.5 px-3 text-sm font-bold text-[#0f52ba] flex items-center gap-2">
+                  <MapPin size={14} /> Posting to Brgy. {myBarangay} only
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={audience}
+                    onChange={(e) => { setAudience(e.target.value); setBarangay(""); }}
+                    className="w-full bg-gray-100 rounded-xl py-2 px-3"
+                  >
+                    <option value="ALL">All</option>
+                    <option value="DISTRICT_1">Valenzuela District 1</option>
+                    <option value="DISTRICT_2">Valenzuela District 2</option>
+                    <option value="BARANGAY">Specific Barangay</option>
+                  </select>
 
-              {audience === "BARANGAY" && (
-                <select
-                  value={barangay}
-                  onChange={(e) => setBarangay(e.target.value)}
-                  className="w-full bg-gray-100 rounded-xl py-2 px-3 mt-2"
-                >
-                  <option value="">Select Barangay</option>
-                  <optgroup label="District 1">
-                    {district1Barangays.map((b) => (<option key={b} value={b}>{b}</option>))}
-                  </optgroup>
-                  <optgroup label="District 2">
-                    {district2Barangays.map((b) => (<option key={b} value={b}>{b}</option>))}
-                  </optgroup>
-                </select>
+                  {audience === "BARANGAY" && (
+                    <select
+                      value={barangay}
+                      onChange={(e) => setBarangay(e.target.value)}
+                      className="w-full bg-gray-100 rounded-xl py-2 px-3 mt-2"
+                    >
+                      <option value="">Select Barangay</option>
+                      <optgroup label="District 1">
+                        {district1Barangays.map((b) => (<option key={b} value={b}>{b}</option>))}
+                      </optgroup>
+                      <optgroup label="District 2">
+                        {district2Barangays.map((b) => (<option key={b} value={b}>{b}</option>))}
+                      </optgroup>
+                    </select>
+                  )}
+                </>
               )}
 
               <div>

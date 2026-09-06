@@ -1,21 +1,3 @@
-/**
- * IDManagement.jsx — Unified ID Module
- *
- * Single file combining IDVerification + IDRelease into one page with top-level tabs:
- *   1. ID Verification   (OSCA submissions + Physical ID requests)
- *   2. ID Release        (Super admin: approve/release · Sub-admin: distribute)
- *
- * Key rules enforced:
- *  • "Birthday not on record" → Approve button is DISABLED in both verification modals
- *  • "Birthday not on record" → Release button is DISABLED in the Release modal
- *  • Barangay field shown in Physical ID verification modal
- *
- * Replaces: IDVerification.jsx, IDRelease.jsx
- *
- * FIX (May 2026): runNCSCVerify now correctly extracts and passes `year` to
- * the ncscVerify Cloud Function, which needs it for the NCSC /search POST.
- */
-
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   ShieldCheck, Clock as ClockIcon, CheckCircle2, XCircle, Eye,
@@ -673,11 +655,16 @@ export default function IDManagement() {
   const [detailRecord, setDetailRecord] = useState(null);
   const [releaseRecord, setReleaseRecord] = useState(null);
 
+  // id_verifications / id_requests are OSCA-only per firestore.rules (verification
+  // is a super_admin task) — only subscribe when logged in as super_admin, so a
+  // barangay sub-admin never trips a permission-denied error on this page.
   useEffect(() => {
+    if (!isSuperAdmin) { setLoadingVerif(false); return; }
     const q = query(collection(db, 'id_verifications'), orderBy('submittedAt', 'desc'));
     return onSnapshot(q, snap => { setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoadingVerif(false); });
-  }, []);
+  }, [isSuperAdmin]);
   useEffect(() => {
+    if (!isSuperAdmin) { setLoadingRel(false); return; }
     const q = query(collection(db, 'id_requests'), orderBy('createdAt', 'desc'));
     return onSnapshot(q, snap => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -685,7 +672,7 @@ export default function IDManagement() {
       setIdRequests(data);
       setLoadingRel(false);
     });
-  }, []);
+  }, [isSuperAdmin]);
   useEffect(() => {
     let q;
     if (isSubAdmin && adminData?.barangay) {
@@ -1312,4 +1299,3 @@ export default function IDManagement() {
     </div>
   );
 }
-// test

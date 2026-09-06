@@ -30,6 +30,23 @@ service cloud.firestore {
       return adminRole() in ['sub_admin', 'super_admin'];
     }
 
+    // The barangay assigned to the caller's admin doc, or null if not set
+    // (null = generic sub-admin / oversees every barangay, or not an admin)
+    function myBarangay() {
+      return isAdmin()
+        ? get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.get('barangay', null)
+        : null;
+    }
+
+    // Can the caller see a document belonging to `bgy`?
+    //   • super_admin — always
+    //   • sub_admin with no barangay assigned — always (oversees every barangay)
+    //   • sub_admin with a barangay — only their own barangay's documents
+    function canSeeBarangay(bgy) {
+      return isSuperAdmin()
+        || (adminRole() == 'sub_admin' && (myBarangay() == null || myBarangay() == bgy));
+    }
+
     // Senior citizen (mobile app user) — has a document in /users
     function isSenior() {
       return request.auth != null
@@ -179,6 +196,31 @@ service cloud.firestore {
       allow read:   if request.auth != null;
       allow create: if isSubOrSuperAdmin();
       allow update: if isSubOrSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // /released_ids — Physical/digital IDs OSCA has released for a barangay
+    //   • super_admin creates (the release action) + reads all
+    //   • sub_admin reads only their own barangay's releases (the generic,
+    //     barangay-less sub-admin sees every barangay's releases)
+    //   • sub_admin can update status to 'collected' once distributed
+    // ─────────────────────────────────────────────────────────────────────────
+    match /released_ids/{docId} {
+      allow read:   if request.auth != null && canSeeBarangay(resource.data.get('barangay', null));
+      allow create: if isSuperAdmin();
+      allow update: if isSubOrSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // /digital_ids — Digital ID records, doc ID == senior's uid
+    //   • senior reads their own; super_admin reads/writes all
+    // ─────────────────────────────────────────────────────────────────────────
+    match /digital_ids/{uid} {
+      allow read:   if request.auth != null && (request.auth.uid == uid || isSuperAdmin());
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 

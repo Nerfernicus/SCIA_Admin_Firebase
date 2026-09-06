@@ -24,10 +24,12 @@ function NotificationsPanel({ onClose, myBarangay }) {
     // Firestore internal assertion errors from concurrent listeners
     const fetchNotifs = async () => {
       try {
-        const [sosSnap, annSnap] = await Promise.all([
+        const [sosSnap, annSnap, idSnap] = await Promise.all([
           getDocs(query(collection(db, 'emergencies'), orderBy('createdAt', 'desc'), limit(5))),
           // Fetch a few extra so filtering out other barangays' posts doesn't leave us short
           getDocs(query(collection(db, 'editorial_health'), orderBy('createdAt', 'desc'), limit(10))),
+          // Fetch a few extra so filtering out other barangays' releases doesn't leave us short
+          getDocs(query(collection(db, 'released_ids'), orderBy('releasedAt', 'desc'), limit(10))),
         ]);
 
         if (!mounted) return;
@@ -54,7 +56,23 @@ function NotificationsPanel({ onClose, myBarangay }) {
             time: d.createdAt?.toDate?.() || new Date(),
           }));
 
-        const combined = [...sos, ...ann]
+        // OSCA releases a physical/digital ID → the matching barangay sub-admin gets
+        // notified so they know a senior from THEIR barangay was cleared for pickup.
+        // A barangay-scoped admin only sees releases for their own barangay; the
+        // generic sub-admin (no barangay assigned — oversees every barangay) sees all.
+        const idReleases = idSnap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(d => !myBarangay || d.barangay === myBarangay)
+          .slice(0, 3)
+          .map(d => ({
+            id: d.id,
+            type: 'id_release',
+            title: 'ID Released',
+            body: `${d.seniorName || 'Senior citizen'} — Brgy. ${d.barangay || 'Unassigned'}`,
+            time: d.releasedAt?.toDate?.() || new Date(),
+          }));
+
+        const combined = [...sos, ...ann, ...idReleases]
           .sort((a, b) => b.time - a.time)
           .slice(0, 8);
 
@@ -97,10 +115,12 @@ function NotificationsPanel({ onClose, myBarangay }) {
           notifs.map(n => (
             <div key={n.id + n.type} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                n.type === 'sos' ? 'bg-red-100' : 'bg-blue-100'
+                n.type === 'sos' ? 'bg-red-100' : n.type === 'id_release' ? 'bg-green-100' : 'bg-blue-100'
               }`}>
                 {n.type === 'sos'
                   ? <AlertTriangle size={14} className="text-red-500" />
+                  : n.type === 'id_release'
+                  ? <ShieldCheck size={14} className="text-green-600" />
                   : <Megaphone size={14} className="text-blue-500" />
                 }
               </div>

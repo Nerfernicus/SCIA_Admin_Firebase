@@ -9,13 +9,17 @@ import {
     collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../context/AuthContext';
 
-// ── Static Gen T 3S Health Centers ───────────────────────────────────────────
-// "Gen T 3S Centers" are the Generation-Transforming Senior Services Centers
-// in Valenzuela City. These are fixed, not dynamic.
+// ── Static 3S Health Centers ─────────────────────────────────────────────────
+// "3S Centers" (Serbisyo sa Senior Sitizen) are barangay-based senior services
+// centers in Valenzuela City. These are fixed, not dynamic. Each carries a
+// `barangay` field matching the barangay list used across the app (Sidebar /
+// Announcements) so a barangay-scoped sub-admin only manages their own center.
 const GEN_T_CENTERS = [
     {
         id: 'gen-t-1',
+        barangay: 'General T. de Leon',
         name: '3S Center Gen T. de Leon',
         shortName: 'Gen T. de Leon Center',
         location: 'Gen. T. de Leon, Valenzuela City, Metro Manila',
@@ -30,6 +34,24 @@ const GEN_T_CENTERS = [
         imgUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9b/Valenzuela_City_Hall.jpg/640px-Valenzuela_City_Hall.jpg',
         avatarSeed: 'maria-santos',
         color: '#0f52ba',
+    },
+    {
+        id: 'lingunan-1',
+        barangay: 'Lingunan',
+        name: '3S Center Lingunan',
+        shortName: 'Lingunan Center',
+        location: 'Lingunan, Valenzuela City, Metro Manila',
+        address: '3S Center, Lingunan, Valenzuela City',
+        status: 'OPEN',
+        headOfficial: 'Dr. Ana Reyes',
+        phone: '(02) 8292-0002',
+        hours: 'Mon–Fri, 8:00 AM – 5:00 PM',
+        services: ['Medical Consultation', 'Blood Pressure Monitoring', 'Blood Sugar Check', 'Senior Wellness Program'],
+        staffColor: 'bg-green-500',
+        staffCount: '12',
+        imgUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9b/Valenzuela_City_Hall.jpg/640px-Valenzuela_City_Hall.jpg',
+        avatarSeed: 'ana-reyes',
+        color: '#0f9d58',
     },
 ];
 
@@ -455,6 +477,12 @@ function CenterDetail({ center, onClose }) {
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function HealthCenters() {
+    const { adminData } = useAuth();
+    // null for OSCA + the generic sub_admin (oversees every barangay)
+    const myBarangay = adminData?.barangay || null;
+    // A barangay-scoped sub-admin only manages the 3S Center for their own barangay
+    const visibleCenters = GEN_T_CENTERS.filter(c => !myBarangay || c.barangay === myBarangay);
+
     const [selectedCenter, setSelectedCenter] = useState(null);
     const [apptCounts, setApptCounts]         = useState({});
     const [medCounts,  setMedCounts]          = useState({});
@@ -490,7 +518,7 @@ export default function HealthCenters() {
             {/* Header — NO duplicate bell/settings/avatar */}
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Health Centers</h1>
-                <p className="text-gray-500">Manage Gen T 3S Centers — appointments and medications for senior citizens.</p>
+                <p className="text-gray-500">Manage 3S Centers — appointments and medications for senior citizens.</p>
             </div>
 
             {/* KPI Stats */}
@@ -498,10 +526,10 @@ export default function HealthCenters() {
                 <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-50">
                     <div className="flex justify-between items-start mb-4">
                         <div className="bg-blue-50 p-3 rounded-xl text-blue-600"><Building2 size={24} /></div>
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Gen T 3S Centers</span>
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">3S Centers</span>
                     </div>
                     <div className="flex items-baseline gap-2">
-                        <h2 className="text-4xl font-bold text-gray-900">3</h2>
+                        <h2 className="text-4xl font-bold text-gray-900">{visibleCenters.length}</h2>
                         <span className="text-sm font-medium text-[#0f52ba]">All Active</span>
                     </div>
                 </div>
@@ -527,9 +555,16 @@ export default function HealthCenters() {
                 </div>
             </div>
 
-            {/* Gen T Center Cards */}
+            {/* 3S Center Cards — scoped to the logged-in admin's barangay, if any */}
+            {visibleCenters.length === 0 && (
+                <div className="bg-white rounded-3xl p-10 text-center border border-gray-100">
+                    <Building2 size={28} className="mx-auto text-gray-300 mb-3" />
+                    <p className="font-medium text-gray-600">No 3S Center assigned to Brgy. {myBarangay} yet</p>
+                    <p className="text-xs text-gray-400 mt-1">Contact the OSCA super admin if your barangay should have one.</p>
+                </div>
+            )}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                {GEN_T_CENTERS.map(center => (
+                {visibleCenters.map(center => (
                     <div key={center.id} className="bg-white rounded-3xl shadow-sm border border-gray-50 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
 
                         {/* Center Image */}
@@ -541,10 +576,10 @@ export default function HealthCenters() {
                                 onError={e => { e.target.src = 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600&q=80'; }}
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                            {/* Gen T badge */}
+                            {/* Barangay badge */}
                             <div className="absolute top-3 left-3">
                                 <span className="bg-white text-[#0f52ba] text-[10px] font-bold uppercase px-2.5 py-1 rounded-full shadow-sm">
-                                    Gen T 3S
+                                    Brgy. {center.barangay} · 3S
                                 </span>
                             </div>
                             <div className="absolute top-3 right-3">

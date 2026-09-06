@@ -1,4 +1,3 @@
-// src/pages/EventCheckIn.jsx — new file
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   QrCode, Camera, CameraOff, CheckCircle2, XCircle, Search,
@@ -345,8 +344,19 @@ export default function EventCheckIn() {
               )}
             </div>
 
-            <div id={READER_ELEMENT_ID} className="rounded-2xl overflow-hidden bg-gray-900 min-h-[280px] flex items-center justify-center">
-              {!scanning && <p className="text-gray-400 text-sm">Camera preview will appear here</p>}
+            {/* IMPORTANT: html5-qrcode injects video/canvas nodes directly into
+                #scia-qr-reader via native DOM calls. That div must never also
+                have React-rendered children, or React's reconciliation and the
+                library's own DOM mutations fight over the same nodes and throw
+                "Failed to execute 'removeChild' ... not a child of this node."
+                The placeholder text lives in a sibling overlay instead. */}
+            <div className="relative rounded-2xl overflow-hidden bg-gray-900 min-h-[280px] flex items-center justify-center">
+              <div id={READER_ELEMENT_ID} className="w-full" />
+              {!scanning && (
+                <p className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm pointer-events-none">
+                  Camera preview will appear here
+                </p>
+              )}
             </div>
 
             {scanError && (

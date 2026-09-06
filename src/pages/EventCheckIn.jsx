@@ -13,6 +13,7 @@ import {
 // html5-qrcode drives the camera + decode loop. Add it once:
 //   npm install html5-qrcode
 import { Html5Qrcode } from "html5-qrcode";
+import { useAuth } from "../context/AuthContext";
 
 const READER_ELEMENT_ID = "scia-qr-reader";
 
@@ -62,6 +63,9 @@ function formatFieldValue(field, value) {
 }
 
 export default function EventCheckIn() {
+  const { adminData } = useAuth();
+  const myBarangay = adminData?.barangay || null; // null for OSCA + the generic sub_admin
+
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState("");
   const [tab, setTab] = useState("scan"); // "scan" | "attendees"
@@ -94,14 +98,18 @@ export default function EventCheckIn() {
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const list = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          // A barangay-scoped admin only checks in attendees for events
+          // targeted at their own barangay (or ALL/district-wide events)
+          .filter((e) => !myBarangay || e.Audience !== "BARANGAY" || e.barangay === myBarangay);
         setEvents(list);
         setSelectedEventId((prev) => prev || (list[0] && list[0].id) || "");
       },
       (err) => console.error("Failed to load joinable events:", err)
     );
     return () => unsub();
-  }, []);
+  }, [myBarangay]);
 
   // ── Attendees list for the selected event ───────────────────────────────
   useEffect(() => {
@@ -190,20 +198,44 @@ export default function EventCheckIn() {
   const startScanning = async () => {
     setScanError("");
     setResult(null);
+
+    if (typeof window !== "undefined" && window.isSecureContext === false) {
+      setScanError("Camera access needs HTTPS (or localhost) — this page is loaded over an insecure connection.");
+      return;
+    }
+
+    const config = { fps: 10, qrbox: 260 };
+    const onDecoded = (decodedText) => { handleDecodedText(decodedText); };
+    const onDecodeMiss = () => { /* per-frame decode miss — ignore, this fires constantly */ };
+
+    let instance;
     try {
-      const instance = new Html5Qrcode(READER_ELEMENT_ID);
+      instance = new Html5Qrcode(READER_ELEMENT_ID);
       scannerRef.current = instance;
-      await instance.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: 260 },
-        (decodedText) => { handleDecodedText(decodedText); },
-        () => { /* per-frame decode miss — ignore, this fires constantly */ }
-      );
+
+      try {
+        // Preferred: rear/environment camera (phones, tablets)
+        await instance.start({ facingMode: "environment" }, config, onDecoded, onDecodeMiss);
+      } catch (envErr) {
+        // Most laptops/desktops have no rear camera, so the constraint above
+        // fails immediately — fall back to whatever camera the browser has
+        // (front-facing webcam, external USB cam, etc.)
+        console.warn("Rear camera unavailable, falling back to any camera:", envErr);
+        const cameras = await Html5Qrcode.getCameras();
+        if (!cameras || cameras.length === 0) throw envErr;
+        await instance.start({ deviceId: { exact: cameras[0].id } }, config, onDecoded, onDecodeMiss);
+      }
+
       setScanning(true);
     } catch (err) {
       console.error(err);
-      setScanError("Couldn't access the camera. Check browser permissions, or use manual entry below.");
+      const detail = err?.message || String(err);
+      setScanError(`Couldn't access the camera (${detail}). Check browser permissions, make sure no other app/tab is using the camera, or use manual entry below.`);
       setScanning(false);
+      if (scannerRef.current) {
+        try { await scannerRef.current.clear(); } catch { /* already stopped */ }
+        scannerRef.current = null;
+      }
     }
   };
 

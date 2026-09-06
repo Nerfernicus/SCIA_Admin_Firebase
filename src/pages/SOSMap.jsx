@@ -8,6 +8,7 @@ import { MapPin, Crosshair, CheckCircle2, AlertTriangle, Trash2, X, History } fr
 import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useAuth } from '../context/AuthContext';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -85,6 +86,9 @@ function DeleteConfirmModal({ alert, onClose, onConfirm }) {
 }
 
 export default function SOSMap() {
+  const { adminData } = useAuth();
+  const myBarangay = adminData?.barangay || null; // null for OSCA + the generic sub_admin
+
   const [myLocation, setMyLocation]     = useState(null);
   const [isLocating, setIsLocating]     = useState(false);
   const [liveAlerts, setLiveAlerts]     = useState([]);
@@ -97,15 +101,18 @@ export default function SOSMap() {
   useEffect(() => {
     const qEmergencies = query(collection(db, "emergencies"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(qEmergencies, (snapshot) => {
-      const alerts = snapshot.docs.map(d => ({
-        id: d.id,
-        ...d.data(),
-        _source: 'emergencies', // AFTER spread so it can't be overwritten
-      }));
+      const alerts = snapshot.docs
+        .map(d => ({
+          id: d.id,
+          ...d.data(),
+          _source: 'emergencies', // AFTER spread so it can't be overwritten
+        }))
+        // A barangay-scoped admin only sees SOS alerts from their own barangay
+        .filter(a => !myBarangay || a.barangay === myBarangay);
       setLiveAlerts(alerts);
     });
     return () => unsub();
-  }, []);
+  }, [myBarangay]);
 
   // Detect repeat SOS users
   const repeatKeys = (() => {
@@ -211,7 +218,11 @@ export default function SOSMap() {
 
       <div className="bg-white border-b border-gray-100 px-6 py-4 flex-none z-[2000]">
         <h1 className="text-2xl font-bold text-gray-900">SOS Map</h1>
-        <p className="text-sm text-gray-500">Real-time emergency alerts in Valenzuela City</p>
+        <p className="text-sm text-gray-500">
+          {myBarangay
+            ? `Real-time emergency alerts in Brgy. ${myBarangay}`
+            : "Real-time emergency alerts in Valenzuela City"}
+        </p>
       </div>
 
       <div className="relative flex-1 w-full bg-blue-50/20">

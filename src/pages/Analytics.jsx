@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { BarChart3, Users, ShieldCheck, Megaphone, Map, Building2, TrendingUp, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { BarChart3, Users, TrendingUp, ShieldCheck, Megaphone, Map, Building2, Loader2 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, getCountFromServer, query, where } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 
-function StatCard({ icon: Icon, label, value, color, bg, sub }) {
+function StatCard({ icon: Icon, label, value, sub, color, bg }) {
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-6">
       <div className={`w-11 h-11 ${bg} rounded-2xl flex items-center justify-center mb-4`}>
@@ -17,11 +17,10 @@ function StatCard({ icon: Icon, label, value, color, bg, sub }) {
   );
 }
 
-async function count(collectionName, conditions = []) {
-  let q = collection(db, collectionName);
-  if (conditions.length) q = query(q, ...conditions);
-  const snap = await getCountFromServer(q);
-  return snap.data().count;
+function countDocs(collectionName, ...conditions) {
+  const ref = collection(db, collectionName);
+  const q = conditions.length ? query(ref, ...conditions) : ref;
+  return getCountFromServer(q).then((snap) => snap.data().count);
 }
 
 export default function Analytics() {
@@ -30,34 +29,54 @@ export default function Analytics() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function load() {
+    async function loadStats() {
       try {
-        const [
-          totalUsers,
-          activeUsers,
-          pendingIDs,
-          approvedIDs,
-          announcements,
-          sosEvents,
-          healthCenters,
-        ] = await Promise.all([
-          count('users'),
-          count('users', [where('status', '==', 'ACTIVE')]),
-          count('id_verifications', [where('status', '==', 'pending')]),
-          count('id_verifications', [where('status', '==', 'approved')]),
-          count('announcements'),
-          count('sos_events'),
-          count('health_centers'),
-        ]);
+        const [totalUsers, activeUsers, pendingIDs, approvedIDs, announcements, sosEvents, healthCenters] =
+          await Promise.all([
+            countDocs('users'),
+            countDocs('users', where('status', '==', 'ACTIVE')),
+            countDocs('id_verifications', where('status', '==', 'pending')),
+            countDocs('id_verifications', where('status', '==', 'approved')),
+            countDocs('announcements'),
+            countDocs('sos_events'),
+            countDocs('health_centers'),
+          ]);
         setStats({ totalUsers, activeUsers, pendingIDs, approvedIDs, announcements, sosEvents, healthCenters });
-      } catch (e) {
-        console.error(e);
+      } catch (err) {
+        console.error(err);
       } finally {
         setLoading(false);
       }
     }
-    load();
+    loadStats();
   }, []);
+
+  const sections = [
+    {
+      title: 'User Management',
+      cards: [
+        { icon: Users, label: 'Total Users', key: 'totalUsers', sub: 'All registered residents', color: 'text-[#0f52ba]', bg: 'bg-blue-50' },
+        { icon: TrendingUp, label: 'Active Users', key: 'activeUsers', sub: 'Currently active accounts', color: 'text-green-600', bg: 'bg-green-50' },
+      ],
+    },
+    {
+      title: 'ID Verification & Release',
+      cards: [
+        { icon: ShieldCheck, label: 'Pending IDs', key: 'pendingIDs', sub: 'Awaiting review', color: 'text-yellow-600', bg: 'bg-yellow-50' },
+        { icon: ShieldCheck, label: 'Approved IDs', key: 'approvedIDs', sub: 'Verified residents', color: 'text-green-600', bg: 'bg-green-50' },
+      ],
+    },
+    {
+      title: 'Barangay Admin Activity',
+      cards: [
+        { icon: Megaphone, label: 'Announcements', key: 'announcements', sub: 'Total posted', color: 'text-purple-600', bg: 'bg-purple-50' },
+        ...(!isSuperAdmin
+          ? [{ icon: Map, label: 'SOS Events', key: 'sosEvents', sub: 'Recorded incidents', color: 'text-red-600', bg: 'bg-red-50' }]
+          : []),
+        { icon: Building2, label: 'Health Centers', key: 'healthCenters', sub: 'Listed facilities', color: 'text-teal-600', bg: 'bg-teal-50' },
+      ],
+    },
+  ];
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -69,34 +88,20 @@ export default function Analytics() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-24"><Loader2 size={28} className="animate-spin text-blue-500" /></div>
+        <div className="flex items-center justify-center py-24">
+          <Loader2 size={28} className="animate-spin text-blue-500" />
+        </div>
       ) : (
-        <>
-          <div className="mb-6">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">User Management</h2>
+        sections.map((section) => (
+          <div key={section.title} className="mb-6">
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{section.title}</h2>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <StatCard icon={Users}       label="Total Users"    value={stats?.totalUsers}  color="text-[#0f52ba]" bg="bg-blue-50"   sub="All registered residents" />
-              <StatCard icon={TrendingUp}  label="Active Users"   value={stats?.activeUsers} color="text-green-600" bg="bg-green-50"  sub="Currently active accounts" />
+              {section.cards.map((card) => (
+                <StatCard key={card.key} {...card} value={stats?.[card.key]} />
+              ))}
             </div>
           </div>
-
-          <div className="mb-6">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">ID Verification & Release</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <StatCard icon={ShieldCheck} label="Pending IDs"    value={stats?.pendingIDs}  color="text-yellow-600" bg="bg-yellow-50" sub="Awaiting review" />
-              <StatCard icon={ShieldCheck} label="Approved IDs"   value={stats?.approvedIDs} color="text-green-600"  bg="bg-green-50"  sub="Verified residents" />
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Barangay Admin Activity</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <StatCard icon={Megaphone}   label="Announcements"  value={stats?.announcements} color="text-purple-600" bg="bg-purple-50" sub="Total posted" />
-              {!isSuperAdmin && <StatCard icon={Map}         label="SOS Events"     value={stats?.sosEvents}     color="text-red-600"    bg="bg-red-50"    sub="Recorded incidents" />}
-              <StatCard icon={Building2}   label="Health Centers" value={stats?.healthCenters} color="text-teal-600"   bg="bg-teal-50"   sub="Listed facilities" />
-            </div>
-          </div>
-        </>
+        ))
       )}
     </div>
   );

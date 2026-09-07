@@ -1,35 +1,40 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { db } from "../lib/firebase";
-import {
-  collection, query, orderBy, limit,
-  doc, updateDoc, deleteDoc, onSnapshot
-} from "firebase/firestore";
-import { X, Megaphone, ChevronRight, Pencil, Trash2, Save, Loader2 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
-import { useLang } from "../context/LangContext";
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { db } from '../lib/firebase';
+import { collection, query, orderBy, limit, doc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { X, Megaphone, ChevronRight, Pencil, Trash2, Save, Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
+import mapOfValenzuela from '../assets/map_of_valenzuela.jpg';
 
+const COLLECTION_ID = 'editorial_health';
 
-const COLLECTION_ID = "editorial_health";
+function timeAgo(value, { compact = false } = {}) {
+  const date = value?.toDate ? value.toDate() : new Date(value);
+  const diffMin = Math.round((Date.now() - date) / 60000);
+  if (!compact) {
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffMin < 1440) return `${Math.round(diffMin / 60)}h ago`;
+    return `${Math.round(diffMin / 1440)}d ago`;
+  }
+  if (diffMin < 60) return `${diffMin}M AGO`;
+  if (diffMin < 1440) return `${Math.round(diffMin / 60)}H AGO`;
+  if (diffMin < 2880) return 'YESTERDAY';
+  return `${Math.round(diffMin / 1440)}D AGO`;
+}
 
-// Verification queue is now derived from live Firestore data (top 3 pending users)
-
-// ── Announcement Banner ───────────────────────────────────────────────────────
 function AnnouncementBanner({ announcements }) {
   const [current, setCurrent] = useState(0);
-  const [dismissed, setDismiss] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     if (announcements.length <= 1) return;
-    const timer = setInterval(() => setCurrent(prev => (prev + 1) % announcements.length), 6000);
+    const timer = setInterval(() => setCurrent((prev) => (prev + 1) % announcements.length), 6000);
     return () => clearInterval(timer);
   }, [announcements.length]);
 
   if (dismissed || announcements.length === 0) return null;
   const a = announcements[current];
-  const createdAt = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
-  const diff = Math.round((Date.now() - createdAt) / 60000);
-  const timeAgo = diff < 60 ? `${diff}m ago` : diff < 1440 ? `${Math.round(diff/60)}h ago` : `${Math.round(diff/1440)}d ago`;
 
   return (
     <div className="relative bg-gradient-to-r from-[#0f52ba] to-blue-500 rounded-2xl px-5 py-4 shadow-md shadow-blue-500/20 flex items-start gap-4 overflow-hidden">
@@ -41,7 +46,7 @@ function AnnouncementBanner({ announcements }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
           <span className="bg-white/25 text-white text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full">{a.Audience}</span>
-          <span className="text-blue-200 text-[10px] font-medium">{timeAgo}</span>
+          <span className="text-blue-200 text-[10px] font-medium">{timeAgo(a.createdAt)}</span>
         </div>
         <p className="text-white font-bold text-sm leading-snug truncate">{a.Title}</p>
         <p className="text-blue-100 text-xs mt-0.5 line-clamp-1">{a.Body}</p>
@@ -49,33 +54,37 @@ function AnnouncementBanner({ announcements }) {
       {announcements.length > 1 && (
         <div className="flex flex-col gap-1 justify-center shrink-0">
           {announcements.map((_, i) => (
-            <button key={i} onClick={() => setCurrent(i)}
-              className={`w-1.5 rounded-full transition-all ${i === current ? 'h-4 bg-white' : 'h-1.5 bg-white/40'}`} />
+            <button
+              key={i}
+              onClick={() => setCurrent(i)}
+              className={`w-1.5 rounded-full transition-all ${i === current ? 'h-4 bg-white' : 'h-1.5 bg-white/40'}`}
+            />
           ))}
         </div>
       )}
-      <button onClick={() => setDismiss(true)} className="shrink-0 text-white/60 hover:text-white transition-colors mt-0.5">
+      <button onClick={() => setDismissed(true)} className="shrink-0 text-white/60 hover:text-white transition-colors mt-0.5">
         <X size={16} />
       </button>
     </div>
   );
 }
 
-// ── Edit Modal ────────────────────────────────────────────────────────────────
 function EditModal({ announcement, onClose, onSaved }) {
-  const [title, setTitle]       = useState(announcement.Title);
-  const [body, setBody]         = useState(announcement.Body);
+  const [title, setTitle] = useState(announcement.Title);
+  const [body, setBody] = useState(announcement.Body);
   const [audience, setAudience] = useState(announcement.Audience);
-  const [saving, setSaving]     = useState(false);
-  const [error, setError]       = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSave = async () => {
-    if (!title.trim() || !body.trim()) { setError('Title and body are required.'); return; }
+    if (!title.trim() || !body.trim()) {
+      setError('Title and body are required.');
+      return;
+    }
     setSaving(true);
     try {
-      const docRef = doc(db, COLLECTION_ID, announcement.id);
       const updates = { Title: title.trim(), Body: body.trim(), Audience: audience };
-      await updateDoc(docRef, updates);
+      await updateDoc(doc(db, COLLECTION_ID, announcement.id), updates);
       onSaved({ ...announcement, ...updates });
       onClose();
     } catch (err) {
@@ -102,18 +111,28 @@ function EditModal({ announcement, onClose, onSaved }) {
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Title</label>
-            <input value={title} onChange={e => setTitle(e.target.value)}
-              className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none"
+            />
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Body</label>
-            <textarea rows={5} value={body} onChange={e => setBody(e.target.value)}
-              className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none resize-none" />
+            <textarea
+              rows={5}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none resize-none"
+            />
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Audience</label>
-            <select value={audience} onChange={e => setAudience(e.target.value)}
-              className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm font-semibold text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none">
+            <select
+              value={audience}
+              onChange={(e) => setAudience(e.target.value)}
+              className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm font-semibold text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none"
+            >
               <option>All Users</option>
               <option>Patients</option>
               <option>Medical Staff</option>
@@ -125,8 +144,11 @@ function EditModal({ announcement, onClose, onSaved }) {
           <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors">
             Cancel
           </button>
-          <button onClick={handleSave} disabled={saving}
-            className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+          >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             Save Changes
           </button>
@@ -136,7 +158,6 @@ function EditModal({ announcement, onClose, onSaved }) {
   );
 }
 
-// ── Delete Confirm Modal ──────────────────────────────────────────────────────
 function DeleteModal({ announcement, onClose, onDeleted }) {
   const [deleting, setDeleting] = useState(false);
 
@@ -168,8 +189,11 @@ function DeleteModal({ announcement, onClose, onDeleted }) {
           <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors">
             Cancel
           </button>
-          <button onClick={handleDelete} disabled={deleting}
-            className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors">
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+          >
             {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
             Delete
           </button>
@@ -179,115 +203,101 @@ function DeleteModal({ announcement, onClose, onDeleted }) {
   );
 }
 
-// ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { isSuperAdmin, isSubAdmin, adminData } = useAuth();
-  const myBarangay = adminData?.barangay || null; // null for OSCA + the generic sub_admin
+  const { isSuperAdmin, adminData } = useAuth();
+  const myBarangay = adminData?.barangay || null; // null for OSCA and the generic sub_admin
   const { t } = useLang();
-  const [announcements, setAnnouncements] = useState([]);
-  const [loading, setLoading]             = useState(true);
-  const [editTarget, setEditTarget]       = useState(null);
-  const [deleteTarget, setDeleteTarget]   = useState(null);
 
-  // Live SOS alerts from Firestore "emergencies" collection
-  const [sosAlerts, setSosAlerts]   = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editTarget, setEditTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const [sosAlerts, setSosAlerts] = useState([]);
   const [sosLoading, setSosLoading] = useState(true);
 
-  // ✅ Live users from Firestore "users" collection (same as UserManagement)
-  const [allUsers, setAllUsers]     = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(true);
 
-  // ── Announcements real-time listener ──────────────────────────────────────
   useEffect(() => {
-    const q = query(
-      collection(db, COLLECTION_ID),
-      orderBy('createdAt', 'desc'),
-      limit(20)
+    const q = query(collection(db, COLLECTION_ID), orderBy('createdAt', 'desc'), limit(20));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const docs = snapshot.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((d) => !d.Status || d.Status === 'PUBLISHED')
+          .filter((d) => !myBarangay || d.Audience !== 'BARANGAY' || d.barangay === myBarangay)
+          .slice(0, 5);
+        setAnnouncements(docs);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Failed to load announcements:', err);
+        setLoading(false);
+      }
     );
-    const unsub = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .filter(d => !d.Status || d.Status === 'PUBLISHED')
-        .filter(d => !myBarangay || d.Audience !== 'BARANGAY' || d.barangay === myBarangay)
-        .slice(0, 5);
-      setAnnouncements(docs);
-      setLoading(false);
-    }, (err) => {
-      console.error('Failed to load announcements:', err);
-      setLoading(false);
-    });
     return () => unsub();
   }, [myBarangay]);
 
-  // ── SOS alerts real-time listener ─────────────────────────────────────────
   useEffect(() => {
-    const q = query(
-      collection(db, "emergencies"),
-      orderBy("createdAt", "desc")
+    const q = query(collection(db, 'emergencies'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        setSosAlerts(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setSosLoading(false);
+      },
+      (err) => {
+        console.error('Failed to load SOS alerts:', err);
+        setSosLoading(false);
+      }
     );
-    const unsub = onSnapshot(q, (snapshot) => {
-      setSosAlerts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-      setSosLoading(false);
-    }, (err) => {
-      console.error('Failed to load SOS alerts:', err);
-      setSosLoading(false);
-    });
     return () => unsub();
   }, []);
 
-  // ✅ NEW: Live users real-time listener — mirrors UserManagement.jsx
   useEffect(() => {
-    const q = query(
-      collection(db, "users"),
-      orderBy("createdAt", "desc")
+    const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        setAllUsers(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setUsersLoading(false);
+      },
+      (err) => {
+        console.error('Failed to load users:', err);
+        setUsersLoading(false);
+      }
     );
-    const unsub = onSnapshot(q, (snapshot) => {
-      setAllUsers(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-      setUsersLoading(false);
-    }, (err) => {
-      console.error('Failed to load users:', err);
-      setUsersLoading(false);
-    });
     return () => unsub();
   }, []);
 
   const handleSaved = (updated) => {
-    setAnnouncements(prev => prev.map(a => a.id === updated.id ? updated : a));
+    setAnnouncements((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
   };
 
   const handleDeleted = (id) => {
-    setAnnouncements(prev => prev.filter(a => a.id !== id));
+    setAnnouncements((prev) => prev.filter((a) => a.id !== id));
   };
 
-  // ── Derived SOS counts ────────────────────────────────────────────────────
-  const activeSosCount  = sosAlerts.filter(a => a.status !== 'resolved').length;
-  const pendingSosCount = sosAlerts.filter(a => a.status === 'pending').length;
-  const dispatchedCount = sosAlerts.filter(a => a.status === 'dispatched').length;
-  const latestActiveAlert = sosAlerts.find(a => a.status !== 'resolved');
+  const activeSosCount = sosAlerts.filter((a) => a.status !== 'resolved').length;
+  const pendingSosCount = sosAlerts.filter((a) => a.status === 'pending').length;
+  const dispatchedCount = sosAlerts.filter((a) => a.status === 'dispatched').length;
+  const latestActiveAlert = sosAlerts.find((a) => a.status !== 'resolved');
 
-  // ✅ Derived user counts — from Firestore "users" collection
-  const totalUserCount   = allUsers.length;
-  const pendingUserCount    = allUsers.filter(u => (u.status ?? 'PENDING') === 'PENDING').length;
-  const activeUserCount     = allUsers.filter(u => u.status === 'ACTIVE').length;
-  const recentPendingUsers  = allUsers
-    .filter(u => (u.status ?? 'PENDING') === 'PENDING')
-    .slice(0, 3);
-
-  // % change label: show active users vs total as a rough "live" indicator
-  const activePercent = totalUserCount > 0
-    ? Math.round((activeUserCount / totalUserCount) * 100)
-    : 0;
+  const totalUserCount = allUsers.length;
+  const pendingUserCount = allUsers.filter((u) => (u.status ?? 'PENDING') === 'PENDING').length;
+  const activeUserCount = allUsers.filter((u) => u.status === 'ACTIVE').length;
+  const recentPendingUsers = allUsers.filter((u) => (u.status ?? 'PENDING') === 'PENDING').slice(0, 3);
+  const activePercent = totalUserCount > 0 ? Math.round((activeUserCount / totalUserCount) * 100) : 0;
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans text-gray-900">
-
-      {editTarget   && <EditModal   announcement={editTarget}   onClose={() => setEditTarget(null)}   onSaved={handleSaved} />}
+      {editTarget && <EditModal announcement={editTarget} onClose={() => setEditTarget(null)} onSaved={handleSaved} />}
       {deleteTarget && <DeleteModal announcement={deleteTarget} onClose={() => setDeleteTarget(null)} onDeleted={handleDeleted} />}
 
       <div className="max-w-7xl mx-auto space-y-6">
-
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-gray-200 pb-4 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">System Overview</h1>
@@ -299,17 +309,13 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Banner */}
         {loading ? (
           <div className="h-20 bg-blue-50 rounded-2xl animate-pulse border border-blue-100" />
         ) : (
           <AnnouncementBanner announcements={announcements} />
         )}
 
-        {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-
-          {/* Active SOS Alerts — from Firestore */}
           <div
             className="bg-red-500 rounded-xl p-5 shadow-sm text-white flex flex-col justify-between cursor-pointer hover:bg-red-600 transition-colors"
             onClick={() => navigate('/sos')}
@@ -326,22 +332,15 @@ export default function Dashboard() {
               </div>
             ) : (
               <>
-                <div className="text-4xl font-bold mt-1">
-                  {String(activeSosCount).padStart(2, '0')}
-                </div>
+                <div className="text-4xl font-bold mt-1">{String(activeSosCount).padStart(2, '0')}</div>
                 <div className="flex gap-3 mt-2">
-                  <span className="text-[10px] text-red-200 font-semibold">
-                    🔴 {pendingSosCount} Pending
-                  </span>
-                  <span className="text-[10px] text-red-200 font-semibold">
-                    🟠 {dispatchedCount} Dispatched
-                  </span>
+                  <span className="text-[10px] text-red-200 font-semibold">🔴 {pendingSosCount} Pending</span>
+                  <span className="text-[10px] text-red-200 font-semibold">🟠 {dispatchedCount} Dispatched</span>
                 </div>
               </>
             )}
           </div>
 
-          {/* ✅ Pending Verifications — now live from Firestore "users" collection */}
           <div
             className="bg-yellow-100 rounded-xl p-5 shadow-sm flex flex-col justify-between border border-yellow-200 cursor-pointer hover:border-yellow-300 transition-colors"
             onClick={() => navigate('/users')}
@@ -358,17 +357,12 @@ export default function Dashboard() {
               </div>
             ) : (
               <>
-                <div className="text-4xl font-bold text-gray-900 mt-1">
-                  {pendingUserCount.toLocaleString()}
-                </div>
-                <div className="text-[10px] text-yellow-700 font-semibold mt-2">
-                  of {totalUserCount.toLocaleString()} total users
-                </div>
+                <div className="text-4xl font-bold text-gray-900 mt-1">{pendingUserCount.toLocaleString()}</div>
+                <div className="text-[10px] text-yellow-700 font-semibold mt-2">of {totalUserCount.toLocaleString()} total users</div>
               </>
             )}
           </div>
 
-          {/* ✅ Live Users — total user count from Firestore "users" collection */}
           <div
             className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between cursor-pointer hover:border-blue-200 transition-colors"
             onClick={() => navigate('/users')}
@@ -379,9 +373,7 @@ export default function Dashboard() {
               {usersLoading ? (
                 <Loader2 size={14} className="animate-spin text-gray-400" />
               ) : (
-                <span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded">
-                  {activePercent}% Active
-                </span>
+                <span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded">{activePercent}% Active</span>
               )}
             </div>
             <div className="text-gray-500 text-sm font-medium">Live Users</div>
@@ -391,42 +383,41 @@ export default function Dashboard() {
               </div>
             ) : (
               <>
-                <div className="text-4xl font-bold text-gray-900 mt-1">
-                  {totalUserCount.toLocaleString()}
-                </div>
-                <div className="text-[10px] text-gray-400 font-semibold mt-2">
-                  {activeUserCount.toLocaleString()} verified active
-                </div>
+                <div className="text-4xl font-bold text-gray-900 mt-1">{totalUserCount.toLocaleString()}</div>
+                <div className="text-[10px] text-gray-400 font-semibold mt-2">{activeUserCount.toLocaleString()} verified active</div>
               </>
             )}
           </div>
 
-          {/* System Load — static */}
           <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between">
             <div className="flex justify-between items-center mb-4">
               <span>📊</span>
               <span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded">99.9% Up</span>
             </div>
             <div className="text-gray-500 text-sm font-medium">System Load</div>
-            <div className="text-4xl font-bold text-gray-900 mt-1">14<span className="text-lg text-gray-500 ml-1">%</span></div>
+            <div className="text-4xl font-bold text-gray-900 mt-1">
+              14<span className="text-lg text-gray-500 ml-1">%</span>
+            </div>
           </div>
         </div>
 
-        {/* Bottom */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-          {/* Announcements Feed */}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex justify-between items-center mb-2">
               <h2 className="text-lg font-bold text-gray-900">Recent Announcements</h2>
-              <button onClick={() => navigate('/announcements')} className="text-blue-600 hover:text-blue-800 text-sm font-semibold transition-colors flex items-center gap-1">
+              <button
+                onClick={() => navigate('/announcements')}
+                className="text-blue-600 hover:text-blue-800 text-sm font-semibold transition-colors flex items-center gap-1"
+              >
                 View All <ChevronRight size={14} />
               </button>
             </div>
 
             {loading && (
               <div className="space-y-4">
-                {[1,2,3].map(i => <div key={i} className="bg-white p-4 rounded-xl border border-gray-200 h-24 animate-pulse" />)}
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="bg-white p-4 rounded-xl border border-gray-200 h-24 animate-pulse" />
+                ))}
               </div>
             )}
 
@@ -439,18 +430,19 @@ export default function Dashboard() {
             {!loading && announcements.length > 0 && (
               <div className="space-y-4">
                 {announcements.map((a) => {
-                  const createdAt = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
-                  const diff = Math.round((Date.now() - createdAt) / 60000);
-                  const timeAgo = diff < 60 ? `${diff}M AGO` : diff < 1440 ? `${Math.round(diff/60)}H AGO` : diff < 2880 ? 'YESTERDAY' : `${Math.round(diff/1440)}D AGO`;
                   const imgSrc = `https://picsum.photos/seed/${a.id}/60/60`;
-
                   return (
-                    <div key={a.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-4 hover:shadow-md transition-shadow group">
+                    <div
+                      key={a.id}
+                      className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-4 hover:shadow-md transition-shadow group"
+                    >
                       <img src={imgSrc} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0 bg-gray-100" />
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 mb-1">
                           <h3 className="font-semibold text-gray-900 text-base leading-tight">{a.Title}</h3>
-                          <span className="text-xs text-gray-400 font-bold tracking-wide whitespace-nowrap">{timeAgo}</span>
+                          <span className="text-xs text-gray-400 font-bold tracking-wide whitespace-nowrap">
+                            {timeAgo(a.createdAt, { compact: true })}
+                          </span>
                         </div>
                         <p className="text-sm text-gray-600 line-clamp-2">{a.Body}</p>
                         <div className="flex items-center justify-between mt-3">
@@ -461,12 +453,16 @@ export default function Dashboard() {
                             </span>
                           </div>
                           <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => setEditTarget(a)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold transition-colors">
+                            <button
+                              onClick={() => setEditTarget(a)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold transition-colors"
+                            >
                               <Pencil size={12} /> Edit
                             </button>
-                            <button onClick={() => setDeleteTarget(a)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold transition-colors">
+                            <button
+                              onClick={() => setDeleteTarget(a)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold transition-colors"
+                            >
                               <Trash2 size={12} /> Delete
                             </button>
                           </div>
@@ -479,38 +475,40 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Urgent Operations */}
           <div className="space-y-6">
             <h2 className="text-lg font-bold text-gray-900 mb-2">Urgent Operations</h2>
             {!isSuperAdmin && (
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 space-y-4">
-              <div className="bg-blue-50 h-32 rounded-lg flex items-center justify-center text-4xl border border-blue-100">🌍</div>
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-[10px] text-gray-400 font-bold tracking-wider uppercase mb-0.5">Active SOS Region</div>
-                  <div className="text-sm font-bold text-gray-900">
-                    {sosLoading
-                      ? '...'
-                      : latestActiveAlert
-                        ? `📍 ${latestActiveAlert.barangay ?? latestActiveAlert.address ?? 'Unknown location'}`
-                        : '📍 No active alerts'
-                    }
-                  </div>
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 space-y-4">
+                <div className="h-32 rounded-lg overflow-hidden border border-blue-100">
+                  <img src={mapOfValenzuela} alt="Map of Valenzuela" className="w-full h-full object-cover" />
                 </div>
-                <span className="bg-red-100 text-red-700 px-2.5 py-1 rounded-md text-xs font-bold">
-                  {sosLoading ? '…' : `${pendingSosCount} Red Flag${pendingSosCount !== 1 ? 's' : ''}`}
-                </span>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="text-[10px] text-gray-400 font-bold tracking-wider uppercase mb-0.5">Active SOS Region</div>
+                    <div className="text-sm font-bold text-gray-900">
+                      {sosLoading
+                        ? '...'
+                        : latestActiveAlert
+                          ? `📍 ${latestActiveAlert.barangay ?? latestActiveAlert.address ?? 'Unknown location'}`
+                          : '📍 No active alerts'}
+                    </div>
+                  </div>
+                  <span className="bg-red-100 text-red-700 px-2.5 py-1 rounded-md text-xs font-bold">
+                    {sosLoading ? '…' : `${pendingSosCount} Red Flag${pendingSosCount !== 1 ? 's' : ''}`}
+                  </span>
+                </div>
+                <button
+                  onClick={() => navigate('/sos')}
+                  className="w-full py-2.5 border-2 border-red-500 text-red-600 font-bold text-sm rounded-lg hover:bg-red-50 transition-colors"
+                >
+                  Go to Live SOS Map
+                </button>
               </div>
-              <button onClick={() => navigate("/sos")} className="w-full py-2.5 border-2 border-red-500 text-red-600 font-bold text-sm rounded-lg hover:bg-red-50 transition-colors">
-                Go to Live SOS Map
-              </button>
-            </div>
             )}
 
             <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 space-y-4">
               <div className="flex justify-between items-center mb-2">
                 <span className="font-bold text-gray-900">Verification Queue</span>
-                {/* ✅ Live pending badge */}
                 <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-xs font-bold">
                   {usersLoading ? '…' : `${pendingUserCount} PENDING`}
                 </span>
@@ -529,7 +527,9 @@ export default function Dashboard() {
                         <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${u.id}`} alt="" className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-gray-900 text-sm truncate">{[u.firstName, u.midName ? u.midName[0] + '.' : '', u.lastName].filter(Boolean).join(' ') || u.email || 'Unknown'}</div>
+                        <div className="font-semibold text-gray-900 text-sm truncate">
+                          {[u.firstName, u.midName ? u.midName[0] + '.' : '', u.lastName].filter(Boolean).join(' ') || u.email || 'Unknown'}
+                        </div>
                         <div className="text-xs text-gray-500 truncate">{u.idNumber ? `ID: #${u.idNumber}` : u.id.slice(0, 6).toUpperCase()}</div>
                       </div>
                       <button

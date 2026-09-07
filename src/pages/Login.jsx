@@ -5,6 +5,7 @@ import { auth, db } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import mapOfValenzuela from '../assets/map_of_valenzuela.jpg';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -51,19 +52,46 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 font-sans">
-      <div className="w-full max-w-sm">
-        {/* Header */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 bg-[#0f52ba] rounded-full flex items-center justify-center mb-3">
-            <ShieldCheck size={22} className="text-white" />
-          </div>
-          <h1 className="text-lg font-semibold text-gray-900">SCIA Admin</h1>
-          <p className="text-sm text-gray-500">Senior Citizens Information & Assistance — Valenzuela</p>
-        </div>
+    <div className="min-h-screen flex font-sans">
+      {/* Left: map panel */}
+      <div className="hidden lg:block relative w-1/2">
+        <img src={mapOfValenzuela} alt="Map of Valenzuela" className="absolute inset-0 w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-[#0f52ba]/70" />
 
-        {/* Card */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6 sm:p-8">
+        <div className="relative h-full flex flex-col justify-between p-12 text-white">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/15 rounded-full flex items-center justify-center">
+              <ShieldCheck size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold leading-tight">SCIA Admin</h1>
+              <p className="text-xs text-blue-100">Secure Admin Portal</p>
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-2xl font-semibold leading-snug mb-3">Serving Valenzuela's senior citizens.</h2>
+            <p className="text-sm text-blue-100 max-w-sm">
+              Manage announcements, ID verification, and barangay coordination across every district in the city.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Right: login form */}
+      <div className="flex-1 flex items-center justify-center bg-white p-6 sm:p-10">
+        <div className="w-full max-w-sm">
+          {/* Mobile-only header, since the map panel is hidden below lg */}
+          <div className="lg:hidden flex items-center gap-3 mb-8">
+            <div className="w-10 h-10 bg-[#0f52ba] rounded-full flex items-center justify-center">
+              <ShieldCheck size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold text-gray-900 leading-tight">SCIA Admin</h1>
+              <p className="text-xs text-gray-500">Secure Admin Portal</p>
+            </div>
+          </div>
+
           <h2 className="text-xl font-semibold text-gray-900 mb-1">Sign in</h2>
           <p className="text-sm text-gray-500 mb-6">Use your admin account to continue.</p>
 
@@ -132,11 +160,11 @@ export default function Login() {
               )}
             </button>
           </form>
-        </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          Access is restricted to authorized personnel. Contact your system administrator for help.
-        </p>
+          <p className="text-center text-xs text-gray-400 mt-8">
+            Access is restricted to authorized personnel only. Contact your system administrator for access.
+          </p>
+        </div>
       </div>
     </div>
   );

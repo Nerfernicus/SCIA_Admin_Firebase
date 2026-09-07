@@ -286,7 +286,7 @@ export default function SOSMap() {
             <div>
               <h2 className="text-xl font-bold text-gray-900">Live Alerts</h2>
               <p className="text-sm text-gray-500 font-medium mt-0.5">
-                {activeAlerts.length} Active · {resolvedAlerts.length} Resolved
+                {activeAlerts.length} active, {resolvedAlerts.length} resolved
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -387,7 +387,7 @@ export default function SOSMap() {
                   </div>
 
                   <div className={`text-sm mb-3 ${alert.status === "pending" ? "text-red-100" : "text-gray-600"}`}>
-                    <p>{alert.barangay} · {alert.address}</p>
+                    <p>{alert.barangay}, {alert.address}</p>
                     {isResolved && alert.resolvedAt && (
                       <p className="text-xs text-gray-400 mt-0.5">
                         Resolved {alert.resolvedAt?.toDate?.()?.toLocaleString?.() || 'N/A'}

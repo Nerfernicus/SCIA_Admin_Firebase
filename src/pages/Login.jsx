@@ -5,7 +5,6 @@ import { auth, db } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, Eye, EyeOff, AlertCircle } from 'lucide-react';
-import mapOfValenzuela from '../assets/map_of_valenzuela.jpg';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -52,96 +51,68 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex font-sans">
-      {/* Left: map panel, keeps the brand gradient over it */}
-      <div className="hidden lg:block relative w-1/2">
-        <img src={mapOfValenzuela} alt="Map of Valenzuela" className="absolute inset-0 w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900/80 via-[#0a2d6e]/75 to-[#0f52ba]/70" />
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl" />
-          <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-300/10 rounded-full blur-3xl" />
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 font-sans">
+      <div className="w-full max-w-sm">
+        {/* Header */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-12 h-12 bg-[#0f52ba] rounded-full flex items-center justify-center mb-3">
+            <ShieldCheck size={22} className="text-white" />
+          </div>
+          <h1 className="text-lg font-semibold text-gray-900">SCIA Admin</h1>
+          <p className="text-sm text-gray-500">Senior Citizens Information & Assistance — Valenzuela</p>
         </div>
 
-        <div className="relative h-full flex flex-col justify-between p-12 text-white">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-white/15 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg shadow-black/20">
-              <ShieldCheck size={22} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold leading-tight">SCIA Admin</h1>
-              <p className="text-xs text-blue-100 font-medium">Secure Admin Portal</p>
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-3xl font-bold leading-snug mb-3">Serving Valenzuela's senior citizens.</h2>
-            <p className="text-sm text-blue-100 max-w-sm">
-              Manage announcements, ID verification, and barangay coordination across every district in the city.
-            </p>
-            <div className="flex items-center gap-3 mt-6">
-              <span className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm text-white/80 text-xs font-medium px-3 py-1.5 rounded-full">
-                <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full" /> OSCA Admin
-              </span>
-              <span className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm text-white/80 text-xs font-medium px-3 py-1.5 rounded-full">
-                <span className="w-1.5 h-1.5 bg-blue-300 rounded-full" /> Barangay Admin
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Right: login form */}
-      <div className="flex-1 flex items-center justify-center bg-white p-6 sm:p-10 relative">
-        {/* Mobile-only header, since the map panel is hidden below lg */}
-        <div className="lg:hidden absolute top-6 left-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#0f52ba] rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
-            <ShieldCheck size={20} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-gray-900 leading-tight">SCIA Admin</h1>
-            <p className="text-[11px] text-gray-400 font-medium">Secure Admin Portal</p>
-          </div>
-        </div>
-
-        <div className="w-full max-w-sm mt-16 lg:mt-0">
-          <h2 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h2>
-          <p className="text-sm text-gray-500 mb-8">Sign in to your admin account to continue.</p>
+        {/* Card */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6 sm:p-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-1">Sign in</h2>
+          <p className="text-sm text-gray-500 mb-6">Use your admin account to continue.</p>
 
           {error && (
-            <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-2xl mb-6">
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2.5 rounded-md mb-5">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Email Address</label>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
+                Email address
+              </label>
               <input
+                id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@scia.gov"
                 required
                 autoComplete="email"
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3.5 px-4 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
+                className="w-full border border-gray-300 rounded-md py-2.5 px-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Password</label>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
+                Password
+              </label>
               <div className="relative">
                 <input
+                  id="password"
                   type={showPass ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                   required
                   autoComplete="current-password"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3.5 pl-4 pr-12 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
+                  className="w-full border border-gray-300 rounded-md py-2.5 pl-3 pr-10 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
-                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
-                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                <button
+                  type="button"
+                  onClick={() => setShowPass(!showPass)}
+                  aria-label={showPass ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
               </div>
             </div>
@@ -149,7 +120,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white py-3.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/30 mt-2 flex items-center justify-center gap-2"
+              className="w-full bg-[#0f52ba] hover:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed text-white py-2.5 rounded-md text-sm font-medium transition-colors mt-2 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -157,27 +128,15 @@ export default function Login() {
                   Signing in…
                 </>
               ) : (
-                'Sign In'
+                'Sign in'
               )}
             </button>
           </form>
-
-          <p className="text-center text-xs text-gray-400 mt-8">
-            Access is restricted to authorized personnel only.
-            <br />
-            Contact your system administrator for access.
-          </p>
-
-          {/* Mobile-only role badges, shown in the hero panel on larger screens */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mt-6">
-            <span className="flex items-center gap-1.5 bg-gray-100 text-gray-500 text-xs font-medium px-3 py-1.5 rounded-full">
-              <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full" /> OSCA Admin
-            </span>
-            <span className="flex items-center gap-1.5 bg-gray-100 text-gray-500 text-xs font-medium px-3 py-1.5 rounded-full">
-              <span className="w-1.5 h-1.5 bg-blue-400 rounded-full" /> Barangay Admin
-            </span>
-          </div>
         </div>
+
+        <p className="text-center text-xs text-gray-400 mt-6">
+          Access is restricted to authorized personnel. Contact your system administrator for help.
+        </p>
       </div>
     </div>
   );

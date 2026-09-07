@@ -53,29 +53,43 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex font-sans">
-      {/* Left: map panel */}
-      <div className="hidden lg:block relative w-1/2">
-        <img src={mapOfValenzuela} alt="Map of Valenzuela" className="absolute inset-0 w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-[#0f52ba]/70" />
+      {/* Left: map panel, styled like an ID card face */}
+      <div className="hidden lg:flex lg:flex-col relative w-1/2 bg-[#0a2140]">
+        <img src={mapOfValenzuela} alt="Map of Valenzuela" className="absolute inset-0 w-full h-full object-cover opacity-40" />
+        <div className="absolute inset-0 bg-[#0a2140]/70" />
 
-        <div className="relative h-full flex flex-col justify-between p-12 text-white">
+        <div className="relative flex-1 flex flex-col justify-between p-12 text-white">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/15 rounded-full flex items-center justify-center">
-              <ShieldCheck size={20} className="text-white" />
+            <div className="w-11 h-11 rounded-full border-2 border-[#d9a545] flex items-center justify-center">
+              <ShieldCheck size={20} className="text-[#d9a545]" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold leading-tight">SCIA Admin</h1>
-              <p className="text-xs text-blue-100">Secure Admin Portal</p>
+              <h1 className="text-lg font-semibold leading-tight tracking-wide">SCIA Admin</h1>
+              <p className="text-xs text-blue-100/80">Secure Admin Portal</p>
             </div>
           </div>
 
-          <div>
-            <h2 className="text-2xl font-semibold leading-snug mb-3">Serving Valenzuela's senior citizens.</h2>
-            <p className="text-sm text-blue-100 max-w-sm">
+          <div className="max-w-sm">
+            <h2 className="font-serif text-3xl leading-snug mb-3">
+              Serving Valenzuela's senior citizens.
+            </h2>
+            <p className="text-sm text-blue-100/80 leading-relaxed">
               Manage announcements, ID verification, and barangay coordination across every district in the city.
             </p>
+
+            <div className="flex gap-3 mt-6">
+              <span className="flex items-center gap-2 pl-3 pr-4 py-1.5 border-l-2 border-[#d9a545] bg-white/5 text-xs text-blue-50">
+                OSCA Admin
+              </span>
+              <span className="flex items-center gap-2 pl-3 pr-4 py-1.5 border-l-2 border-blue-300 bg-white/5 text-xs text-blue-50">
+                Barangay Admin
+              </span>
+            </div>
           </div>
         </div>
+
+        {/* Gold stripe, echoes the accent band on a senior citizen ID */}
+        <div className="h-1.5 bg-[#d9a545]" />
       </div>
 
       {/* Right: login form */}
@@ -83,8 +97,8 @@ export default function Login() {
         <div className="w-full max-w-sm">
           {/* Mobile-only header, since the map panel is hidden below lg */}
           <div className="lg:hidden flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 bg-[#0f52ba] rounded-full flex items-center justify-center">
-              <ShieldCheck size={20} className="text-white" />
+            <div className="w-10 h-10 rounded-full border-2 border-[#d9a545] flex items-center justify-center">
+              <ShieldCheck size={18} className="text-[#0f52ba]" />
             </div>
             <div>
               <h1 className="text-lg font-semibold text-gray-900 leading-tight">SCIA Admin</h1>
@@ -92,17 +106,17 @@ export default function Login() {
             </div>
           </div>
 
-          <h2 className="text-xl font-semibold text-gray-900 mb-1">Sign in</h2>
-          <p className="text-sm text-gray-500 mb-6">Use your admin account to continue.</p>
+          <h2 className="font-serif text-2xl text-gray-900 mb-1">Welcome back</h2>
+          <p className="text-sm text-gray-500 mb-7">Sign in with your admin account to continue.</p>
 
           {error && (
-            <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2.5 rounded-md mb-5">
+            <div className="flex items-start gap-2 bg-red-50 border-l-2 border-red-400 text-red-700 text-sm px-3.5 py-2.5 mb-6">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
                 Email address
@@ -115,7 +129,7 @@ export default function Login() {
                 placeholder="admin@scia.gov"
                 required
                 autoComplete="email"
-                className="w-full border border-gray-300 rounded-md py-2.5 px-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full border-0 border-b-2 border-gray-200 py-2 px-0.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#0f52ba] transition-colors"
               />
             </div>
 
@@ -132,13 +146,13 @@ export default function Login() {
                   placeholder="Enter your password"
                   required
                   autoComplete="current-password"
-                  className="w-full border border-gray-300 rounded-md py-2.5 pl-3 pr-10 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border-0 border-b-2 border-gray-200 py-2 pr-9 px-0.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#0f52ba] transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPass(!showPass)}
                   aria-label={showPass ? 'Hide password' : 'Show password'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-0.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
@@ -148,7 +162,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#0f52ba] hover:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed text-white py-2.5 rounded-md text-sm font-medium transition-colors mt-2 flex items-center justify-center gap-2"
+              className="w-full bg-[#0f52ba] hover:bg-[#0c4295] disabled:opacity-60 disabled:cursor-not-allowed text-white py-2.5 text-sm font-medium transition-colors mt-3 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>

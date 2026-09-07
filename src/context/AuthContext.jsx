@@ -24,7 +24,7 @@ export function AuthProvider({ children }) {
             setRole(data.role); // 'super_admin' or 'sub_admin'
             setAdminData(data);
           } else {
-            // User exists in Firebase Auth but has no admin record – sign them out
+            // User exists in Firebase Auth but has no admin record, sign them out
             await signOut(auth);
             setUser(null);
             setRole(null);

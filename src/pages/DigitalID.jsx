@@ -12,7 +12,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import OSCAIdCard from '../components/Oscaidcard';
 
-const fmt = (ts) => ts?.toDate?.()?.toLocaleDateString('en-PH') ?? '—';
+const fmt = (ts) => ts?.toDate?.()?.toLocaleDateString('en-PH') ?? 'N/A';
 
 /* ─── Status badge ──────────────────────────────────────────────────────────── */
 const StatusBadge = ({ status }) => {
@@ -56,9 +56,9 @@ async function checkNCSID(record) {
 
 /* ─── Normalize record → OSCAIdCard props ───────────────────────────────────── */
 function toCardProps(record, mode = 'digital') {
-  const dob = record.dob || record.dateOfBirth || '—';
+  const dob = record.dob || record.dateOfBirth || 'N/A';
   let dobFormatted = dob;
-  if (dob && dob !== '—') {
+  if (dob && dob !== 'N/A') {
     const isoM   = dob.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     const slashM = dob.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (isoM)        dobFormatted = `${isoM[2]}-${isoM[3]}-${isoM[1].slice(2)}`;
@@ -67,11 +67,11 @@ function toCardProps(record, mode = 'digital') {
   return {
     mode,
     name:        (record.fullName || record.seniorName || 'UNKNOWN').toUpperCase(),
-    address:     record.address || '—',
+    address:     record.address || 'N/A',
     dateOfBirth: dobFormatted,
-    sex:         (record.sex || '—').toUpperCase(),
+    sex:         (record.sex || 'N/A').toUpperCase(),
     dateIssued:  fmt(record.releasedAt || record.notifiedAt),
-    controlNo:   record.controlNumber || record.seniorId || record.id?.slice(-6).toUpperCase() || '——————',
+    controlNo:   record.controlNumber || record.seniorId || record.id?.slice(-6).toUpperCase() || '------',
     photoUrl:    record.photoURL || null,
   };
 }
@@ -228,7 +228,7 @@ function SuperAdminDigitalID() {
               }`}>
                 {ncsidMap[previewID.id] === 'checking' ? <><Loader2 size={12} className="animate-spin" /> Checking NCSID…</> :
                  ncsidMap[previewID.id] === true ? <><CheckCircle2 size={12} /> Confirmed registered in NCSID</> :
-                 <><XCircle size={12} /> NOT found in NCSID — this ID may be invalid</>}
+                 <><XCircle size={12} /> NOT found in NCSID: this ID may be invalid</>}
               </div>
             )}
 
@@ -362,7 +362,7 @@ function SuperAdminDigitalID() {
                         <p className="font-medium text-gray-700">{r.fullName}</p>
                         <p className="text-xs text-gray-400">
                           Ctrl No. {r.controlNumber} · Invalidated {fmt(r.invalidatedAt)}
-                          {r.invalidatedReason && ` — ${r.invalidatedReason}`}
+                          {r.invalidatedReason && ` · ${r.invalidatedReason}`}
                         </p>
                       </div>
                     </div>
@@ -537,7 +537,7 @@ function BarangayAdminDigitalID({ adminData }) {
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-gray-900">{r.seniorName || 'Unknown'}</p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          OSCA ID: <span className="font-bold">{r.seniorId || '—'}</span>
+                          OSCA ID: <span className="font-bold">{r.seniorId || 'N/A'}</span>
                           {r.address ? ` · ${r.address}` : ''}
                         </p>
                         {r.releasedAt && (
@@ -585,7 +585,7 @@ function BarangayAdminDigitalID({ adminData }) {
                       <div>
                         <p className="font-medium text-gray-700">{r.seniorName || 'Unknown'}</p>
                         <p className="text-xs text-gray-400">
-                          OSCA ID: {r.seniorId || '—'} · Collected: {fmt(r.collectedAt)}
+                          OSCA ID: {r.seniorId || 'N/A'} · Collected: {fmt(r.collectedAt)}
                         </p>
                       </div>
                     </div>
@@ -637,12 +637,12 @@ export default function DigitalID() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <CreditCard size={24} className="text-[#0f52ba]" />
-          {isSuperAdmin ? 'Digital IDs' : 'Physical IDs — My Barangay'}
+          {isSuperAdmin ? 'Digital IDs' : 'My Barangay Physical IDs'}
         </h1>
         <p className="text-sm text-gray-500 mt-1">
           {isSuperAdmin
             ? 'View all issued digital OSCA IDs · Verify registration status · Invalidate if not actually registered'
-            : `Physical IDs released to Brgy. ${adminData?.barangay || '—'} for senior citizen distribution`}
+            : `Physical IDs released to Brgy. ${adminData?.barangay || 'N/A'} for senior citizen distribution`}
         </p>
       </div>
 

@@ -130,7 +130,7 @@ export default function Sidebar({ children }) {
           })}
         </nav>
 
-        {/* Generate Report — both roles */}
+        {/* Generate Report (both roles) */}
         <div className="px-2 mt-3">
           <button
             onClick={() => setReportOpen(true)}

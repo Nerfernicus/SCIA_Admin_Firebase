@@ -47,11 +47,13 @@ const GEN_T_CENTERS = [
         phone: '(02) 8292-0002',
         hours: 'Mon–Fri, 8:00 AM – 5:00 PM',
         services: ['Medical Consultation', 'Blood Pressure Monitoring', 'Blood Sugar Check', 'Senior Wellness Program'],
-        staffColor: 'bg-green-500',
+        // Same accent color as every other 3S Center card — one template, not
+        // a per-barangay theme. Only the photo, name, and staff differ.
+        staffColor: 'bg-blue-500',
         staffCount: '12',
         imgUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9b/Valenzuela_City_Hall.jpg/640px-Valenzuela_City_Hall.jpg',
         avatarSeed: 'ana-reyes',
-        color: '#0f9d58',
+        color: '#0f52ba',
     },
 ];
 
@@ -90,7 +92,7 @@ function AppointmentRow({ appt, onUpdate }) {
                 <div>
                     <p className="font-bold text-gray-900 text-sm">{displayName}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                        {appt.date} {appt.time && `at ${appt.time}`} — {displayReason}
+                        {appt.date} {appt.time && `at ${appt.time}`} · {displayReason}
                     </p>
                     {appt.notes && <p className="text-xs text-gray-400 mt-0.5 italic">{appt.notes}</p>}
                     {appt.seniorId && <p className="text-xs text-gray-400 mt-0.5">ID: {appt.seniorId}</p>}
@@ -150,7 +152,7 @@ function MedicationRow({ med, onUpdate }) {
                 <div>
                     <p className="font-bold text-gray-900 text-sm">{med.medicationName || 'Unknown Medication'}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                        {med.patientName} — {med.dosage || ''} {med.frequency || ''}
+                        {med.patientName} · {med.dosage || ''} {med.frequency || ''}
                     </p>
                     {med.prescribedBy && (
                         <p className="text-xs text-gray-400 mt-0.5">Prescribed by: {med.prescribedBy}</p>
@@ -518,7 +520,7 @@ export default function HealthCenters() {
             {/* Header — NO duplicate bell/settings/avatar */}
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Health Centers</h1>
-                <p className="text-gray-500">Manage 3S Centers — appointments and medications for senior citizens.</p>
+                <p className="text-gray-500">Manage 3S Centers, appointments, and medications for senior citizens.</p>
             </div>
 
             {/* KPI Stats */}

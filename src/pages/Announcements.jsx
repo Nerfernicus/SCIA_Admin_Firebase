@@ -260,7 +260,7 @@ export default function Announcements() {
                 type="text"
                 value={when}
                 onChange={(e) => setWhen(e.target.value)}
-                placeholder="e.g. May 15, 2025 — 8:00 AM to 12:00 PM"
+                placeholder="e.g. May 15, 2025, 8:00 AM to 12:00 PM"
                 className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none"
               />
             </div>
@@ -329,7 +329,7 @@ export default function Announcements() {
                           type="text"
                           value={field.label}
                           onChange={(e) => updateFormField(field.id, { label: e.target.value })}
-                          placeholder={`Field ${idx + 1} label — e.g. Household size`}
+                          placeholder={`Field ${idx + 1} label (e.g. Household size)`}
                           className="flex-1 bg-white rounded-lg py-2 px-3 text-sm border border-gray-200 focus:ring-2 focus:ring-blue-100 outline-none"
                         />
                         <select

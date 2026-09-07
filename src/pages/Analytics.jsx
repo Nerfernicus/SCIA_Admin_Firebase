@@ -10,7 +10,7 @@ function StatCard({ icon: Icon, label, value, color, bg, sub }) {
       <div className={`w-11 h-11 ${bg} rounded-2xl flex items-center justify-center mb-4`}>
         <Icon size={20} className={color} />
       </div>
-      <p className="text-3xl font-bold text-gray-900">{value ?? '—'}</p>
+      <p className="text-3xl font-bold text-gray-900">{value ?? 'N/A'}</p>
       <p className="text-sm font-medium text-gray-700 mt-0.5">{label}</p>
       {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
     </div>
@@ -65,7 +65,7 @@ export default function Analytics() {
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <BarChart3 size={24} className="text-[#0f52ba]" /> Analytics & Reports
         </h1>
-        <p className="text-sm text-gray-500 mt-1">Full system overview — all departments</p>
+        <p className="text-sm text-gray-500 mt-1">Full system overview across all departments</p>
       </div>
 
       {loading ? (

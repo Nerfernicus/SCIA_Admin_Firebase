@@ -30,13 +30,13 @@ const OSCAIdCard = ({
 
   return (
     <div className="osca-id-wrapper">
-      {/* Flip container — click anywhere to flip */}
+      {/* Click anywhere to flip */}
       <div
         className={`osca-flip-container${flipped ? " flipped" : ""}`}
         onClick={() => setFlipped((f) => !f)}
         title={flipped ? "Click to see front" : "Click to see back (benefits)"}
       >
-        {/* ───────────── FRONT ───────────── */}
+        {/* Front */}
         <div className="osca-card osca-card-front">
           {/* Header */}
           <div className="front-header">
@@ -121,7 +121,7 @@ const OSCAIdCard = ({
           </div>
         </div>
 
-        {/* ───────────── BACK ───────────── */}
+        {/* Back */}
         <div className="osca-card osca-card-back">
           <div className="back-top-stripe" />
 

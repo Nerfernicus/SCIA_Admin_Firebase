@@ -40,7 +40,7 @@ const GenerateReportModal = ({ isOpen, onClose, isSuperAdmin }) => {
       setStatus('done');
       const typeLabel = REPORT_TYPES.find(r => r.id === selectedType)?.label || selectedType;
       const reportContent = [
-        `SCIA Admin — ${isSuperAdmin ? 'OSCA Platform' : 'Barangay Platform'} Report`,
+        `SCIA Admin - ${isSuperAdmin ? 'OSCA Platform' : 'Barangay Platform'} Report`,
         `Report Type: ${typeLabel}`,
         `Date Range: ${dateFrom} to ${dateTo}`,
         `Format: ${format}`,
@@ -76,7 +76,7 @@ const GenerateReportModal = ({ isOpen, onClose, isSuperAdmin }) => {
             <div>
               <h2 className="text-lg font-bold text-gray-900">Generate Report</h2>
               <p className="text-xs text-gray-500">
-                {isSuperAdmin ? 'OSCA Platform — All data' : 'Barangay Platform — Your data only'}
+                {isSuperAdmin ? 'OSCA Platform: All data' : 'Barangay Platform: Your data only'}
               </p>
             </div>
           </div>

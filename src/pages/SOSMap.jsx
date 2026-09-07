@@ -305,7 +305,7 @@ export default function SOSMap() {
           {repeatKeys.size > 0 && (
             <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-medium">
               <AlertTriangle size={12} className="text-orange-500 shrink-0" />
-              Some users have sent <strong className="mx-0.5">multiple SOS alerts</strong> — highlighted below.
+              Some users have sent <strong className="mx-0.5">multiple SOS alerts</strong>, highlighted below.
             </div>
           )}
 
@@ -387,10 +387,10 @@ export default function SOSMap() {
                   </div>
 
                   <div className={`text-sm mb-3 ${alert.status === "pending" ? "text-red-100" : "text-gray-600"}`}>
-                    <p>{alert.barangay} — {alert.address}</p>
+                    <p>{alert.barangay} · {alert.address}</p>
                     {isResolved && alert.resolvedAt && (
                       <p className="text-xs text-gray-400 mt-0.5">
-                        Resolved {alert.resolvedAt?.toDate?.()?.toLocaleString?.() || '—'}
+                        Resolved {alert.resolvedAt?.toDate?.()?.toLocaleString?.() || 'N/A'}
                       </p>
                     )}
                   </div>

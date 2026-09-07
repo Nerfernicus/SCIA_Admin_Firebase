@@ -149,7 +149,7 @@ const StatusBadge = ({ status }) => {
 function NCSCStatusBadge({ status }) {
   if (status === 'checking')        return <span className="flex items-center gap-1 text-xs text-blue-600 font-medium"><Loader2 size={11} className="animate-spin" /> Checking NCSC…</span>;
   if (status === 'found')           return <span className="flex items-center gap-1 text-xs text-green-700 font-semibold bg-green-50 px-2 py-0.5 rounded-full"><CheckCircle2 size={11} /> Registered in NCSC</span>;
-  if (status === 'found_name_only') return <span className="flex items-center gap-1 text-xs text-orange-600 font-semibold bg-orange-50 px-2 py-0.5 rounded-full"><AlertTriangle size={11} /> Name Found — Birthday Unverified</span>;
+  if (status === 'found_name_only') return <span className="flex items-center gap-1 text-xs text-orange-600 font-semibold bg-orange-50 px-2 py-0.5 rounded-full"><AlertTriangle size={11} /> Name Found · Birthday Unverified</span>;
   if (status === 'not_found')       return <span className="flex items-center gap-1 text-xs text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded-full"><XCircle size={11} /> NOT Registered in NCSC</span>;
   if (status === 'unreachable')     return <span className="flex items-center gap-1 text-xs text-orange-600 font-semibold bg-orange-50 px-2 py-0.5 rounded-full"><WifiOff size={11} /> NCSC Unreachable</span>;
   return null;
@@ -187,7 +187,7 @@ function NCSCBanner({ status, onRecheck, missingBirthday }) {
         <div className="mb-4 px-4 py-2.5 bg-orange-50 border border-orange-300 rounded-xl text-xs text-orange-700 font-semibold flex items-start gap-2">
           <AlertTriangle size={13} className="text-orange-500 mt-0.5 shrink-0" />
           <span>
-            <strong>Cannot approve</strong> — NCSC found this senior by name only. Birthday is missing so full verification could not be completed. Please update the senior's birthday before approving.
+            <strong>Cannot approve:</strong> NCSC found this senior by name only. Birthday is missing, so full verification could not be completed. Please update the senior's birthday before approving.
           </span>
         </div>
       )}
@@ -195,7 +195,7 @@ function NCSCBanner({ status, onRecheck, missingBirthday }) {
         <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
           <AlertTriangle size={13} className="text-red-500 mt-0.5 shrink-0" />
           <span>
-            <strong>Cannot approve</strong> —{' '}
+            <strong>Cannot approve:</strong>{' '}
             {missingBirthday
               ? "name and birthday are not registered in NCSC. Please update the senior's birthday and verify their identity before approving."
               : "this senior's name and birthday were not found in NCSC records. Please verify their identity before approving."}
@@ -217,7 +217,7 @@ function BirthdayWarning({ ncscStatus }) {
   if (ncscStatus === "unreachable") return null;
   return (
     <p className="text-xs text-orange-500 pl-5 font-semibold flex items-center gap-1">
-      <AlertTriangle size={11} /> Birthday not on record — NCSC check used name only
+      <AlertTriangle size={11} /> Birthday not on record, NCSC check used name only
     </p>
   );
 }
@@ -285,7 +285,7 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
           <div className="mb-4 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
             <span>
-              <strong>Cannot approve</strong> — birthday is not on record. NCSC could only verify by name.
+              <strong>Cannot approve:</strong> birthday is not on record. NCSC could only verify by name.
               Please update the senior's birthday before approving.
             </span>
           </div>
@@ -308,7 +308,7 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
           {record.barangay && <p className="text-xs text-gray-400 pl-5">🏘 Barangay: <strong>{record.barangay}</strong></p>}
           {record.sex && <p className="text-xs text-gray-400 pl-5">Sex: {record.sex}</p>}
           {record.submittedAt && (
-            <p className="text-xs text-gray-400 pl-5">Submitted: {record.submittedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>
+            <p className="text-xs text-gray-400 pl-5">Submitted: {record.submittedAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>
           )}
           {missingBirthday && <BirthdayWarning ncscStatus={null} />}
         </div>
@@ -396,7 +396,7 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
           <div className="mb-4 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
             <span>
-              <strong>Cannot approve</strong> — birthday is not on record. NCSC could only verify by name.
+              <strong>Cannot approve:</strong> birthday is not on record. NCSC could only verify by name.
               Please update the senior's birthday before approving.
             </span>
           </div>
@@ -417,7 +417,7 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
               : <span className="text-orange-500 font-semibold italic">Not specified</span>}
           </p>
           {record.reason    && <p className="text-xs text-gray-400 pl-5 italic">Reason: {record.reason}</p>}
-          {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
+          {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>}
           {missingBirthday && <BirthdayWarning ncscStatus={null} />}
         </div>
 
@@ -447,9 +447,9 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
 
 /* ─── OSCA ID Card adapter ───────────────────────────────────────────────────── */
 function OSCAIDCard({ record }) {
-  const dob = record.dob || record.dateOfBirth || '—';
+  const dob = record.dob || record.dateOfBirth || 'N/A';
   let dobFormatted = dob;
-  if (dob && dob !== '—') {
+  if (dob && dob !== 'N/A') {
     const isoM   = dob.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     const slashM = dob.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (isoM)        dobFormatted = `${isoM[2]}-${isoM[3]}-${isoM[1].slice(2)}`;
@@ -464,11 +464,11 @@ function OSCAIDCard({ record }) {
       <OSCAIdCard
         mode="physical"
         name={(record.seniorName || record.fullName || 'UNKNOWN').toUpperCase()}
-        address={record.address || '—'}
+        address={record.address || 'N/A'}
         dateOfBirth={dobFormatted}
-        sex={(record.sex || '—').toUpperCase()}
+        sex={(record.sex || 'N/A').toUpperCase()}
         dateIssued={dateIssued}
-        controlNo={record.controlNumber || record.seniorId || record.idNumber || (record.id?.slice(-6).toUpperCase()) || '——————'}
+        controlNo={record.controlNumber || record.seniorId || record.idNumber || (record.id?.slice(-6).toUpperCase()) || '------'}
         photoUrl={record.photoURL || null}
       />
     </div>
@@ -520,7 +520,7 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
             <div key={label} className="flex items-center gap-2 text-xs py-0.5">
               {ok ? <CheckCircle2 size={12} className="text-green-600" /> : <XCircle size={12} className="text-orange-500" />}
               <span className={ok ? 'text-gray-700' : 'text-orange-700 font-semibold'}>{label}</span>
-              {!ok && <span className="text-orange-500 italic">— Missing</span>}
+              {!ok && <span className="text-orange-500 italic">Missing</span>}
             </div>
           ))}
         </div>
@@ -529,7 +529,7 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
           <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={13} className="text-red-500 mt-0.5 shrink-0" />
             <span>
-              <strong>Cannot release</strong> — birthday is not on record. Please update the senior's birthday before releasing the ID.
+              <strong>Cannot release:</strong> birthday is not on record. Please update the senior's birthday before releasing the ID.
             </span>
           </div>
         )}
@@ -537,7 +537,7 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
         {!hasAllInfo && !missingBirthday && (
           <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-2">
             <AlertTriangle size={13} className="text-red-500" />
-            Cannot release — required information is incomplete. Please update the senior's record first.
+            Cannot release: required information is incomplete. Please update the senior's record first.
           </div>
         )}
 
@@ -584,7 +584,7 @@ function RequestDetailModal({ record, onClose, onApprove, onReject, processing }
         {missingBirthday && (
           <div className="mb-4 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
-            <span><strong>Cannot approve</strong> — birthday not on record. Update the senior's birthday first.</span>
+            <span><strong>Cannot approve:</strong> birthday not on record. Update the senior's birthday first.</span>
           </div>
         )}
 
@@ -596,7 +596,7 @@ function RequestDetailModal({ record, onClose, onApprove, onReject, processing }
           {record.contactNumber && <p className="text-xs text-gray-500 pl-5 flex items-center gap-1"><Phone size={10} />{record.contactNumber}</p>}
           <p className="text-xs text-gray-500 pl-5">🏘 Barangay: {record.barangay ? <strong>{record.barangay}</strong> : <span className="text-orange-500 italic font-semibold">Not specified</span>}</p>
           {record.reason    && <p className="text-xs text-gray-400 pl-5 italic">Reason: {record.reason}</p>}
-          {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
+          {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>}
           {missingBirthday && <BirthdayWarning ncscStatus={null} />}
         </div>
 
@@ -916,13 +916,13 @@ export default function IDManagement() {
           {verifTab === 'submissions' && repeatKeys.size > 0 && (
             <div className="flex items-center gap-2 mb-5 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-medium">
               <AlertTriangle size={14} className="text-orange-500 shrink-0" />
-              {repeatKeys.size} user{repeatKeys.size > 1 ? 's have' : ' has'} submitted <strong className="mx-1">multiple requests</strong> — highlighted in orange.
+              {repeatKeys.size} user{repeatKeys.size > 1 ? 's have' : ' has'} submitted <strong className="mx-1">multiple requests</strong>, highlighted in orange.
             </div>
           )}
           {verifTab === 'physical' && voidVerifReqs.length > 0 && (
             <div className="flex items-center gap-2 mb-5 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-medium">
               <AlertTriangle size={14} className="text-orange-500 shrink-0" />
-              <strong>{voidVerifReqs.length}</strong>&nbsp;request(s) are void — incomplete profile.
+              <strong>{voidVerifReqs.length}</strong>&nbsp;request(s) are void: incomplete profile.
             </div>
           )}
 
@@ -1034,7 +1034,7 @@ export default function IDManagement() {
                               </div>
                               <p className="text-xs text-gray-400 mt-0.5">
                                 {rId ? `OSCA ID: ${rId}` : ''}
-                                {r.reviewedAt && ` · Reviewed ${r.reviewedAt?.toDate?.()?.toLocaleDateString?.() || '—'}`}
+                                {r.reviewedAt && ` · Reviewed ${r.reviewedAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}`}
                               </p>
                             </div>
                           </div>
@@ -1106,7 +1106,7 @@ export default function IDManagement() {
                   {voidRelReqs.length > 0 && (
                     <div className="mb-4 px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 flex items-start gap-2">
                       <AlertTriangle size={13} className="mt-0.5 text-orange-500 shrink-0" />
-                      <span><strong>{voidRelReqs.length}</strong> request(s) are void — user did not complete sign-up.</span>
+                      <span><strong>{voidRelReqs.length}</strong> request(s) are void: user did not complete sign-up.</span>
                     </div>
                   )}
                   {relPending.length > 0 ? (
@@ -1214,7 +1214,7 @@ export default function IDManagement() {
                             <p className="text-xs text-gray-400">
                               {r.seniorId ? `OSCA ID: ${r.seniorId}` : ''}
                               {r.barangay ? ` · Brgy. ${r.barangay}` : ''}
-                              {r.releasedAt && ` · Released ${r.releasedAt?.toDate?.()?.toLocaleDateString?.() || '—'}`}
+                              {r.releasedAt && ` · Released ${r.releasedAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}`}
                             </p>
                           </div>
                           <StatusBadge status="released" />
@@ -1248,7 +1248,7 @@ export default function IDManagement() {
                                 {r.seniorId ? `OSCA ID: ${r.seniorId}` : ''}
                                 {r.address ? ` · ${r.address}` : ''}
                               </p>
-                              {r.notifiedAt && <p className="text-xs text-purple-400 mt-0.5">Released: {r.notifiedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
+                              {r.notifiedAt && <p className="text-xs text-purple-400 mt-0.5">Released: {r.notifiedAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>}
                             </div>
                             <div className="flex items-center gap-2">
                               <StatusBadge status="notified" />
@@ -1270,7 +1270,7 @@ export default function IDManagement() {
                           <div key={r.id} className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center justify-between opacity-70">
                             <div>
                               <p className="font-medium text-gray-700">{r.seniorName || 'Unknown'}</p>
-                              <p className="text-xs text-gray-400">Collected: {r.collectedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>
+                              <p className="text-xs text-gray-400">Collected: {r.collectedAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>
                             </div>
                             <StatusBadge status="collected" />
                           </div>
@@ -1299,4 +1299,3 @@ export default function IDManagement() {
     </div>
   );
 }
-// test

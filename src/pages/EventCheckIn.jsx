@@ -1,3 +1,4 @@
+// src/pages/EventCheckIn.jsx — new file
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   QrCode, Camera, CameraOff, CheckCircle2, XCircle, Search,
@@ -57,7 +58,7 @@ async function resolveUidFromScan(rawText) {
 }
 
 function formatFieldValue(field, value) {
-  if (value === undefined || value === null || value === "") return "—";
+  if (value === undefined || value === null || value === "") return "N/A";
   return String(value);
 }
 
@@ -199,7 +200,7 @@ export default function EventCheckIn() {
     setResult(null);
 
     if (typeof window !== "undefined" && window.isSecureContext === false) {
-      setScanError("Camera access needs HTTPS (or localhost) — this page is loaded over an insecure connection.");
+      setScanError("Camera access needs HTTPS, or localhost. This page is loaded over an insecure connection.");
       return;
     }
 
@@ -297,7 +298,7 @@ export default function EventCheckIn() {
             className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 outline-none"
           >
             {events.map((ev) => (
-              <option key={ev.id} value={ev.id}>{ev.Title} — {ev.Date}</option>
+              <option key={ev.id} value={ev.id}>{ev.Title} · {ev.Date}</option>
             ))}
           </select>
         )}
@@ -430,7 +431,7 @@ export default function EventCheckIn() {
                 <p className="text-xs text-gray-500 mt-1 break-all">Raw value: {result.raw}</p>
                 <p className="text-xs text-gray-400 mt-2">
                   No matching user was found by uid or OSCA ID. If this keeps happening, the account QR's
-                  payload format doesn't match what this scanner expects — see the comment at the top of
+                  payload format doesn't match what this scanner expects. See the comment at the top of
                   EventCheckIn.jsx.
                 </p>
               </ResultCard>

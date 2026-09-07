@@ -11,7 +11,6 @@ import { doc, updateDoc, collection, onSnapshot, query, where, orderBy, limit, g
 import { db, auth } from '../lib/firebase';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 
-// ── Notifications Panel ───────────────────────────────────────────────────────
 function NotificationsPanel({ onClose, myBarangay }) {
   const { t } = useLang();
   const [notifs, setNotifs] = useState([]);
@@ -74,7 +73,7 @@ function NotificationsPanel({ onClose, myBarangay }) {
             id: d.id,
             type: 'id_release',
             title: 'ID Released',
-            body: `${d.seniorName || 'Senior citizen'} — Brgy. ${d.barangay || 'Unassigned'}`,
+            body: `${d.seniorName || 'Senior citizen'}, Brgy. ${d.barangay || 'Unassigned'}`,
             time: d.releasedAt?.toDate?.() || new Date(),
           }));
 
@@ -152,7 +151,6 @@ function NotificationsPanel({ onClose, myBarangay }) {
   );
 }
 
-// ── Settings Toggle — fixed size, working state ───────────────────────────────
 function SettingsToggle({ label, icon: Icon, storageKey, defaultOn = true }) {
   const [on, setOn] = useState(() => {
     try {
@@ -197,7 +195,6 @@ function SettingsToggle({ label, icon: Icon, storageKey, defaultOn = true }) {
   );
 }
 
-// ── Settings Panel ────────────────────────────────────────────────────────────
 function SettingsPanel({ onClose }) {
   const { t, lang, setLang } = useLang();
 
@@ -246,7 +243,6 @@ function SettingsPanel({ onClose }) {
   );
 }
 
-// ── Admin Profile Modal ───────────────────────────────────────────────────────
 function AdminProfileModal({ onClose }) {
   const { user, adminData, setAdminData } = useAuth();
   const { t } = useLang();
@@ -391,7 +387,6 @@ function AdminProfileModal({ onClose }) {
   );
 }
 
-// ── Header ────────────────────────────────────────────────────────────────────
 export default function Header() {
   const { user, adminData } = useAuth();
   const { t } = useLang();

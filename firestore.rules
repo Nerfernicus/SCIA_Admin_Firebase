@@ -75,9 +75,9 @@ service cloud.firestore {
     //   • super_admin can read, update, delete all (User Management page)
     // ─────────────────────────────────────────────────────────────────────────
     match /users/{userId} {
-      // Senior can read their own profile; super admin reads all
+      // Senior reads their own profile; any admin reads all (Dashboard user stats)
       allow read: if request.auth != null
-        && (request.auth.uid == userId || isSuperAdmin());
+        && (request.auth.uid == userId || isSubOrSuperAdmin());
 
       // Mobile app creates the document on registration
       allow create: if request.auth != null

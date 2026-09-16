@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "scia-b5440"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }

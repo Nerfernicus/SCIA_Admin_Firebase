@@ -4,7 +4,7 @@ import {
   QrCode, Camera, CameraOff, CheckCircle2, XCircle, Search,
   Clock, Users2, RotateCcw, ListChecks, AlertCircle, Loader2,
 } from "lucide-react";
-import { db, COLLECTIONS, EVENT_ATTENDEES_SUBCOLLECTION } from "../lib/firebase";
+import { db, auth, COLLECTIONS, EVENT_ATTENDEES_SUBCOLLECTION } from "../lib/firebase";
 import {
   collection, doc, getDoc, getDocs, query, where, limit,
   onSnapshot, orderBy, serverTimestamp, updateDoc, setDoc,
@@ -135,21 +135,35 @@ export default function EventCheckIn() {
   }, [selectedEventId]);
 
   // ── Check a resolved uid into the currently selected event ──────────────
+  // Wraps a Firestore call with a hard timeout so a stalled request surfaces
+  // as a visible, logged failure instead of an infinite spinner. Temporary
+  // debugging aid — safe to remove once the root cause is confirmed.
+  const withTimeout = (promise, ms, label) =>
+    Promise.race([
+      promise.then((v) => { console.log(`[check-in] ${label} resolved`); return v; }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`[check-in] ${label} timed out after ${ms}ms — request never came back`)), ms)
+      ),
+    ]);
+
   const checkInUid = useCallback(async (uid) => {
     if (!selectedEventId) {
       setResult({ status: "error", message: "Select an event first." });
       return;
     }
     setLookingUp(true);
+    console.log("[check-in] start", { uid, selectedEventId, authUid: auth.currentUser?.uid, tokenPresent: !!auth.currentUser });
     try {
-      const userSnap = await getDoc(doc(db, COLLECTIONS.USERS, uid));
+      console.log("[check-in] step 1: getDoc users/" + uid);
+      const userSnap = await withTimeout(getDoc(doc(db, COLLECTIONS.USERS, uid)), 10000, "getDoc users/" + uid);
       const userData = userSnap.exists() ? userSnap.data() : null;
       const name = userData
         ? `${userData.firstName ?? ""} ${userData.lastName ?? ""}`.trim() || "Unnamed senior"
         : "Unknown user";
 
+      console.log("[check-in] step 2: getDoc attendee doc");
       const attendeeRef = doc(db, COLLECTIONS.EVENTS, selectedEventId, EVENT_ATTENDEES_SUBCOLLECTION, uid);
-      const attendeeSnap = await getDoc(attendeeRef);
+      const attendeeSnap = await withTimeout(getDoc(attendeeRef), 10000, "getDoc attendee/" + uid);
 
       if (!attendeeSnap.exists()) {
         setResult({ status: "not_registered", name, uid });
@@ -162,15 +176,21 @@ export default function EventCheckIn() {
         return;
       }
 
-      await updateDoc(attendeeRef, {
-        checkedIn: true,
-        checkedInAt: serverTimestamp(),
-        checkedInBy: "admin-dashboard",
-      });
+      console.log("[check-in] step 3: updateDoc attendee doc");
+      await withTimeout(
+        updateDoc(attendeeRef, {
+          checkedIn: true,
+          checkedInAt: serverTimestamp(),
+          checkedInBy: "admin-dashboard",
+        }),
+        10000,
+        "updateDoc attendee/" + uid
+      );
+      console.log("[check-in] done — success");
       setResult({ status: "success", name, uid, attendee });
     } catch (err) {
-      console.error(err);
-      setResult({ status: "error", message: "Lookup failed. Check your connection and try again." });
+      console.error("[check-in] FAILED:", err.code || err.message, err);
+      setResult({ status: "error", message: `Lookup failed: ${err.code || err.message}` });
     } finally {
       setLookingUp(false);
     }

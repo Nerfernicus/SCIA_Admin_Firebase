@@ -14,6 +14,37 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        // TEMP DIAGNOSTIC: decode the raw ID token JWT to see exactly what
+        // the server receives — especially `aud` (the Firebase project this
+        // token was issued for) and `user_id`/`sub`. This bypasses every
+        // client-side convenience wrapper. Remove once the permissions
+        // issue is confirmed fixed.
+        try {
+          const rawToken = await firebaseUser.getIdToken(/* forceRefresh */ true);
+          const payloadB64 = rawToken.split('.')[1];
+          const payloadJson = JSON.parse(
+            decodeURIComponent(
+              atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/'))
+                .split('')
+                .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
+                .join('')
+            )
+          );
+          console.log('[token-debug] decoded ID token claims', {
+            aud_projectId: payloadJson.aud,
+            iss: payloadJson.iss,
+            user_id: payloadJson.user_id,
+            sub: payloadJson.sub,
+            auth_time: payloadJson.auth_time,
+            exp: new Date(payloadJson.exp * 1000).toISOString(),
+            iat: new Date(payloadJson.iat * 1000).toISOString(),
+            firebaseUserUid: firebaseUser.uid,
+            uidMatchesToken: payloadJson.user_id === firebaseUser.uid,
+          });
+        } catch (tokenErr) {
+          console.error('[token-debug] failed to decode ID token:', tokenErr);
+        }
+
         // Fetch the admin document from Firestore to get their role
         try {
           const adminRef = doc(db, 'admins', firebaseUser.uid);

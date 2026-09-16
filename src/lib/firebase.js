@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAuth } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
@@ -17,7 +17,13 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-export const db = getFirestore(app);
+// experimentalAutoDetectLongPolling: some networks/firewalls/antivirus web-shields
+// block or corrupt Firestore's QUIC-based WebChannel connection (symptoms: requests
+// that hang forever, QUIC_PROTOCOL_ERROR / transport errored in the console). This
+// makes the SDK detect that case and transparently fall back to plain long-polling.
+export const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+});
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 // Use the same region as the deployed ncscVerify function

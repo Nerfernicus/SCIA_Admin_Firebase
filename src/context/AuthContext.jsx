@@ -20,6 +20,15 @@ export function AuthProvider({ children }) {
           const adminSnap = await getDoc(adminRef);
           if (adminSnap.exists()) {
             const data = adminSnap.data();
+            // TEMP DIAGNOSTIC: reveals hidden whitespace/characters in role
+            // that wouldn't be visible in the Firestore console. Remove once
+            // the permissions issue is confirmed fixed.
+            console.log('[auth-debug] admin doc for uid', firebaseUser.uid, {
+              rawRole: JSON.stringify(data.role),
+              roleLength: data.role ? data.role.length : null,
+              rawBarangay: JSON.stringify(data.barangay ?? null),
+              allFields: JSON.stringify(data),
+            });
             setUser(firebaseUser);
             setRole(data.role); // 'super_admin' or 'sub_admin'
             setAdminData(data);

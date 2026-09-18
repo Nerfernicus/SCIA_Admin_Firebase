@@ -213,7 +213,6 @@ function SettingsPanel({ onClose }) {
         <SettingsToggle label={t.darkMode}    icon={Moon}    storageKey="setting_dark_mode"    defaultOn={false} />
       </div>
 
-      {/* Language */}
       <div className="px-4 py-3 border-t border-gray-100">
         <div className="flex items-center gap-2 mb-2">
           <Globe size={14} className="text-gray-400 shrink-0" />
@@ -434,7 +433,6 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Notifications */}
           <div className="relative" ref={notifsRef}>
             <button
               onClick={() => { setShowNotifs(v => !v); setShowSettings(false); }}
@@ -451,7 +449,6 @@ export default function Header() {
             {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} myBarangay={adminData?.barangay || null} />}
           </div>
 
-          {/* Settings */}
           <div className="relative" ref={settingsRef}>
             <button
               onClick={() => { setShowSettings(v => !v); setShowNotifs(false); }}
@@ -463,7 +460,6 @@ export default function Header() {
             {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
           </div>
 
-          {/* Avatar */}
           <button
             onClick={() => { setShowProfile(true); setShowNotifs(false); setShowSettings(false); }}
             className="w-9 h-9 rounded-full overflow-hidden border-2 border-[#0f52ba] hover:opacity-80 transition-opacity shrink-0"

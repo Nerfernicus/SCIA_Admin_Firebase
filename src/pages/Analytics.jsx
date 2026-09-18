@@ -24,24 +24,35 @@ function countDocs(collectionName, ...conditions) {
 }
 
 export default function Analytics() {
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, adminData } = useAuth();
+  const myBarangay = adminData?.barangay || null; // set only for the two barangay-scoped sub-admins
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadStats() {
       try {
-        const [totalUsers, activeUsers, pendingIDs, approvedIDs, announcements, sosEvents, healthCenters] =
-          await Promise.all([
+        const queries = [
+          countDocs('editorial_health', ...(myBarangay ? [where('barangay', '==', myBarangay)] : [])),
+          countDocs('emergencies', ...(myBarangay ? [where('barangay', '==', myBarangay)] : [])),
+          countDocs('health_centers'),
+        ];
+
+        // id_verifications and the full /users list are super_admin-only per
+        // the Firestore rules — a sub-admin has no page for these either
+        // (see Sidebar.jsx), so skip the calls rather than eat a denied read.
+        if (isSuperAdmin) {
+          queries.push(
             countDocs('users'),
             countDocs('users', where('status', '==', 'ACTIVE')),
             countDocs('id_verifications', where('status', '==', 'pending')),
             countDocs('id_verifications', where('status', '==', 'approved')),
-            countDocs('announcements'),
-            countDocs('sos_events'),
-            countDocs('health_centers'),
-          ]);
-        setStats({ totalUsers, activeUsers, pendingIDs, approvedIDs, announcements, sosEvents, healthCenters });
+          );
+        }
+
+        const results = await Promise.all(queries);
+        const [announcements, sosEvents, healthCenters, totalUsers, activeUsers, pendingIDs, approvedIDs] = results;
+        setStats({ announcements, sosEvents, healthCenters, totalUsers, activeUsers, pendingIDs, approvedIDs });
       } catch (err) {
         console.error(err);
       } finally {
@@ -49,34 +60,40 @@ export default function Analytics() {
       }
     }
     loadStats();
-  }, []);
+  }, [isSuperAdmin, myBarangay]);
+
+  const activitySub = myBarangay ? 'In your barangay' : 'Citywide';
 
   const sections = [
-    {
+    ...(isSuperAdmin ? [{
       title: 'User Management',
       cards: [
         { icon: Users, label: 'Total Users', key: 'totalUsers', sub: 'All registered residents', color: 'text-[#0f52ba]', bg: 'bg-blue-50' },
         { icon: TrendingUp, label: 'Active Users', key: 'activeUsers', sub: 'Currently active accounts', color: 'text-green-600', bg: 'bg-green-50' },
       ],
-    },
-    {
+    }] : []),
+    ...(isSuperAdmin ? [{
       title: 'ID Verification & Release',
       cards: [
         { icon: ShieldCheck, label: 'Pending IDs', key: 'pendingIDs', sub: 'Awaiting review', color: 'text-yellow-600', bg: 'bg-yellow-50' },
         { icon: ShieldCheck, label: 'Approved IDs', key: 'approvedIDs', sub: 'Verified residents', color: 'text-green-600', bg: 'bg-green-50' },
       ],
-    },
+    }] : []),
     {
-      title: 'Barangay Admin Activity',
+      title: 'Activity',
       cards: [
-        { icon: Megaphone, label: 'Announcements', key: 'announcements', sub: 'Total posted', color: 'text-purple-600', bg: 'bg-purple-50' },
-        ...(!isSuperAdmin
-          ? [{ icon: Map, label: 'SOS Events', key: 'sosEvents', sub: 'Recorded incidents', color: 'text-red-600', bg: 'bg-red-50' }]
-          : []),
+        { icon: Megaphone, label: 'Announcements', key: 'announcements', sub: activitySub, color: 'text-purple-600', bg: 'bg-purple-50' },
+        { icon: Map, label: 'SOS Events', key: 'sosEvents', sub: activitySub, color: 'text-red-600', bg: 'bg-red-50' },
         { icon: Building2, label: 'Health Centers', key: 'healthCenters', sub: 'Listed facilities', color: 'text-teal-600', bg: 'bg-teal-50' },
       ],
     },
   ];
+
+  const pageSub = isSuperAdmin
+    ? 'Full system overview across all departments'
+    : myBarangay
+    ? `Activity overview for Brgy. ${myBarangay}`
+    : 'Activity overview across all barangays';
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -84,7 +101,7 @@ export default function Analytics() {
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <BarChart3 size={24} className="text-[#0f52ba]" /> Analytics & Reports
         </h1>
-        <p className="text-sm text-gray-500 mt-1">Full system overview across all departments</p>
+        <p className="text-sm text-gray-500 mt-1">{pageSub}</p>
       </div>
 
       {loading ? (

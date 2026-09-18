@@ -30,15 +30,12 @@ const OSCAIdCard = ({
 
   return (
     <div className="osca-id-wrapper">
-      {/* Click anywhere to flip */}
       <div
         className={`osca-flip-container${flipped ? " flipped" : ""}`}
         onClick={() => setFlipped((f) => !f)}
         title={flipped ? "Click to see front" : "Click to see back (benefits)"}
       >
-        {/* Front */}
         <div className="osca-card osca-card-front">
-          {/* Header */}
           <div className="front-header">
             <div className="front-header-logo">
               <img src={valLogo} alt="Valenzuela City Government Seal" />
@@ -54,7 +51,6 @@ const OSCAIdCard = ({
             </div>
           </div>
 
-          {/* Body */}
           <div className="front-body">
             <div className="front-fields">
               <div className="field-row">
@@ -89,7 +85,6 @@ const OSCAIdCard = ({
               </div>
             </div>
 
-            {/* Photo */}
             <div className="front-photo">
               <div className="photo-box">
                 {photoUrl ? (
@@ -104,7 +99,6 @@ const OSCAIdCard = ({
             </div>
           </div>
 
-          {/* Bottom */}
           <div className="front-bottom">
             <div className="sig-area">
               <div className="sig-line" />
@@ -121,7 +115,6 @@ const OSCAIdCard = ({
           </div>
         </div>
 
-        {/* Back */}
         <div className="osca-card osca-card-back">
           <div className="back-top-stripe" />
 
@@ -186,7 +179,6 @@ const OSCAIdCard = ({
         </div>
       </div>
 
-      {/* Hint text below the card */}
       <p style={{ fontSize: "11px", color: "#9ca3af", marginTop: "6px", userSelect: "none" }}>
         {flipped ? "↩ Click to see front" : "↪ Click card to see benefits (back)"}
       </p>

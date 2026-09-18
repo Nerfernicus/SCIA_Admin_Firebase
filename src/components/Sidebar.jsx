@@ -57,7 +57,6 @@ export default function Sidebar({ children }) {
         style={{ width: expanded ? '256px' : '68px', transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}
         className="h-screen sticky top-0 bg-white border-r border-gray-100 flex flex-col py-6 font-sans overflow-hidden shrink-0"
       >
-        {/* Logo row */}
         <div
           className="flex items-center mb-8"
           style={{
@@ -79,7 +78,6 @@ export default function Sidebar({ children }) {
           </button>
         </div>
 
-        {/* Role badge */}
         <div
           style={{
             margin: expanded ? '0 8px 24px 8px' : '0 6px 24px 6px',
@@ -102,7 +100,6 @@ export default function Sidebar({ children }) {
           </div>
         </div>
 
-        {/* Nav items */}
         <nav className="flex-1 space-y-0.5 px-2">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -130,7 +127,6 @@ export default function Sidebar({ children }) {
           })}
         </nav>
 
-        {/* Generate Report (both roles) */}
         <div className="px-2 mt-3">
           <button
             onClick={() => setReportOpen(true)}
@@ -148,7 +144,6 @@ export default function Sidebar({ children }) {
           </button>
         </div>
 
-        {/* Sign out */}
         <div className="mt-4 pt-4 border-t border-gray-100 px-2">
           <button
             onClick={logout}

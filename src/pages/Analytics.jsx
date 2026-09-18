@@ -1,32 +1,84 @@
 import { useEffect, useState } from 'react';
-import { BarChart3, Users, TrendingUp, ShieldCheck, Megaphone, Map, Building2, Loader2 } from 'lucide-react';
+import { BarChart3, Users, ShieldCheck, Megaphone, Map, Building2, Loader2 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, getCountFromServer, getDocs, query, where } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 
-function StatCard({ icon: Icon, label, value, sub, color, bg, percent }) {
+const PERIODS = [
+  { id: 'daily', label: 'Daily', noun: 'day', sub: 'Last 14 days' },
+  { id: 'weekly', label: 'Weekly', noun: 'week', sub: 'Last 8 weeks' },
+  { id: 'monthly', label: 'Monthly', noun: 'month', sub: 'Last 6 months' },
+  { id: 'yearly', label: 'Yearly', noun: 'year', sub: 'Last 5 years' },
+];
+
+function PeriodToggle({ value, onChange }) {
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-6">
-      <div className={`w-11 h-11 ${bg} rounded-2xl flex items-center justify-center mb-4`}>
-        <Icon size={20} className={color} />
-      </div>
-      <p className="text-3xl font-bold text-gray-900">{value ?? 'N/A'}</p>
-      <p className="text-sm font-medium text-gray-700 mt-0.5">{label}</p>
-      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
-      {percent != null && (
-        <div className="mt-3">
-          <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${bg.replace('bg-', 'bg-').replace('-50', '-400')}`} style={{ width: `${percent}%` }} />
-          </div>
-          <p className="text-[11px] text-gray-400 mt-1">{percent}% of total</p>
-        </div>
-      )}
+    <div className="inline-flex bg-gray-100 rounded-xl p-1">
+      {PERIODS.map((p) => (
+        <button
+          key={p.id}
+          onClick={() => onChange(p.id)}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            value === p.id ? 'bg-white text-[#0f52ba] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          {p.label}
+        </button>
+      ))}
     </div>
   );
 }
 
-// Donut chart built with plain SVG stroke-dasharray segments — no chart
-// library dependency needed.
+// Gradient tile in the app's existing per-metric colors (same hues used by
+// the old white StatCards — purple for announcements, red for SOS, etc.)
+function GradientStatCard({ icon: Icon, label, value, sub, gradient }) {
+  return (
+    <div className={`rounded-2xl p-5 text-white shadow-lg ${gradient}`}>
+      <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center mb-3">
+        <Icon size={16} className="text-white" />
+      </div>
+      <p className="text-2xl font-bold">{value ?? 'N/A'}</p>
+      <p className="text-xs text-white/85 mt-0.5">{label}</p>
+      {sub && <p className="text-[11px] text-white/60 mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+// Small SVG area/line chart used inside the hero card (like a sparkline).
+function LineAreaChart({ points, color = '#ffffff', height = 100 }) {
+  if (!points.length || points.every((p) => p.value === 0)) {
+    return <p className="text-xs text-white/60">No data yet for this period</p>;
+  }
+
+  const width = 100;
+  const max = Math.max(...points.map((p) => p.value), 1);
+  const stepX = width / (points.length - 1 || 1);
+  const coords = points.map((p, i) => ({
+    x: i * stepX,
+    y: height - (p.value / max) * (height - 8) - 4,
+  }));
+
+  const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`).join(' ');
+  const areaPath = `${linePath} L ${coords[coords.length - 1].x} ${height} L 0 ${height} Z`;
+  const gradientId = `hero-grad-${color.replace('#', '')}`;
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="w-full" style={{ height }}>
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill={`url(#${gradientId})`} stroke="none" />
+      <path d={linePath} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      {coords.map((c, i) => (
+        <circle key={i} cx={c.x} cy={c.y} r={i === coords.length - 1 ? 2.5 : 0} fill={color} />
+      ))}
+    </svg>
+  );
+}
+
 function DonutChart({ title, segments, size = 132, thickness = 16 }) {
   const total = segments.reduce((sum, s) => sum + s.value, 0);
   const radius = (size - thickness) / 2;
@@ -68,9 +120,7 @@ function DonutChart({ title, segments, size = 132, thickness = 16 }) {
               <div key={i} className="flex items-center gap-2 text-xs">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color }} />
                 <span className="text-gray-600">{s.label}</span>
-                <span className="font-semibold text-gray-900">
-                  {Math.round((s.value / total) * 100)}%
-                </span>
+                <span className="font-semibold text-gray-900">{Math.round((s.value / total) * 100)}%</span>
                 <span className="text-gray-400">({s.value})</span>
               </div>
             ))}
@@ -81,7 +131,6 @@ function DonutChart({ title, segments, size = 132, thickness = 16 }) {
   );
 }
 
-// Horizontal bar comparison across categories.
 function CategoryBarChart({ title, bars }) {
   const max = Math.max(...bars.map((b) => b.value), 1);
   return (
@@ -104,7 +153,6 @@ function CategoryBarChart({ title, bars }) {
   );
 }
 
-// Simple vertical bar trend chart, e.g. counts per month.
 function TrendChart({ title, points, color = '#0f52ba' }) {
   const max = Math.max(...points.map((p) => p.value), 1);
   return (
@@ -115,10 +163,7 @@ function TrendChart({ title, points, color = '#0f52ba' }) {
           <div key={i} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
             <span className="text-[10px] text-gray-400">{p.value}</span>
             <div className="w-full flex items-end h-24 bg-gray-50 rounded-md overflow-hidden">
-              <div
-                className="w-full rounded-t-md"
-                style={{ height: `${Math.max((p.value / max) * 100, p.value > 0 ? 6 : 0)}%`, background: color }}
-              />
+              <div className="w-full rounded-t-md" style={{ height: `${Math.max((p.value / max) * 100, p.value > 0 ? 6 : 0)}%`, background: color }} />
             </div>
             <span className="text-[10px] text-gray-400">{p.label}</span>
           </div>
@@ -134,24 +179,64 @@ function countDocs(collectionName, ...conditions) {
   return getCountFromServer(q).then((snap) => snap.data().count);
 }
 
-// Pulls every doc's timestamp (checking a few likely field names) and buckets
-// counts by month for a trailing N-month trend. Adjust the field list below
-// if your documents use a different timestamp field name.
-async function fetchMonthlyTrend(collectionName, months, barangayFilter) {
+// Builds the bucket windows for a period type: 14 days, 8 weeks, 6 months,
+// or 5 years, each with a start/end Date range and a display label.
+function getPeriodBuckets(periodType) {
+  const now = new Date();
+  const buckets = [];
+
+  if (periodType === 'daily') {
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      buckets.push({
+        label: d.toLocaleDateString('default', { month: 'short', day: 'numeric' }),
+        value: 0,
+        start: new Date(d.getFullYear(), d.getMonth(), d.getDate()),
+        end: new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59),
+      });
+    }
+  } else if (periodType === 'weekly') {
+    for (let i = 7; i >= 0; i--) {
+      const end = new Date(now);
+      end.setDate(now.getDate() - i * 7);
+      const start = new Date(end);
+      start.setDate(end.getDate() - 6);
+      buckets.push({
+        label: `${start.getMonth() + 1}/${start.getDate()}`,
+        value: 0,
+        start: new Date(start.getFullYear(), start.getMonth(), start.getDate()),
+        end: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59),
+      });
+    }
+  } else if (periodType === 'yearly') {
+    for (let i = 4; i >= 0; i--) {
+      const y = now.getFullYear() - i;
+      buckets.push({ label: `${y}`, value: 0, start: new Date(y, 0, 1), end: new Date(y, 11, 31, 23, 59, 59) });
+    }
+  } else {
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      buckets.push({
+        label: d.toLocaleString('default', { month: 'short' }),
+        value: 0,
+        start: new Date(d.getFullYear(), d.getMonth(), 1),
+        end: new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59),
+      });
+    }
+  }
+
+  return buckets;
+}
+
+// Fetches every doc in a collection and buckets counts into the given
+// period's windows by whichever timestamp field it finds first. Adjust the
+// field list below if your documents use a different timestamp field name.
+async function fetchTrend(collectionName, periodType, barangayFilter) {
   const ref = collection(db, collectionName);
   const conditions = barangayFilter ? [where('barangay', '==', barangayFilter)] : [];
   const q = conditions.length ? query(ref, ...conditions) : ref;
   const snap = await getDocs(q);
-
-  const now = new Date();
-  const buckets = {};
-  const order = [];
-  for (let i = months - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${d.getMonth()}`;
-    buckets[key] = { label: d.toLocaleString('default', { month: 'short' }), value: 0 };
-    order.push(key);
-  }
+  const buckets = getPeriodBuckets(periodType);
 
   snap.forEach((doc) => {
     const data = doc.data();
@@ -159,19 +244,22 @@ async function fetchMonthlyTrend(collectionName, months, barangayFilter) {
     if (!raw) return;
     const date = typeof raw.toDate === 'function' ? raw.toDate() : new Date(raw);
     if (isNaN(date)) return;
-    const key = `${date.getFullYear()}-${date.getMonth()}`;
-    if (buckets[key]) buckets[key].value += 1;
+    const bucket = buckets.find((b) => date >= b.start && date <= b.end);
+    if (bucket) bucket.value += 1;
   });
 
-  return order.map((k) => buckets[k]);
+  return buckets.map(({ label, value }) => ({ label, value }));
 }
 
 export default function Analytics() {
   const { isSuperAdmin, adminData } = useAuth();
-  const myBarangay = adminData?.barangay || null; // set only for the two barangay-scoped sub-admins
+  const myBarangay = adminData?.barangay || null;
+
   const [stats, setStats] = useState(null);
-  const [trend, setTrend] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const [period, setPeriod] = useState('monthly');
+  const [trend, setTrend] = useState(null);
   const [trendLoading, setTrendLoading] = useState(true);
 
   useEffect(() => {
@@ -183,9 +271,6 @@ export default function Analytics() {
           countDocs('health_centers'),
         ];
 
-        // id_verifications and the full /users list are super_admin-only per
-        // the Firestore rules — a sub-admin has no page for these either
-        // (see Sidebar.jsx), so skip the calls rather than eat a denied read.
         if (isSuperAdmin) {
           queries.push(
             countDocs('users'),
@@ -209,12 +294,13 @@ export default function Analytics() {
 
   useEffect(() => {
     async function loadTrend() {
+      setTrendLoading(true);
       try {
-        const [sosMonthly, announcementsMonthly] = await Promise.all([
-          fetchMonthlyTrend('emergencies', 6, myBarangay),
-          fetchMonthlyTrend('editorial_health', 6, myBarangay),
+        const [sosTrend, announcementsTrend] = await Promise.all([
+          fetchTrend('emergencies', period, myBarangay),
+          fetchTrend('editorial_health', period, myBarangay),
         ]);
-        setTrend({ sosMonthly, announcementsMonthly });
+        setTrend({ sosTrend, announcementsTrend });
       } catch (err) {
         console.error(err);
       } finally {
@@ -222,38 +308,22 @@ export default function Analytics() {
       }
     }
     loadTrend();
-  }, [myBarangay]);
+  }, [period, myBarangay]);
 
   const activitySub = myBarangay ? 'In your barangay' : 'Citywide';
-
   const activeUserPercent = stats?.totalUsers ? Math.round((stats.activeUsers / stats.totalUsers) * 100) : null;
   const idsProcessedTotal = (stats?.approvedIDs ?? 0) + (stats?.pendingIDs ?? 0);
   const approvedIDPercent = idsProcessedTotal ? Math.round((stats.approvedIDs / idsProcessedTotal) * 100) : null;
 
-  const sections = [
-    ...(isSuperAdmin ? [{
-      title: 'User Management',
-      cards: [
-        { icon: Users, label: 'Total Users', key: 'totalUsers', sub: 'All registered residents', color: 'text-[#0f52ba]', bg: 'bg-blue-50' },
-        { icon: TrendingUp, label: 'Active Users', key: 'activeUsers', sub: 'Currently active accounts', color: 'text-green-600', bg: 'bg-green-50', percent: activeUserPercent },
-      ],
-    }] : []),
-    ...(isSuperAdmin ? [{
-      title: 'ID Verification & Release',
-      cards: [
-        { icon: ShieldCheck, label: 'Pending IDs', key: 'pendingIDs', sub: 'Awaiting review', color: 'text-yellow-600', bg: 'bg-yellow-50' },
-        { icon: ShieldCheck, label: 'Approved IDs', key: 'approvedIDs', sub: 'Verified residents', color: 'text-green-600', bg: 'bg-green-50', percent: approvedIDPercent },
-      ],
-    }] : []),
-    {
-      title: 'Activity',
-      cards: [
-        { icon: Megaphone, label: 'Announcements', key: 'announcements', sub: activitySub, color: 'text-purple-600', bg: 'bg-purple-50' },
-        { icon: Map, label: 'SOS Events', key: 'sosEvents', sub: activitySub, color: 'text-red-600', bg: 'bg-red-50' },
-        { icon: Building2, label: 'Health Centers', key: 'healthCenters', sub: 'Listed facilities', color: 'text-teal-600', bg: 'bg-teal-50' },
-      ],
-    },
-  ];
+  const periodMeta = PERIODS.find((p) => p.id === period);
+
+  const heroTrend = (trend?.sosTrend ?? []).map((p, i) => ({
+    label: p.label,
+    value: p.value + (trend?.announcementsTrend?.[i]?.value ?? 0),
+  }));
+  const heroTotal = heroTrend.length ? heroTrend[heroTrend.length - 1].value : 0;
+  const heroPrev = heroTrend.length > 1 ? heroTrend[heroTrend.length - 2].value : null;
+  const heroDelta = heroPrev ? Math.round(((heroTotal - heroPrev) / heroPrev) * 100) : null;
 
   const pageSub = isSuperAdmin
     ? 'Full system overview across all departments'
@@ -263,11 +333,14 @@ export default function Analytics() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <BarChart3 size={24} className="text-[#0f52ba]" /> Analytics & Reports
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">{pageSub}</p>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <BarChart3 size={24} className="text-[#0f52ba]" /> Analytics & Reports
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">{pageSub}</p>
+        </div>
+        <PeriodToggle value={period} onChange={setPeriod} />
       </div>
 
       {loading ? (
@@ -276,59 +349,122 @@ export default function Analytics() {
         </div>
       ) : (
         <>
-          {sections.map((section) => (
-            <div key={section.title} className="mb-6">
-              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{section.title}</h2>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                {section.cards.map((card) => (
-                  <StatCard key={card.key} {...card} value={stats?.[card.key]} />
-                ))}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+            <div className="lg:col-span-2 rounded-2xl p-6 text-white shadow-lg bg-gradient-to-br from-[#0f52ba] to-[#1a6fd4]">
+              <div className="flex items-start justify-between mb-1">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-white/70">Total Activity</p>
+                  <p className="text-3xl font-bold mt-1">{heroTotal}</p>
+                </div>
+                {heroDelta !== null && (
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-white/20">
+                    {heroDelta >= 0 ? '▲' : '▼'} {Math.abs(heroDelta)}% vs last {periodMeta.noun}
+                  </span>
+                )}
               </div>
+              <p className="text-xs text-white/60 mb-4">SOS reports + announcements &middot; {periodMeta.sub}</p>
+              {trendLoading ? (
+                <div className="h-[100px] flex items-center justify-center">
+                  <Loader2 size={20} className="animate-spin text-white/70" />
+                </div>
+              ) : (
+                <LineAreaChart points={heroTrend} color="#ffffff" height={100} />
+              )}
             </div>
-          ))}
 
-          <div className="mb-6">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Breakdowns</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {isSuperAdmin && idsProcessedTotal > 0 && (
-                <DonutChart
-                  title="ID Verification Status"
-                  segments={[
-                    { label: 'Approved', value: stats.approvedIDs, color: '#22c55e' },
-                    { label: 'Pending', value: stats.pendingIDs, color: '#eab308' },
-                  ]}
-                />
-              )}
-              {isSuperAdmin && stats?.totalUsers > 0 && (
-                <DonutChart
-                  title="User Status"
-                  segments={[
-                    { label: 'Active', value: stats.activeUsers, color: '#0f52ba' },
-                    { label: 'Inactive', value: Math.max(stats.totalUsers - stats.activeUsers, 0), color: '#e5e7eb' },
-                  ]}
-                />
-              )}
-              <CategoryBarChart
-                title="Activity by Category"
-                bars={[
-                  { label: 'Announcements', value: stats?.announcements ?? 0, color: '#a855f7' },
+            {isSuperAdmin && idsProcessedTotal > 0 ? (
+              <DonutChart
+                title="ID Verification Status"
+                segments={[
+                  { label: 'Approved', value: stats.approvedIDs, color: '#22c55e' },
+                  { label: 'Pending', value: stats.pendingIDs, color: '#eab308' },
+                ]}
+              />
+            ) : (
+              <DonutChart
+                title="Activity Mix"
+                segments={[
                   { label: 'SOS Events', value: stats?.sosEvents ?? 0, color: '#ef4444' },
+                  { label: 'Announcements', value: stats?.announcements ?? 0, color: '#a855f7' },
                   { label: 'Health Centers', value: stats?.healthCenters ?? 0, color: '#14b8a6' },
                 ]}
               />
-            </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <GradientStatCard
+              icon={Megaphone}
+              label="Announcements"
+              value={stats?.announcements}
+              sub={activitySub}
+              gradient="bg-gradient-to-br from-purple-500 to-purple-600"
+            />
+            <GradientStatCard
+              icon={Map}
+              label="SOS Events"
+              value={stats?.sosEvents}
+              sub={activitySub}
+              gradient="bg-gradient-to-br from-red-500 to-red-600"
+            />
+            <GradientStatCard
+              icon={Building2}
+              label="Health Centers"
+              value={stats?.healthCenters}
+              sub="Listed facilities"
+              gradient="bg-gradient-to-br from-teal-500 to-teal-600"
+            />
+            {isSuperAdmin ? (
+              <GradientStatCard
+                icon={Users}
+                label="Active Users"
+                value={stats?.activeUsers}
+                sub={activeUserPercent !== null ? `${activeUserPercent}% of total` : undefined}
+                gradient="bg-gradient-to-br from-amber-400 to-amber-500"
+              />
+            ) : (
+              <GradientStatCard
+                icon={ShieldCheck}
+                label="Barangay"
+                value={myBarangay ?? 'All'}
+                sub="Your assigned area"
+                gradient="bg-gradient-to-br from-amber-400 to-amber-500"
+              />
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            {isSuperAdmin && (
+              <DonutChart
+                title="User Status"
+                segments={[
+                  { label: 'Active', value: stats.activeUsers, color: '#0f52ba' },
+                  { label: 'Inactive', value: Math.max(stats.totalUsers - stats.activeUsers, 0), color: '#e5e7eb' },
+                ]}
+              />
+            )}
+            <CategoryBarChart
+              title="Activity by Category"
+              bars={[
+                { label: 'Announcements', value: stats?.announcements ?? 0, color: '#a855f7' },
+                { label: 'SOS Events', value: stats?.sosEvents ?? 0, color: '#ef4444' },
+                { label: 'Health Centers', value: stats?.healthCenters ?? 0, color: '#14b8a6' },
+              ]}
+            />
           </div>
 
           <div className="mb-6">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Trends (Last 6 Months)</h2>
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">
+              Trends &middot; {periodMeta.sub}
+            </h2>
             {trendLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 size={22} className="animate-spin text-blue-500" />
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <TrendChart title="SOS Events" points={trend?.sosMonthly ?? []} color="#ef4444" />
-                <TrendChart title="Announcements" points={trend?.announcementsMonthly ?? []} color="#a855f7" />
+                <TrendChart title="SOS Events" points={trend?.sosTrend ?? []} color="#ef4444" />
+                <TrendChart title="Announcements" points={trend?.announcementsTrend ?? []} color="#a855f7" />
               </div>
             )}
           </div>

@@ -53,7 +53,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex font-sans">
-      {/* Left: map panel, styled like an ID card face */}
+      {/* Styled like an ID card face */}
       <div className="hidden lg:flex lg:flex-col relative w-1/2 bg-[#0a2140]">
         <img src={mapOfValenzuela} alt="Map of Valenzuela" className="absolute inset-0 w-full h-full object-cover opacity-40" />
         <div className="absolute inset-0 bg-[#0a2140]/70" />
@@ -88,14 +88,13 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Gold stripe, echoes the accent band on a senior citizen ID */}
+        {/* Echoes the accent band on a senior citizen ID */}
         <div className="h-1.5 bg-[#d9a545]" />
       </div>
 
-      {/* Right: login form */}
       <div className="flex-1 flex items-center justify-center bg-white p-6 sm:p-10">
         <div className="w-full max-w-sm">
-          {/* Mobile-only header, since the map panel is hidden below lg */}
+          {/* Shown only on mobile, since the map panel above is hidden below lg */}
           <div className="lg:hidden flex items-center gap-3 mb-8">
             <div className="w-10 h-10 rounded-full border-2 border-[#d9a545] flex items-center justify-center">
               <ShieldCheck size={18} className="text-[#0f52ba]" />

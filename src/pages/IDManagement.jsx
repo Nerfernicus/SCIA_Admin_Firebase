@@ -1,90 +1,97 @@
-import { useEffect, useState, useCallback } from 'react';
+/**
+ * IDManagement.jsx — Unified ID Module
+ *
+ * Single file combining IDVerification + IDRelease into one page with top-level tabs:
+ *   1. ID Verification   (OSCA submissions + Physical ID requests)
+ *   2. ID Release        (Super admin: approve/release · Sub-admin: distribute)
+ *
+ * Key rules enforced:
+ *  • "Birthday not on record" → Approve button is DISABLED in both verification modals
+ *  • "Birthday not on record" → Release button is DISABLED in the Release modal
+ *  • Barangay field shown in Physical ID verification modal
+ *
+ * Replaces: IDVerification.jsx, IDRelease.jsx
+ */
+
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   ShieldCheck, Clock as ClockIcon, CheckCircle2, XCircle, Eye,
   Loader2, Trash2, AlertTriangle, X, User, Search, Database,
   FileImage, RotateCcw, FileText, MapPin, Phone, CreditCard,
-  Globe, WifiOff, Send, Bell, Package,
+  Globe, WifiOff, Send, Bell, Package, CalendarDays,
 } from 'lucide-react';
 import { db, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import {
   collection, onSnapshot, query, orderBy, where,
   doc, updateDoc, setDoc, deleteDoc, serverTimestamp,
-  getDocs, addDoc,
+  getDocs, addDoc, getDoc,
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import OSCAIdCard from '../components/Oscaidcard';
 
+/* ─── Cloud Function ─────────────────────────────────────────────────────────── */
 const ncscVerifyFn = httpsCallable(functions, 'ncscVerify');
 
+/* ─── NCSC live verification ─────────────────────────────────────────────────── */
 async function runNCSCVerify(record) {
-  const rawName = (record.fullName || record.seniorName || '').trim();
-  let lastName = record.lastName || record.surname || '';
-  let firstName = record.firstName || record.givenName || '';
-  let middleName = record.middleName || record.middleInitial || '';
+  const rawName  = (record.fullName || record.seniorName || '').trim();
+  const lastName  = record.lastName   || record.surname       || '';
+  const firstName = record.firstName  || record.givenName     || '';
+  const middleName= record.middleName || record.middleInitial || '';
 
-  if (!lastName && rawName) {
+  let ln = lastName, fn = firstName, mn = middleName;
+  if (!ln && rawName) {
     if (rawName.includes(',')) {
-      const [l, rest] = rawName.split(',').map((s) => s.trim());
-      lastName = l;
+      const [l, rest] = rawName.split(',').map(s => s.trim());
+      ln = l;
       const parts = rest.split(' ').filter(Boolean);
-      firstName = parts[0] || '';
-      middleName = parts.slice(1).join(' ');
+      fn = parts[0] || '';
+      mn = parts.slice(1).join(' ');
     } else {
       const parts = rawName.split(' ').filter(Boolean);
-      firstName = parts[0] || '';
-      middleName = parts.length > 2 ? parts.slice(1, -1).join(' ') : '';
-      lastName = parts[parts.length - 1] || '';
+      fn = parts[0] || '';
+      mn = parts.length > 2 ? parts.slice(1, -1).join(' ') : '';
+      ln = parts[parts.length - 1] || '';
     }
   }
 
   const dob = record.dob || record.dateOfBirth || record.birthday || '';
-  let month = '', day = '', year = '';
-
+  let month = '', day = '';
   if (dob) {
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
-    const isoMatch = dob.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sept','Oct','Nov','Dec'];
+    const isoMatch   = dob.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     const slashMatch = dob.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    const textMatch = dob.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
-
-    if (isoMatch) {
-      year = isoMatch[1];
-      month = monthNames[parseInt(isoMatch[2], 10) - 1] || '';
-      day = String(parseInt(isoMatch[3], 10));
-    } else if (slashMatch) {
-      year = slashMatch[3];
-      month = monthNames[parseInt(slashMatch[1], 10) - 1] || '';
-      day = String(parseInt(slashMatch[2], 10));
-    } else if (textMatch) {
-      year = textMatch[3];
-      month = textMatch[1].charAt(0).toUpperCase() + textMatch[1].slice(1, 3).toLowerCase();
-      day = String(parseInt(textMatch[2], 10));
-    } else {
-      const yearFallback = dob.match(/(\d{4})/);
-      if (yearFallback) year = yearFallback[1];
-    }
+    const textMatch  = dob.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+    if (isoMatch)   { month = monthNames[parseInt(isoMatch[2],10)-1]||'';  day = String(parseInt(isoMatch[3],10)); }
+    else if (slashMatch) { month = monthNames[parseInt(slashMatch[1],10)-1]||''; day = String(parseInt(slashMatch[2],10)); }
+    else if (textMatch)  { month = textMatch[1].charAt(0).toUpperCase()+textMatch[1].slice(1,3).toLowerCase(); day = String(parseInt(textMatch[2],10)); }
   }
 
-  if (!lastName || !firstName) return runLocalNCSIDCheck(record);
+  if (!ln || !fn) {
+    return runLocalNCSIDCheck(record);
+  }
 
-  // Missing birthday means NCSC can only match by name, which is a weaker signal
-  if (!month || !day || !year) {
+  // If birthday is missing, we can only do a name-only check — returns special status
+  if (!month || !day) {
     try {
-      const result = await ncscVerifyFn({ lastName, firstName, middleName, month: '', day: '', year: '' });
+      // Try name-only by passing empty month/day — server may still match by name
+      const result = await ncscVerifyFn({ lastName: ln, firstName: fn, middleName: mn, month: '', day: '' });
       const { found, error } = result.data;
       if (error === 'ncsc_unreachable') return 'unreachable';
+      // Even if found by name, birthday wasn't verified — use special status
       return found ? 'found_name_only' : 'not_found';
-    } catch {
+    } catch (err) {
       return runLocalNCSIDCheck(record);
     }
   }
 
   try {
-    const result = await ncscVerifyFn({ lastName, firstName, middleName, month, day, year });
+    const result = await ncscVerifyFn({ lastName: ln, firstName: fn, middleName: mn, month, day });
     const { found, error } = result.data;
     if (error === 'ncsc_unreachable') return 'unreachable';
     return found ? 'found' : 'not_found';
-  } catch {
+  } catch (err) {
     return runLocalNCSIDCheck(record);
   }
 }
@@ -107,74 +114,51 @@ async function runLocalNCSIDCheck(record) {
       if (!q.empty) found = true;
     }
     return found ? 'found' : 'not_found';
-  } catch {
-    return 'not_found';
-  }
+  } catch (e) { return 'not_found'; }
 }
 
-const hasBirthday = (r) => !!(r.dob || r.dateOfBirth || r.birthday);
+/* ─── Helpers ────────────────────────────────────────────────────────────────── */
+const hasBirthday = r => !!(r.dob || r.dateOfBirth || r.birthday);
 
-function StatusBadge({ status }) {
+/* ─── Status Badge ───────────────────────────────────────────────────────────── */
+const StatusBadge = ({ status }) => {
   const map = {
-    pending: { cls: 'bg-yellow-100 text-yellow-700', label: 'Pending' },
-    approved: { cls: 'bg-green-100 text-green-700', label: 'Approved' },
-    rejected: { cls: 'bg-red-100 text-red-700', label: 'Rejected' },
-    verified: { cls: 'bg-green-100 text-green-700', label: 'Verified' },
-    released: { cls: 'bg-blue-100 text-blue-700', label: 'Released' },
-    notified: { cls: 'bg-purple-100 text-purple-700', label: 'Notified' },
-    collected: { cls: 'bg-gray-100 text-gray-700', label: 'Collected' },
-    void: { cls: 'bg-gray-100 text-gray-500', label: 'Void' },
+    pending:   { cls: 'bg-yellow-100 text-yellow-700',  label: 'Pending'   },
+    approved:  { cls: 'bg-green-100 text-green-700',    label: 'Approved'  },
+    rejected:  { cls: 'bg-red-100 text-red-700',        label: 'Rejected'  },
+    verified:  { cls: 'bg-green-100 text-green-700',    label: 'Verified'  },
+    released:  { cls: 'bg-blue-100 text-blue-700',      label: 'Released'  },
+    notified:  { cls: 'bg-purple-100 text-purple-700',  label: 'Notified'  },
+    collected: { cls: 'bg-gray-100 text-gray-700',      label: 'Collected' },
+    void:      { cls: 'bg-gray-100 text-gray-500',      label: 'Void'      },
   };
   const { cls, label } = map[status] || map.pending;
   return <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${cls}`}>{label}</span>;
-}
+};
 
+/* ─── NCSC status indicator ──────────────────────────────────────────────────── */
 function NCSCStatusBadge({ status }) {
-  if (status === 'checking')
-    return (
-      <span className="flex items-center gap-1 text-xs text-blue-600 font-medium">
-        <Loader2 size={11} className="animate-spin" /> Checking NCSC…
-      </span>
-    );
-  if (status === 'found')
-    return (
-      <span className="flex items-center gap-1 text-xs text-green-700 font-semibold bg-green-50 px-2 py-0.5 rounded-full">
-        <CheckCircle2 size={11} /> Registered in NCSC
-      </span>
-    );
-  if (status === 'found_name_only')
-    return (
-      <span className="flex items-center gap-1 text-xs text-orange-600 font-semibold bg-orange-50 px-2 py-0.5 rounded-full">
-        <AlertTriangle size={11} /> Name Found · Birthday Unverified
-      </span>
-    );
-  if (status === 'not_found')
-    return (
-      <span className="flex items-center gap-1 text-xs text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded-full">
-        <XCircle size={11} /> NOT Registered in NCSC
-      </span>
-    );
-  if (status === 'unreachable')
-    return (
-      <span className="flex items-center gap-1 text-xs text-orange-600 font-semibold bg-orange-50 px-2 py-0.5 rounded-full">
-        <WifiOff size={11} /> NCSC Unreachable
-      </span>
-    );
+  if (status === 'checking')        return <span className="flex items-center gap-1 text-xs text-blue-600 font-medium"><Loader2 size={11} className="animate-spin" /> Checking NCSC…</span>;
+  if (status === 'found')           return <span className="flex items-center gap-1 text-xs text-green-700 font-semibold bg-green-50 px-2 py-0.5 rounded-full"><CheckCircle2 size={11} /> Registered in NCSC</span>;
+  if (status === 'found_name_only') return <span className="flex items-center gap-1 text-xs text-orange-600 font-semibold bg-orange-50 px-2 py-0.5 rounded-full"><AlertTriangle size={11} /> Name Found — Birthday Unverified</span>;
+  if (status === 'not_found')       return <span className="flex items-center gap-1 text-xs text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded-full"><XCircle size={11} /> NOT Registered in NCSC</span>;
+  if (status === 'unreachable')     return <span className="flex items-center gap-1 text-xs text-orange-600 font-semibold bg-orange-50 px-2 py-0.5 rounded-full"><WifiOff size={11} /> NCSC Unreachable</span>;
   return null;
 }
 
-function NCSCBanner({ status, onRecheck, missingBirthday, overrideChecked, onOverrideChange }) {
+/* ─── NCSC Banner ────────────────────────────────────────────────────────────── */
+function NCSCBanner({ status, onRecheck, missingBirthday }) {
   const bannerCls =
-    status === 'found' ? 'bg-green-50 border-green-200' :
-    status === 'found_name_only' ? 'bg-orange-50 border-orange-300' :
-    status === 'not_found' ? 'bg-red-50 border-red-300' :
-    status === 'unreachable' ? 'bg-orange-50 border-orange-200' :
+    status === 'found'            ? 'bg-green-50 border-green-200' :
+    status === 'found_name_only'  ? 'bg-orange-50 border-orange-300' :
+    status === 'not_found'        ? 'bg-red-50 border-red-300' :
+    status === 'unreachable'      ? 'bg-orange-50 border-orange-200' :
     'bg-blue-50 border-blue-100';
   const iconCls =
-    status === 'found' ? 'text-green-600' :
-    status === 'found_name_only' ? 'text-orange-500' :
-    status === 'not_found' ? 'text-red-500' :
-    status === 'unreachable' ? 'text-orange-500' :
+    status === 'found'            ? 'text-green-600' :
+    status === 'found_name_only'  ? 'text-orange-500' :
+    status === 'not_found'        ? 'text-red-500' :
+    status === 'unreachable'      ? 'text-orange-500' :
     'text-blue-500';
 
   return (
@@ -194,8 +178,7 @@ function NCSCBanner({ status, onRecheck, missingBirthday, overrideChecked, onOve
         <div className="mb-4 px-4 py-2.5 bg-orange-50 border border-orange-300 rounded-xl text-xs text-orange-700 font-semibold flex items-start gap-2">
           <AlertTriangle size={13} className="text-orange-500 mt-0.5 shrink-0" />
           <span>
-            <strong>Cannot approve:</strong> NCSC found this senior by name only. Birthday is missing, so full verification could not be completed. Please
-            update the senior's birthday before approving.
+            <strong>Cannot approve</strong> — NCSC found this senior by name only. Birthday is missing so full verification could not be completed. Please update the senior's birthday before approving.
           </span>
         </div>
       )}
@@ -203,45 +186,34 @@ function NCSCBanner({ status, onRecheck, missingBirthday, overrideChecked, onOve
         <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
           <AlertTriangle size={13} className="text-red-500 mt-0.5 shrink-0" />
           <span>
-            <strong>Cannot approve:</strong>{' '}
+            <strong>Cannot approve</strong> —{' '}
             {missingBirthday
-              ? "name and birthday are not registered in NCSC. Please update the senior's birthday and verify their identity before approving."
-              : "this senior's name and birthday were not found in NCSC records. Please verify their identity before approving."}
+              ? 'name and birthday are not registered in NCSC. Please update the senior\'s birthday and verify their identity before approving.'
+              : 'this senior\'s name and birthday were not found in NCSC records. Please verify their identity before approving.'}
           </span>
         </div>
       )}
       {status === 'unreachable' && (
-        <div className="mb-4 px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl">
-          <p className="text-xs text-orange-700 font-medium flex items-start gap-2">
-            <WifiOff size={13} className="text-orange-500 mt-0.5 shrink-0" />
-            <span>
-              The NCSC website is currently <strong>unreachable</strong>. You can still approve by checking this senior against your own registered
-              senior list.
-            </span>
-          </p>
-          <label className="flex items-start gap-2 mt-2.5 pl-5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={overrideChecked}
-              onChange={(e) => onOverrideChange(e.target.checked)}
-              className="mt-0.5 accent-orange-600"
-            />
-            <span className="text-xs text-orange-700">I checked this senior against our own registered list and confirm they qualify.</span>
-          </label>
+        <div className="mb-4 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-medium flex items-start gap-2">
+          <WifiOff size={13} className="text-orange-500 mt-0.5 shrink-0" />
+          <span>The NCSC website is currently <strong>unreachable</strong>. Falling back to local records. Proceed with caution.</span>
         </div>
       )}
     </>
   );
 }
 
-function BirthdayWarning() {
+/* ─── Birthday warning pill ──────────────────────────────────────────────────── */
+function BirthdayWarning({ ncscStatus }) {
+  if (ncscStatus === "unreachable") return null;
   return (
     <p className="text-xs text-orange-500 pl-5 font-semibold flex items-center gap-1">
-      <AlertTriangle size={11} /> Birthday not on record, NCSC check used name only
+      <AlertTriangle size={11} /> Birthday not on record — NCSC check used name only
     </p>
   );
 }
 
+/* ─── Delete confirm modal ───────────────────────────────────────────────────── */
 function DeleteConfirmModal({ name, onClose, onConfirm, loading }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -257,14 +229,8 @@ function DeleteConfirmModal({ name, onClose, onConfirm, loading }) {
           This will permanently remove the record from the system.
         </p>
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={loading}
-            className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2"
-          >
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">Cancel</button>
+          <button onClick={onConfirm} disabled={loading} className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2">
             {loading ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete
           </button>
         </div>
@@ -273,26 +239,22 @@ function DeleteConfirmModal({ name, onClose, onConfirm, loading }) {
   );
 }
 
+/* ─── OSCA ID Submission Review Modal ────────────────────────────────────────── */
 function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
   const [ncscStatus, setNcscStatus] = useState('checking');
-  const [overrideChecked, setOverrideChecked] = useState(false);
   const missingBirthday = !hasBirthday(record);
 
   const doCheck = useCallback(() => {
     setNcscStatus('checking');
-    setOverrideChecked(false);
     runNCSCVerify(record).then(setNcscStatus);
   }, [record]);
 
   useEffect(() => { doCheck(); }, [doCheck]);
 
-  const canApprove = !processing && (ncscStatus === 'found' || (ncscStatus === 'unreachable' && overrideChecked));
-  const name = record.fullName || record.seniorName || 'Unknown';
+  // Block approve if birthday is missing OR NCSC says not found
+  const canApprove = !processing && ncscStatus === 'found';
 
-  const handleApprove = () => {
-    const verifiedVia = ncscStatus === 'unreachable' ? 'manual_override' : 'ncsc';
-    onDecision(record.id, 'approved', 'id_verifications', record, verifiedVia);
-  };
+  const name = record.fullName || record.seniorName || 'Unknown';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -305,29 +267,23 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
             </div>
             <p className="text-xs text-gray-400">Verifying against live NCSC records using name & birthday.</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
-            <X size={18} />
-          </button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1"><X size={18} /></button>
         </div>
 
-        <NCSCBanner
-          status={ncscStatus}
-          onRecheck={doCheck}
-          missingBirthday={missingBirthday}
-          overrideChecked={overrideChecked}
-          onOverrideChange={setOverrideChecked}
-        />
+        <NCSCBanner status={ncscStatus} onRecheck={doCheck} missingBirthday={missingBirthday} />
 
+        {/* Birthday missing — hard block (only shown when NCSC found by name only, not when not_found since banner covers that) */}
         {missingBirthday && ncscStatus !== 'not_found' && ncscStatus !== 'found_name_only' && ncscStatus !== 'unreachable' && (
           <div className="mb-4 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
             <span>
-              <strong>Cannot approve:</strong> birthday is not on record. NCSC could only verify by name. Please update the senior's birthday before
-              approving.
+              <strong>Cannot approve</strong> — birthday is not on record. NCSC could only verify by name.
+              Please update the senior's birthday before approving.
             </span>
           </div>
         )}
 
+        {/* Senior info */}
         <div className="bg-gray-50 rounded-2xl px-4 py-3 mb-5 space-y-1.5">
           <div className="flex items-center gap-2">
             <User size={14} className="text-gray-400" />
@@ -336,35 +292,26 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
           {record.idNumber && (
             <div className="flex items-center gap-2 pl-1">
               <ShieldCheck size={13} className="text-blue-400" />
-              <span className="text-xs text-gray-600">
-                OSCA ID on card: <strong className="text-blue-700">{record.idNumber}</strong>
-              </span>
+              <span className="text-xs text-gray-600">OSCA ID on card: <strong className="text-blue-700">{record.idNumber}</strong></span>
             </div>
           )}
-          {record.dob && (
-            <p className="text-xs text-gray-400 pl-5">
-              DOB: <strong>{record.dob}</strong>
-            </p>
-          )}
+          {record.dob && <p className="text-xs text-gray-400 pl-5"><span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><rect x='3' y='10' width='18' height='12' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/><line x1='12' y1='14' x2='12' y2='18'/></svg> DOB:</span> <strong>{record.dob}</strong></p>}
           {record.email && <p className="text-xs text-gray-400 pl-5">{record.email}</p>}
           {record.address && <p className="text-xs text-gray-400 pl-5">{record.address}</p>}
-          {record.barangay && (
-            <p className="text-xs text-gray-400 pl-5">
-              Barangay: <strong>{record.barangay}</strong>
-            </p>
-          )}
+          {record.barangay && <p className="text-xs text-gray-400 pl-5">Barangay: <strong>{record.barangay}</strong></p>}
           {record.sex && <p className="text-xs text-gray-400 pl-5">Sex: {record.sex}</p>}
           {record.submittedAt && (
-            <p className="text-xs text-gray-400 pl-5">Submitted: {record.submittedAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>
+            <p className="text-xs text-gray-400 pl-5">Submitted: {record.submittedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>
           )}
-          {missingBirthday && <BirthdayWarning />}
+          {missingBirthday && <BirthdayWarning ncscStatus={null} />}
         </div>
 
+        {/* Uploaded ID photo */}
         <div className="mb-5">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
             <FileImage size={12} /> Uploaded OSCA ID Photo
           </p>
-          {record.idImageUrl || record.imageBase64 ? (
+          {(record.idImageUrl || record.imageBase64) ? (
             <img
               src={record.idImageUrl ?? `data:image/jpeg;base64,${record.imageBase64}`}
               alt="Submitted OSCA ID"
@@ -381,7 +328,7 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
         {ncscStatus === 'found' && !missingBirthday && (
           <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 font-medium flex items-start gap-2">
             <CreditCard size={13} className="text-blue-500 mt-0.5 shrink-0" />
-            <span>Approving will verify the senior's account, create their digital ID, and queue a physical ID for release.</span>
+            <span>Approving will: ① verify the senior's account, ② create their digital ID, and ③ queue a physical ID for release.</span>
           </div>
         )}
 
@@ -395,7 +342,7 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
           </button>
           <button
             disabled={!canApprove}
-            onClick={handleApprove}
+            onClick={() => onDecision(record.id, 'approved', 'id_verifications', record)}
             className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             title={missingBirthday ? 'Birthday required to approve' : ''}
           >
@@ -403,34 +350,27 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
             Approve & Verify
           </button>
         </div>
-        <button onClick={onClose} className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600">
-          Cancel
-        </button>
+        <button onClick={onClose} className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600">Cancel</button>
       </div>
     </div>
   );
 }
 
+/* ─── Physical ID Request Review Modal ───────────────────────────────────────── */
 function PhysicalIDModal({ record, onClose, onDecision, processing }) {
   const [ncscStatus, setNcscStatus] = useState('checking');
-  const [overrideChecked, setOverrideChecked] = useState(false);
   const missingBirthday = !hasBirthday(record);
 
   const doCheck = useCallback(() => {
     setNcscStatus('checking');
-    setOverrideChecked(false);
     runNCSCVerify(record).then(setNcscStatus);
   }, [record]);
 
   useEffect(() => { doCheck(); }, [doCheck]);
 
   const name = record.seniorName || record.fullName || 'Unknown';
-  const canApprove = !processing && (ncscStatus === 'found' || (ncscStatus === 'unreachable' && overrideChecked));
-
-  const handleApprove = () => {
-    const verifiedVia = ncscStatus === 'unreachable' ? 'manual_override' : 'ncsc';
-    onDecision(record.id, 'approved', 'id_requests', record, verifiedVia);
-  };
+  // Block approve if birthday missing OR NCSC says not found
+  const canApprove = !processing && ncscStatus === 'found';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -442,25 +382,18 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">Live NCSC verification by name & birthday</p>
           </div>
-          <button onClick={onClose}>
-            <X size={18} className="text-gray-400 hover:text-gray-600" />
-          </button>
+          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
 
-        <NCSCBanner
-          status={ncscStatus}
-          onRecheck={doCheck}
-          missingBirthday={missingBirthday}
-          overrideChecked={overrideChecked}
-          onOverrideChange={setOverrideChecked}
-        />
+        <NCSCBanner status={ncscStatus} onRecheck={doCheck} missingBirthday={missingBirthday} />
 
+        {/* Birthday hard block — only show when found by name only (not when not_found, banner handles that) */}
         {missingBirthday && ncscStatus !== 'not_found' && ncscStatus !== 'found_name_only' && ncscStatus !== 'unreachable' && (
           <div className="mb-4 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
             <span>
-              <strong>Cannot approve:</strong> birthday is not on record. NCSC could only verify by name. Please update the senior's birthday before
-              approving.
+              <strong>Cannot approve</strong> — birthday is not on record. NCSC could only verify by name.
+              Please update the senior's birthday before approving.
             </span>
           </div>
         )}
@@ -470,34 +403,19 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
             <User size={13} className="text-gray-400" />
             <span className="text-sm font-bold text-gray-800">{name}</span>
           </div>
-          {record.seniorId && (
-            <p className="text-xs text-gray-500 pl-5">
-              OSCA ID: <strong className="text-blue-700">{record.seniorId}</strong>
-            </p>
-          )}
-          {(record.dob || record.dateOfBirth) && (
-            <p className="text-xs text-gray-500 pl-5">
-              DOB: <strong>{record.dob || record.dateOfBirth}</strong>
-            </p>
-          )}
-          {record.address && (
-            <p className="text-xs text-gray-500 pl-5 flex items-center gap-1">
-              <MapPin size={10} />
-              {record.address}
-            </p>
-          )}
-          {record.contactNumber && (
-            <p className="text-xs text-gray-500 pl-5 flex items-center gap-1">
-              <Phone size={10} />
-              {record.contactNumber}
-            </p>
-          )}
+          {record.seniorId      && <p className="text-xs text-gray-500 pl-5">OSCA ID: <strong className="text-blue-700">{record.seniorId}</strong></p>}
+          {(record.dob || record.dateOfBirth) && <p className="text-xs text-gray-500 pl-5"><span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><rect x='3' y='10' width='18' height='12' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/><line x1='12' y1='14' x2='12' y2='18'/></svg> DOB:</span> <strong>{record.dob || record.dateOfBirth}</strong></p>}
+          {record.address       && <p className="text-xs text-gray-500 pl-5 flex items-center gap-1"><MapPin size={10} />{record.address}</p>}
+          {record.contactNumber && <p className="text-xs text-gray-500 pl-5 flex items-center gap-1"><Phone size={10} />{record.contactNumber}</p>}
+          {/* Barangay field prominently shown */}
           <p className="text-xs text-gray-500 pl-5 flex items-center gap-1">
-            Barangay: {record.barangay ? <strong>{record.barangay}</strong> : <span className="text-orange-500 font-semibold italic">Not specified</span>}
+            Barangay: {record.barangay
+              ? <strong>{record.barangay}</strong>
+              : <span className="text-orange-500 font-semibold italic">Not specified</span>}
           </p>
-          {record.reason && <p className="text-xs text-gray-400 pl-5 italic">Reason: {record.reason}</p>}
-          {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>}
-          {missingBirthday && <BirthdayWarning />}
+          {record.reason    && <p className="text-xs text-gray-400 pl-5 italic">Reason: {record.reason}</p>}
+          {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
+          {missingBirthday && <BirthdayWarning ncscStatus={null} />}
         </div>
 
         <div className="flex gap-3">
@@ -510,7 +428,7 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
           </button>
           <button
             disabled={!canApprove}
-            onClick={handleApprove}
+            onClick={() => onDecision(record.id, 'approved', 'id_requests', record)}
             className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
             title={missingBirthday ? 'Birthday required to approve' : ''}
           >
@@ -518,22 +436,23 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
             Approve Request
           </button>
         </div>
-        <button onClick={onClose} className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600">
-          Cancel
-        </button>
+        <button onClick={onClose} className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600">Cancel</button>
       </div>
     </div>
   );
 }
 
+/* ─── OSCA ID Card adapter — uses shared Oscaidcard template ─────────────────── */
+/* ─── OSCAIDCard (Release Modal version) — uses shared OSCAIdCard template ───── */
+/* ValenzuelaSeal and OscaLogo SVG helpers removed; real images used by Oscaidcard.jsx */
 function OSCAIDCard({ record }) {
-  const dob = record.dob || record.dateOfBirth || 'N/A';
+  const dob = record.dob || record.dateOfBirth || '—';
   let dobFormatted = dob;
-  if (dob && dob !== 'N/A') {
-    const isoM = dob.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dob && dob !== '—') {
+    const isoM   = dob.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     const slashM = dob.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (isoM) dobFormatted = `${isoM[2]}-${isoM[3]}-${isoM[1].slice(2)}`;
-    else if (slashM) dobFormatted = `${slashM[1].padStart(2, '0')}-${slashM[2].padStart(2, '0')}-${slashM[3].slice(2)}`;
+    if (isoM)        dobFormatted = `${isoM[2]}-${isoM[3]}-${isoM[1].slice(2)}`;
+    else if (slashM) dobFormatted = `${slashM[1].padStart(2,'0')}-${slashM[2].padStart(2,'0')}-${slashM[3].slice(2)}`;
   }
   const dateIssued = record.releasedAt?.toDate?.()
     ? record.releasedAt.toDate().toLocaleDateString('en-PH', { month: '2-digit', day: '2-digit', year: 'numeric' })
@@ -544,17 +463,18 @@ function OSCAIDCard({ record }) {
       <OSCAIdCard
         mode="physical"
         name={(record.seniorName || record.fullName || 'UNKNOWN').toUpperCase()}
-        address={record.address || 'N/A'}
+        address={record.address || '—'}
         dateOfBirth={dobFormatted}
-        sex={(record.sex || 'N/A').toUpperCase()}
+        sex={(record.sex || '—').toUpperCase()}
         dateIssued={dateIssued}
-        controlNo={record.controlNumber || record.seniorId || record.idNumber || record.id?.slice(-6).toUpperCase() || '------'}
+        controlNo={record.controlNumber || record.seniorId || record.idNumber || (record.id?.slice(-6).toUpperCase()) || '——————'}
         photoUrl={record.photoURL || null}
       />
     </div>
   );
 }
 
+/* ─── Release Modal ──────────────────────────────────────────────────────────── */
 function ReleaseModal({ record, onClose, onRelease, processing }) {
   const [verified, setVerified] = useState(false);
   const missingBirthday = !hasBirthday(record);
@@ -564,15 +484,15 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
     record.address &&
     (record.seniorId || record.controlNumber || record.idNumber) &&
     (record.barangay || record.sub_admin_barangay) &&
-    !missingBirthday
+    !missingBirthday   // birthday is now a required field for release
   );
 
   const checks = [
-    { label: 'Full Name', ok: !!(record.seniorName || record.fullName) },
-    { label: 'Date of Birth', ok: !missingBirthday },
-    { label: 'Address', ok: !!record.address },
-    { label: 'OSCA ID / Control No.', ok: !!(record.seniorId || record.controlNumber || record.idNumber) },
-    { label: 'Barangay Assignment', ok: !!(record.barangay || record.sub_admin_barangay) },
+    { label: 'Full Name',            ok: !!(record.seniorName || record.fullName) },
+    { label: 'Date of Birth',        ok: !missingBirthday },
+    { label: 'Address',              ok: !!record.address },
+    { label: 'OSCA ID / Control No.',ok: !!(record.seniorId || record.controlNumber || record.idNumber) },
+    { label: 'Barangay Assignment',  ok: !!(record.barangay || record.sub_admin_barangay) },
   ];
 
   return (
@@ -585,9 +505,7 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">Final verification before releasing to sub-admin</p>
           </div>
-          <button onClick={onClose}>
-            <X size={18} className="text-gray-400 hover:text-gray-600" />
-          </button>
+          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
 
         <div className="mb-5">
@@ -595,22 +513,24 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
           <OSCAIDCard record={record} />
         </div>
 
+        {/* Information check */}
         <div className={`rounded-xl px-4 py-3 mb-4 ${hasAllInfo ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
           <p className="text-xs font-semibold mb-2 text-gray-700">Required Information Check</p>
           {checks.map(({ label, ok }) => (
             <div key={label} className="flex items-center gap-2 text-xs py-0.5">
               {ok ? <CheckCircle2 size={12} className="text-green-600" /> : <XCircle size={12} className="text-orange-500" />}
               <span className={ok ? 'text-gray-700' : 'text-orange-700 font-semibold'}>{label}</span>
-              {!ok && <span className="text-orange-500 italic">Missing</span>}
+              {!ok && <span className="text-orange-500 italic">— Missing</span>}
             </div>
           ))}
         </div>
 
+        {/* Birthday-specific block */}
         {missingBirthday && (
           <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={13} className="text-red-500 mt-0.5 shrink-0" />
             <span>
-              <strong>Cannot release:</strong> birthday is not on record. Please update the senior's birthday before releasing the ID.
+              <strong>Cannot release</strong> — birthday is not on record. Please update the senior's birthday before releasing the ID.
             </span>
           </div>
         )}
@@ -618,24 +538,21 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
         {!hasAllInfo && !missingBirthday && (
           <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-2">
             <AlertTriangle size={13} className="text-red-500" />
-            Cannot release: required information is incomplete. Please update the senior's record first.
+            Cannot release — required information is incomplete. Please update the senior's record first.
           </div>
         )}
 
         {hasAllInfo && (
           <label className="flex items-start gap-2 mb-5 cursor-pointer">
-            <input type="checkbox" checked={verified} onChange={(e) => setVerified(e.target.checked)} className="mt-0.5 accent-blue-600" />
+            <input type="checkbox" checked={verified} onChange={e => setVerified(e.target.checked)} className="mt-0.5 accent-blue-600" />
             <span className="text-xs text-gray-600">
-              I confirm that all information on this physical ID is correct and complete. This ID will be sent to the assigned sub-admin for barangay
-              distribution.
+              I confirm that all information on this physical ID is correct and complete. This ID will be sent to the assigned sub-admin for barangay distribution.
             </span>
           </label>
         )}
 
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50">
-            Cancel
-          </button>
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50">Cancel</button>
           <button
             disabled={processing || !hasAllInfo || !verified}
             onClick={() => onRelease(record)}
@@ -650,6 +567,7 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
   );
 }
 
+/* ─── Release Request Detail Modal ──────────────────────────────────────────── */
 function RequestDetailModal({ record, onClose, onApprove, onReject, processing }) {
   const missingBirthday = !hasBirthday(record);
   const name = record.seniorName || record.fullName || 'Unknown';
@@ -658,81 +576,44 @@ function RequestDetailModal({ record, onClose, onApprove, onReject, processing }
       <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <FileText size={18} className="text-[#0f52ba]" /> Physical ID Request
-            </h3>
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><FileText size={18} className="text-[#0f52ba]" /> Physical ID Request</h3>
             <p className="text-xs text-gray-400 mt-0.5">Review and verify before approving</p>
           </div>
-          <button onClick={onClose}>
-            <X size={18} className="text-gray-400 hover:text-gray-600" />
-          </button>
+          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
 
         {missingBirthday && (
           <div className="mb-4 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
-            <span>
-              <strong>Cannot approve:</strong> birthday not on record. Update the senior's birthday first.
-            </span>
+            <span><strong>Cannot approve</strong> — birthday not on record. Update the senior's birthday first.</span>
           </div>
         )}
 
         <div className="bg-gray-50 rounded-2xl p-4 space-y-2 mb-5">
-          <div className="flex items-center gap-2">
-            <User size={13} className="text-gray-400" />
-            <span className="text-sm font-bold text-gray-800">{name}</span>
-          </div>
-          {record.seniorId && (
-            <p className="text-xs text-gray-500 pl-5">
-              OSCA ID: <strong className="text-blue-700">{record.seniorId}</strong>
-            </p>
-          )}
-          {(record.dob || record.dateOfBirth) && (
-            <p className="text-xs text-gray-500 pl-5">
-              DOB: <strong>{record.dob || record.dateOfBirth}</strong>
-            </p>
-          )}
-          {record.address && (
-            <p className="text-xs text-gray-500 pl-5 flex items-center gap-1">
-              <MapPin size={10} />
-              {record.address}
-            </p>
-          )}
-          {record.contactNumber && (
-            <p className="text-xs text-gray-500 pl-5 flex items-center gap-1">
-              <Phone size={10} />
-              {record.contactNumber}
-            </p>
-          )}
-          <p className="text-xs text-gray-500 pl-5">
-            Barangay: {record.barangay ? <strong>{record.barangay}</strong> : <span className="text-orange-500 italic font-semibold">Not specified</span>}
-          </p>
-          {record.reason && <p className="text-xs text-gray-400 pl-5 italic">Reason: {record.reason}</p>}
-          {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>}
-          {missingBirthday && <BirthdayWarning />}
+          <div className="flex items-center gap-2"><User size={13} className="text-gray-400" /><span className="text-sm font-bold text-gray-800">{name}</span></div>
+          {record.seniorId      && <p className="text-xs text-gray-500 pl-5">OSCA ID: <strong className="text-blue-700">{record.seniorId}</strong></p>}
+          {(record.dob || record.dateOfBirth) && <p className="text-xs text-gray-500 pl-5"><span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><rect x='3' y='10' width='18' height='12' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/><line x1='12' y1='14' x2='12' y2='18'/></svg> DOB:</span> <strong>{record.dob || record.dateOfBirth}</strong></p>}
+          {record.address       && <p className="text-xs text-gray-500 pl-5 flex items-center gap-1"><MapPin size={10} />{record.address}</p>}
+          {record.contactNumber && <p className="text-xs text-gray-500 pl-5 flex items-center gap-1"><Phone size={10} />{record.contactNumber}</p>}
+          <p className="text-xs text-gray-500 pl-5">Barangay: {record.barangay ? <strong>{record.barangay}</strong> : <span className="text-orange-500 italic font-semibold">Not specified</span>}</p>
+          {record.reason    && <p className="text-xs text-gray-400 pl-5 italic">Reason: {record.reason}</p>}
+          {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
+          {missingBirthday && <BirthdayWarning ncscStatus={null} />}
         </div>
 
         <div className="flex gap-3">
-          <button disabled={processing} onClick={() => onReject(record.id)} className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-semibold text-sm hover:bg-red-50 disabled:opacity-50">
-            Reject
-          </button>
-          <button
-            disabled={processing || missingBirthday}
-            onClick={() => onApprove(record)}
-            className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
-            title={missingBirthday ? 'Birthday required' : ''}
-          >
+          <button disabled={processing} onClick={() => onReject(record.id)} className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-semibold text-sm hover:bg-red-50 disabled:opacity-50">Reject</button>
+          <button disabled={processing || missingBirthday} onClick={() => onApprove(record)} className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2" title={missingBirthday ? 'Birthday required' : ''}>
             {processing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Approve Request
           </button>
         </div>
-        <button onClick={onClose} className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600">
-          Cancel
-        </button>
+        <button onClick={onClose} className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600">Cancel</button>
       </div>
     </div>
   );
 }
 
+/* ─── Stat card ──────────────────────────────────────────────────────────────── */
 function StatCard({ label, value, icon: Icon, color, bg }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-5 flex items-center gap-4">
@@ -747,59 +628,60 @@ function StatCard({ label, value, icon: Icon, color, bg }) {
   );
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MAIN PAGE
+═══════════════════════════════════════════════════════════════════════════════ */
 export default function IDManagement() {
   const { isSuperAdmin, isSubAdmin, adminData } = useAuth();
 
-  const [toast, setToast] = useState({ msg: '', type: 'success' });
-  const [mainTab, setMainTab] = useState('verification');
+  /* ── Shared state ── */
+  const [toast, setToast]           = useState({ msg: '', type: 'success' });
+  const [mainTab, setMainTab]       = useState('verification'); // 'verification' | 'release'
 
-  const [submissions, setSubmissions] = useState([]);
+  /* ── Verification state ── */
+  const [submissions, setSubmissions]   = useState([]);
   const [physicalReqs, setPhysicalReqs] = useState([]);
   const [loadingVerif, setLoadingVerif] = useState(true);
-  const [verifTab, setVerifTab] = useState('submissions');
-  const [selected, setSelected] = useState(null);
-  const [processing, setProcessing] = useState(false);
+  const [verifTab, setVerifTab]         = useState('submissions');
+  const [selected, setSelected]         = useState(null);
+  const [processing, setProcessing]     = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-  const [verifSearch, setVerifSearch] = useState('');
+  const [deleting, setDeleting]         = useState(false);
+  const [verifSearch, setVerifSearch]   = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
-  const [idRequests, setIdRequests] = useState([]);
-  const [releasedIDs, setReleasedIDs] = useState([]);
-  const [loadingRel, setLoadingRel] = useState(true);
-  const [releaseTab, setReleaseTab] = useState(isSuperAdmin ? 'requests' : 'released');
-  const [relSearch, setRelSearch] = useState('');
+  /* ── Release state ── */
+  const [idRequests, setIdRequests]     = useState([]);
+  const [releasedIDs, setReleasedIDs]   = useState([]);
+  const [loadingRel, setLoadingRel]     = useState(true);
+  const [releaseTab, setReleaseTab]     = useState(isSuperAdmin ? 'requests' : 'released');
+  const [relSearch, setRelSearch]       = useState('');
   const [detailRecord, setDetailRecord] = useState(null);
   const [releaseRecord, setReleaseRecord] = useState(null);
 
-  // id_verifications / id_requests are OSCA-only per firestore.rules, so only
-  // subscribe as super admin to avoid a permission-denied error for sub-admins
+  /* ── Listeners ── */
   useEffect(() => {
-    if (!isSuperAdmin) { setLoadingVerif(false); return; }
     const q = query(collection(db, 'id_verifications'), orderBy('submittedAt', 'desc'));
-    return onSnapshot(q, (snap) => {
-      setSubmissions(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setLoadingVerif(false);
-    });
-  }, [isSuperAdmin]);
-
+    return onSnapshot(q, snap => { setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoadingVerif(false); });
+  }, []);
   useEffect(() => {
-    if (!isSuperAdmin) { setLoadingRel(false); return; }
+    // Single listener for id_requests — feeds both Verification (physicalReqs) and Release (idRequests) panels
     const q = query(collection(db, 'id_requests'), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snap) => {
-      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    return onSnapshot(q, snap => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setPhysicalReqs(data);
       setIdRequests(data);
       setLoadingRel(false);
     });
-  }, [isSuperAdmin]);
-
+  }, []);
   useEffect(() => {
-    const q =
-      isSubAdmin && adminData?.barangay
-        ? query(collection(db, 'released_ids'), where('barangay', '==', adminData.barangay), orderBy('releasedAt', 'desc'))
-        : query(collection(db, 'released_ids'), orderBy('releasedAt', 'desc'));
-    return onSnapshot(q, (snap) => setReleasedIDs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+    let q;
+    if (isSubAdmin && adminData?.barangay) {
+      q = query(collection(db, 'released_ids'), where('barangay', '==', adminData.barangay), orderBy('releasedAt', 'desc'));
+    } else {
+      q = query(collection(db, 'released_ids'), orderBy('releasedAt', 'desc'));
+    }
+    return onSnapshot(q, snap => setReleasedIDs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
   }, [isSubAdmin, adminData]);
 
   function showToast(msg, type = 'success') {
@@ -807,104 +689,65 @@ export default function IDManagement() {
     setTimeout(() => setToast({ msg: '', type: 'success' }), 3500);
   }
 
-  async function handleDecision(id, decision, collectionName = 'id_verifications', record = null, verifiedVia = 'ncsc') {
+  /* ── Verification decision handler ── */
+  async function handleDecision(id, decision, collectionName = 'id_verifications', record = null) {
     setProcessing(true);
     try {
-      await updateDoc(doc(db, collectionName, id), {
-        status: decision,
-        reviewedAt: serverTimestamp(),
-        ...(decision === 'approved' ? { verifiedVia } : {}),
-      });
+      await updateDoc(doc(db, collectionName, id), { status: decision, reviewedAt: serverTimestamp() });
 
       if (decision === 'approved' && record) {
         if (collectionName === 'id_verifications') {
           const uid = record.uid;
           if (uid) {
-            try {
-              await updateDoc(doc(db, 'users', uid), { isVerified: true, status: 'VERIFIED', verifiedAt: serverTimestamp() });
-            } catch {}
+            try { await updateDoc(doc(db, 'users', uid), { isVerified: true, status: 'VERIFIED', verifiedAt: serverTimestamp() }); } catch (e) {}
           }
           const digitalIdData = {
-            uid: uid || null,
-            fullName: record.fullName || record.seniorName || '',
-            firstName: record.firstName || '',
-            lastName: record.lastName || record.surname || '',
-            middleName: record.middleName || '',
-            dob: record.dob || record.dateOfBirth || '',
-            sex: record.sex || '',
-            address: record.address || '',
-            barangay: record.barangay || '',
-            email: record.email || '',
-            idNumber: record.idNumber || record.seniorId || '',
-            idImageUrl: record.idImageUrl || '',
-            status: 'active',
-            isVerified: true,
-            verifiedVia,
-            createdAt: serverTimestamp(),
-            verifiedAt: serverTimestamp(),
-            sourceDocId: id,
+            uid: uid || null, fullName: record.fullName || record.seniorName || '',
+            firstName: record.firstName || '', lastName: record.lastName || record.surname || '',
+            middleName: record.middleName || '', dob: record.dob || record.dateOfBirth || '',
+            sex: record.sex || '', address: record.address || '', barangay: record.barangay || '',
+            email: record.email || '', idNumber: record.idNumber || record.seniorId || '',
+            idImageUrl: record.idImageUrl || '', status: 'active', isVerified: true,
+            createdAt: serverTimestamp(), verifiedAt: serverTimestamp(), sourceDocId: id,
           };
           if (uid) await setDoc(doc(db, 'digital_ids', uid), digitalIdData, { merge: true });
 
           const controlNumber = record.idNumber || record.seniorId || id.slice(-6).toUpperCase();
           try {
             await addDoc(collection(db, 'released_ids'), {
-              requestId: id,
-              uid: uid || null,
+              requestId: id, uid: uid || null,
               seniorName: record.fullName || record.seniorName || '',
               seniorId: record.idNumber || record.seniorId || '',
-              firstName: record.firstName || '',
-              lastName: record.lastName || record.surname || '',
-              middleName: record.middleName || '',
-              dob: record.dob || record.dateOfBirth || '',
-              sex: record.sex || '',
-              address: record.address || '',
-              barangay: record.barangay || '',
-              controlNumber,
-              status: 'notified',
-              releasedAt: serverTimestamp(),
-              releasedBy: 'auto_verification',
-              notifiedAt: serverTimestamp(),
-              sourceType: 'id_verification',
+              firstName: record.firstName || '', lastName: record.lastName || record.surname || '',
+              middleName: record.middleName || '', dob: record.dob || record.dateOfBirth || '',
+              sex: record.sex || '', address: record.address || '', barangay: record.barangay || '',
+              controlNumber, status: 'notified', releasedAt: serverTimestamp(),
+              releasedBy: 'auto_verification', notifiedAt: serverTimestamp(), sourceType: 'id_verification',
             });
-          } catch {}
+          } catch (e) {}
         }
 
         if (collectionName === 'id_requests') {
           const controlNumber = record.controlNumber || record.seniorId || id.slice(-6).toUpperCase();
           try {
             await addDoc(collection(db, 'released_ids'), {
-              requestId: id,
-              uid: record.uid || null,
+              requestId: id, uid: record.uid || null,
               seniorName: record.seniorName || record.fullName || '',
               seniorId: record.seniorId || record.idNumber || '',
-              dob: record.dob || record.dateOfBirth || '',
-              sex: record.sex || '',
+              dob: record.dob || record.dateOfBirth || '', sex: record.sex || '',
               address: record.address || '',
               barangay: record.barangay || record.sub_admin_barangay || '',
-              controlNumber,
-              status: 'notified',
-              releasedAt: serverTimestamp(),
-              releasedBy: 'auto_physical_approval',
-              notifiedAt: serverTimestamp(),
-              sourceType: 'id_request',
+              controlNumber, status: 'notified', releasedAt: serverTimestamp(),
+              releasedBy: 'auto_physical_approval', notifiedAt: serverTimestamp(), sourceType: 'id_request',
             });
             await updateDoc(doc(db, 'id_requests', id), { status: 'released', releasedAt: serverTimestamp() });
-          } catch {}
+          } catch (e) {}
         }
       }
 
       setSelected(null);
-      showToast(
-        decision === 'approved'
-          ? verifiedVia === 'manual_override'
-            ? 'Approved via manual registry check. Digital ID created & physical ID queued for release.'
-            : 'Approved! Digital ID created & physical ID queued for release.'
-          : 'Request rejected.'
-      );
-    } finally {
-      setProcessing(false);
-    }
+      showToast(decision === 'approved' ? 'Approved! Digital ID created & physical ID queued for release.' : 'Request rejected.');
+    } finally { setProcessing(false); }
   }
 
   async function handleDelete() {
@@ -914,20 +757,17 @@ export default function IDManagement() {
       await deleteDoc(doc(db, deleteTarget.col, deleteTarget.id));
       showToast(`"${deleteTarget.name}" deleted.`);
       setDeleteTarget(null);
-    } finally {
-      setDeleting(false);
-    }
+    } finally { setDeleting(false); }
   }
 
+  /* ── Release handlers ── */
   async function handleApprove(record) {
     setProcessing(true);
     try {
       await updateDoc(doc(db, 'id_requests', record.id), { status: 'approved', reviewedAt: serverTimestamp() });
       setDetailRecord(null);
       showToast(`Request for ${record.seniorName || record.fullName} approved.`);
-    } finally {
-      setProcessing(false);
-    }
+    } finally { setProcessing(false); }
   }
 
   async function handleReject(id) {
@@ -936,34 +776,24 @@ export default function IDManagement() {
       await updateDoc(doc(db, 'id_requests', id), { status: 'rejected', reviewedAt: serverTimestamp() });
       setDetailRecord(null);
       showToast('Request rejected.');
-    } finally {
-      setProcessing(false);
-    }
+    } finally { setProcessing(false); }
   }
 
   async function handleRelease(record) {
     setProcessing(true);
     try {
       await addDoc(collection(db, 'released_ids'), {
-        requestId: record.id,
-        seniorName: record.seniorName || record.fullName || '',
-        seniorId: record.seniorId || record.idNumber || '',
-        address: record.address || '',
-        dob: record.dob || record.dateOfBirth || '',
-        sex: record.sex || '',
+        requestId: record.id, seniorName: record.seniorName || record.fullName || '',
+        seniorId: record.seniorId || record.idNumber || '', address: record.address || '',
+        dob: record.dob || record.dateOfBirth || '', sex: record.sex || '',
         controlNumber: record.controlNumber || record.seniorId || record.id.slice(-6).toUpperCase(),
         barangay: record.barangay || record.sub_admin_barangay || '',
-        status: 'notified',
-        releasedAt: serverTimestamp(),
-        releasedBy: 'super_admin',
-        notifiedAt: serverTimestamp(),
+        status: 'notified', releasedAt: serverTimestamp(), releasedBy: 'super_admin', notifiedAt: serverTimestamp(),
       });
       await updateDoc(doc(db, 'id_requests', record.id), { status: 'released', releasedAt: serverTimestamp() });
       setReleaseRecord(null);
       showToast(`Physical ID for ${record.seniorName || record.fullName} released to sub-admin.`);
-    } finally {
-      setProcessing(false);
-    }
+    } finally { setProcessing(false); }
   }
 
   async function handleCollected(id) {
@@ -971,93 +801,85 @@ export default function IDManagement() {
     try {
       await updateDoc(doc(db, 'released_ids', id), { status: 'collected', collectedAt: serverTimestamp() });
       showToast('Marked as collected.');
-    } finally {
-      setProcessing(false);
-    }
+    } finally { setProcessing(false); }
   }
 
+  /* ── Computed: verification ── */
   const activeList = verifTab === 'submissions' ? submissions : physicalReqs;
-  const nameOf = (r) => (verifTab === 'submissions' ? r.fullName || r.seniorName || '' : r.seniorName || r.fullName || '');
-  const idOf = (r) => (verifTab === 'submissions' ? r.idNumber || '' : r.seniorId || '');
+  const nameOf     = r => verifTab === 'submissions' ? (r.fullName || r.seniorName || '') : (r.seniorName || r.fullName || '');
+  const idOf       = r => verifTab === 'submissions' ? (r.idNumber || '') : (r.seniorId || '');
 
-  const filteredVerif = activeList.filter((r) => {
+  const filteredVerif = activeList.filter(r => {
     const matchS = !verifSearch || nameOf(r).toLowerCase().includes(verifSearch.toLowerCase()) || idOf(r).toLowerCase().includes(verifSearch.toLowerCase());
     const matchF = filterStatus === 'all' || r.status === filterStatus || (!r.status && filterStatus === 'pending');
     return matchS && matchF;
   });
 
-  const verifPending = filteredVerif.filter((r) => !r.status || r.status === 'pending');
-  const verifReviewed = filteredVerif.filter((r) => r.status && r.status !== 'pending');
+  const verifPending  = filteredVerif.filter(r => !r.status || r.status === 'pending');
+  const verifReviewed = filteredVerif.filter(r => r.status && r.status !== 'pending');
 
   const repeatKeys = (() => {
     const counts = {};
-    submissions.forEach((r) => {
-      const k = r.email || r.fullName || r.seniorName;
-      if (k) counts[k] = (counts[k] || 0) + 1;
-    });
-    return new Set(Object.keys(counts).filter((k) => counts[k] > 1));
+    submissions.forEach(r => { const k = r.email || r.fullName || r.seniorName; if (k) counts[k] = (counts[k] || 0) + 1; });
+    return new Set(Object.keys(counts).filter(k => counts[k] > 1));
   })();
-  const isRepeat = (r) => verifTab === 'submissions' && repeatKeys.has(r.email || r.fullName || r.seniorName);
-  const voidVerifReqs = physicalReqs.filter((r) => r.isVoid || (!r.seniorName && !r.fullName && !r.seniorId));
+  const isRepeat = r => verifTab === 'submissions' && repeatKeys.has(r.email || r.fullName || r.seniorName);
+  const voidVerifReqs = physicalReqs.filter(r => r.isVoid || (!r.seniorName && !r.fullName && !r.seniorId));
 
-  const filteredRel = (list) =>
-    list.filter((r) => {
-      const name = (r.seniorName || r.fullName || '').toLowerCase();
-      return !relSearch || name.includes(relSearch.toLowerCase()) || (r.seniorId || '').includes(relSearch);
-    });
+  /* ── Computed: release ── */
+  const filteredRel = (list) => list.filter(r => {
+    const name = (r.seniorName || r.fullName || '').toLowerCase();
+    return !relSearch || name.includes(relSearch.toLowerCase()) || (r.seniorId || '').includes(relSearch);
+  });
 
-  const relPending = filteredRel(idRequests.filter((r) => !r.status || r.status === 'pending'));
-  const relApproved = filteredRel(idRequests.filter((r) => r.status === 'approved'));
-  const relRejected = filteredRel(idRequests.filter((r) => r.status === 'rejected'));
-  const relReleased = filteredRel(idRequests.filter((r) => r.status === 'released'));
-  const myReleased = filteredRel(releasedIDs);
-  const notified = myReleased.filter((r) => r.status === 'notified');
-  const collected = myReleased.filter((r) => r.status === 'collected');
-  const voidRelReqs = idRequests.filter((r) => r.isVoid || (!r.seniorName && !r.fullName && !r.seniorId));
+  const relPending  = filteredRel(idRequests.filter(r => !r.status || r.status === 'pending'));
+  const relApproved = filteredRel(idRequests.filter(r => r.status === 'approved'));
+  const relRejected = filteredRel(idRequests.filter(r => r.status === 'rejected'));
+  const relReleased = filteredRel(idRequests.filter(r => r.status === 'released'));
+  const myReleased  = filteredRel(releasedIDs);
+  const notified    = myReleased.filter(r => r.status === 'notified');
+  const collected   = myReleased.filter(r => r.status === 'collected');
+  const voidRelReqs = idRequests.filter(r => r.isVoid || (!r.seniorName && !r.fullName && !r.seniorId));
 
+  /* ── Top-level tabs ── */
   const topTabs = [
-    {
-      key: 'verification',
-      label: 'ID Verification',
-      badge: submissions.filter((r) => !r.status || r.status === 'pending').length + physicalReqs.filter((r) => !r.status || r.status === 'pending').length,
-    },
-    { key: 'release', label: 'ID Release', badge: isSuperAdmin ? relPending.length : notified.length },
+    { key: 'verification', label: 'ID Verification', badge: submissions.filter(r => !r.status || r.status === 'pending').length + physicalReqs.filter(r => !r.status || r.status === 'pending').length },
+    { key: 'release',      label: 'ID Release',      badge: isSuperAdmin ? relPending.length : notified.length },
   ];
 
   const verifTabs = [
-    { key: 'submissions', label: 'OSCA ID Submissions', badge: submissions.filter((r) => !r.status || r.status === 'pending').length },
-    { key: 'physical', label: 'Physical ID Requests', badge: physicalReqs.filter((r) => !r.status || r.status === 'pending').length },
+    { key: 'submissions', label: 'OSCA ID Submissions',  badge: submissions.filter(r => !r.status || r.status === 'pending').length },
+    { key: 'physical',    label: 'Physical ID Requests', badge: physicalReqs.filter(r => !r.status || r.status === 'pending').length },
   ];
 
   const relTabs = [
-    ...(isSuperAdmin
-      ? [
-          { key: 'requests', label: 'ID Requests', badge: relPending.length },
-          { key: 'approved', label: 'Approved', badge: relApproved.length },
-          { key: 'released', label: 'Released', badge: 0 },
-        ]
-      : []),
+    ...(isSuperAdmin ? [
+      { key: 'requests',  label: 'ID Requests', badge: relPending.length },
+      { key: 'approved',  label: 'Approved',    badge: relApproved.length },
+      { key: 'released',  label: 'Released',    badge: 0 },
+    ] : []),
     ...(isSubAdmin ? [{ key: 'released', label: 'My Released IDs', badge: notified.length }] : []),
   ];
 
   return (
     <div className="p-8 max-w-5xl mx-auto relative">
+
+      {/* Toast */}
       {toast.msg && (
         <div className={`fixed top-6 right-6 z-50 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-fade-in ${toast.type === 'error' ? 'bg-red-600' : 'bg-gray-900'}`}>
           <CheckCircle2 size={16} className="text-green-400" />
           {toast.msg}
-          <button onClick={() => setToast({ msg: '', type: 'success' })}>
-            <X size={14} className="text-white/60 hover:text-white" />
-          </button>
+          <button onClick={() => setToast({ msg: '', type: 'success' })}><X size={14} className="text-white/60 hover:text-white" /></button>
         </div>
       )}
 
       {deleteTarget && <DeleteConfirmModal name={deleteTarget.name} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete} loading={deleting} />}
       {selected?.type === 'submission' && <OSCASubmissionModal record={selected.record} onClose={() => setSelected(null)} onDecision={handleDecision} processing={processing} />}
-      {selected?.type === 'physical' && <PhysicalIDModal record={selected.record} onClose={() => setSelected(null)} onDecision={handleDecision} processing={processing} />}
-      {detailRecord && <RequestDetailModal record={detailRecord} onClose={() => setDetailRecord(null)} onApprove={handleApprove} onReject={handleReject} processing={processing} />}
-      {releaseRecord && <ReleaseModal record={releaseRecord} onClose={() => setReleaseRecord(null)} onRelease={handleRelease} processing={processing} />}
+      {selected?.type === 'physical'   && <PhysicalIDModal     record={selected.record} onClose={() => setSelected(null)} onDecision={handleDecision} processing={processing} />}
+      {detailRecord  && <RequestDetailModal record={detailRecord}  onClose={() => setDetailRecord(null)}  onApprove={handleApprove} onReject={handleReject} processing={processing} />}
+      {releaseRecord && <ReleaseModal       record={releaseRecord} onClose={() => setReleaseRecord(null)} onRelease={handleRelease} processing={processing} />}
 
+      {/* Page header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <CreditCard size={24} className="text-[#0f52ba]" /> ID Management
@@ -1068,8 +890,9 @@ export default function IDManagement() {
         </p>
       </div>
 
+      {/* Top-level tabs */}
       <div className="flex gap-1 mb-8 bg-gray-100 p-1 rounded-xl w-fit">
-        {topTabs.map((t) => (
+        {topTabs.map(t => (
           <button
             key={t.key}
             onClick={() => setMainTab(t.key)}
@@ -1081,68 +904,62 @@ export default function IDManagement() {
         ))}
       </div>
 
+      {/* ═══ VERIFICATION PANEL ═══ */}
       {mainTab === 'verification' && (
         <>
+          {/* Stats */}
           {verifTab === 'submissions' ? (
             <div className="grid grid-cols-4 gap-4 mb-6">
-              <StatCard label="Pending Review" value={submissions.filter((r) => !r.status || r.status === 'pending').length} icon={ClockIcon} color="text-yellow-600" bg="bg-yellow-50" />
-              <StatCard label="Approved" value={submissions.filter((r) => r.status === 'approved').length} icon={CheckCircle2} color="text-green-600" bg="bg-green-50" />
-              <StatCard label="Rejected" value={submissions.filter((r) => r.status === 'rejected').length} icon={XCircle} color="text-red-600" bg="bg-red-50" />
-              <StatCard label="Total Submitted" value={submissions.length} icon={FileImage} color="text-blue-600" bg="bg-blue-50" />
+              <StatCard label="Pending Review"  value={submissions.filter(r => !r.status || r.status === 'pending').length} icon={ClockIcon}    color="text-yellow-600" bg="bg-yellow-50" />
+              <StatCard label="Approved"         value={submissions.filter(r => r.status === 'approved').length}             icon={CheckCircle2} color="text-green-600"  bg="bg-green-50"  />
+              <StatCard label="Rejected"         value={submissions.filter(r => r.status === 'rejected').length}             icon={XCircle}      color="text-red-600"    bg="bg-red-50"    />
+              <StatCard label="Total Submitted"  value={submissions.length}                                                  icon={FileImage}    color="text-blue-600"   bg="bg-blue-50"   />
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-4 mb-6">
-              <StatCard label="Pending" value={physicalReqs.filter((r) => !r.status || r.status === 'pending').length} icon={ClockIcon} color="text-yellow-600" bg="bg-yellow-50" />
-              <StatCard label="Approved" value={physicalReqs.filter((r) => r.status === 'approved').length} icon={CheckCircle2} color="text-green-600" bg="bg-green-50" />
-              <StatCard label="Rejected" value={physicalReqs.filter((r) => r.status === 'rejected').length} icon={XCircle} color="text-red-600" bg="bg-red-50" />
-              <StatCard label="Void/Incomplete" value={voidVerifReqs.length} icon={AlertTriangle} color="text-orange-600" bg="bg-orange-50" />
+              <StatCard label="Pending"          value={physicalReqs.filter(r => !r.status || r.status === 'pending').length} icon={ClockIcon}     color="text-yellow-600" bg="bg-yellow-50" />
+              <StatCard label="Approved"          value={physicalReqs.filter(r => r.status === 'approved').length}             icon={CheckCircle2}  color="text-green-600"  bg="bg-green-50"  />
+              <StatCard label="Rejected"          value={physicalReqs.filter(r => r.status === 'rejected').length}             icon={XCircle}       color="text-red-600"    bg="bg-red-50"    />
+              <StatCard label="Void/Incomplete"   value={voidVerifReqs.length}                                                 icon={AlertTriangle} color="text-orange-600" bg="bg-orange-50" />
             </div>
           )}
 
+          {/* Banners */}
           {verifTab === 'submissions' && repeatKeys.size > 0 && (
             <div className="flex items-center gap-2 mb-5 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-medium">
               <AlertTriangle size={14} className="text-orange-500 shrink-0" />
-              {repeatKeys.size} user{repeatKeys.size > 1 ? 's have' : ' has'} submitted <strong className="mx-1">multiple requests</strong>, highlighted in orange.
+              {repeatKeys.size} user{repeatKeys.size > 1 ? 's have' : ' has'} submitted <strong className="mx-1">multiple requests</strong> — highlighted in orange.
             </div>
           )}
           {verifTab === 'physical' && voidVerifReqs.length > 0 && (
             <div className="flex items-center gap-2 mb-5 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-medium">
               <AlertTriangle size={14} className="text-orange-500 shrink-0" />
-              <strong>{voidVerifReqs.length}</strong>&nbsp;request(s) are void: incomplete profile.
+              <strong>{voidVerifReqs.length}</strong>&nbsp;request(s) are void — incomplete profile.
             </div>
           )}
 
+          {/* Sub-tabs */}
           <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
-            {verifTabs.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => { setVerifTab(t.key); setVerifSearch(''); setFilterStatus('all'); }}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${verifTab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-              >
+            {verifTabs.map(t => (
+              <button key={t.key} onClick={() => { setVerifTab(t.key); setVerifSearch(''); setFilterStatus('all'); }}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${verifTab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                 {t.label}
                 {t.badge > 0 && <span className="ml-1.5 bg-[#0f52ba] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{t.badge}</span>}
               </button>
             ))}
           </div>
 
+          {/* Search + filter */}
           <div className="flex gap-3 mb-6">
             <div className="relative flex-1">
               <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by name or OSCA ID…"
-                value={verifSearch}
-                onChange={(e) => setVerifSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 bg-white"
-              />
+              <input type="text" placeholder="Search by name or OSCA ID…" value={verifSearch} onChange={e => setVerifSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 bg-white" />
             </div>
             <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-              {['all', 'pending', 'approved', 'rejected'].map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFilterStatus(f)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${filterStatus === f ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                >
+              {['all','pending','approved','rejected'].map(f => (
+                <button key={f} onClick={() => setFilterStatus(f)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${filterStatus === f ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                   {f}
                 </button>
               ))}
@@ -1150,57 +967,38 @@ export default function IDManagement() {
           </div>
 
           {loadingVerif ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 size={24} className="animate-spin text-blue-500" />
-            </div>
+            <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-blue-500" /></div>
           ) : (
             <>
               {verifPending.length > 0 && (
                 <div className="mb-6">
                   <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Pending Review ({verifPending.length})</h2>
                   <div className="space-y-3">
-                    {verifPending.map((r) => {
+                    {verifPending.map(r => {
                       const repeat = isRepeat(r);
                       const isVoid = verifTab === 'physical' && (r.isVoid || (!r.seniorName && !r.fullName && !r.seniorId));
-                      const rName = nameOf(r) || 'Unknown';
-                      const rId = idOf(r);
-                      const rDate = (verifTab === 'submissions' ? r.submittedAt?.toDate?.()?.toLocaleDateString?.() : r.createdAt?.toDate?.()?.toLocaleDateString?.()) || null;
+                      const rName  = nameOf(r) || 'Unknown';
+                      const rId    = idOf(r);
+                      const rDate  = (verifTab === 'submissions' ? r.submittedAt?.toDate?.()?.toLocaleDateString?.() : r.createdAt?.toDate?.()?.toLocaleDateString?.()) || null;
                       const noBday = !hasBirthday(r);
                       return (
-                        <div
-                          key={r.id}
-                          className={`rounded-2xl p-5 flex items-center justify-between border ${
-                            isVoid ? 'bg-gray-50 border-gray-200 opacity-60' : repeat ? 'bg-orange-50 border-orange-300 ring-1 ring-orange-200' : 'bg-white border-yellow-200'
-                          }`}
-                        >
+                        <div key={r.id} className={`rounded-2xl p-5 flex items-center justify-between border ${
+                          isVoid ? 'bg-gray-50 border-gray-200 opacity-60' :
+                          repeat ? 'bg-orange-50 border-orange-300 ring-1 ring-orange-200' : 'bg-white border-yellow-200'}`}>
                           <div className="flex items-start gap-3 flex-1 min-w-0">
                             {verifTab === 'submissions' ? (
-                              r.idImageUrl || r.imageBase64 ? (
-                                <img src={r.idImageUrl ?? `data:image/jpeg;base64,${r.imageBase64}`} alt="ID" className="w-16 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
-                              ) : (
-                                <div className="w-16 h-10 rounded-lg bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center shrink-0">
-                                  <FileImage size={14} className="text-gray-400" />
-                                </div>
-                              )
+                              (r.idImageUrl || r.imageBase64)
+                                ? <img src={r.idImageUrl ?? `data:image/jpeg;base64,${r.imageBase64}`} alt="ID" className="w-16 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+                                : <div className="w-16 h-10 rounded-lg bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center shrink-0"><FileImage size={14} className="text-gray-400" /></div>
                             ) : (
-                              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
-                                <FileText size={16} className="text-[#0f52ba]" />
-                              </div>
+                              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0"><FileText size={16} className="text-[#0f52ba]" /></div>
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-semibold text-gray-900">{rName}</p>
-                                {repeat && (
-                                  <span className="flex items-center gap-1 text-[10px] font-bold bg-orange-500 text-white px-2 py-0.5 rounded-full">
-                                    <AlertTriangle size={9} /> REPEAT
-                                  </span>
-                                )}
+                                {repeat && <span className="flex items-center gap-1 text-[10px] font-bold bg-orange-500 text-white px-2 py-0.5 rounded-full"><AlertTriangle size={9} /> REPEAT</span>}
                                 {isVoid && <span className="text-[10px] font-bold bg-gray-400 text-white px-2 py-0.5 rounded-full">VOID</span>}
-                                {noBday && !isVoid && (
-                                  <span className="text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
-                                    <AlertTriangle size={8} /> NO BIRTHDAY
-                                  </span>
-                                )}
+                                {noBday && !isVoid && <span className="text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle size={8} /> NO BIRTHDAY</span>}
                               </div>
                               <p className="text-xs text-gray-500 mt-0.5">
                                 {rId ? `OSCA ID: ${rId}` : ''}
@@ -1211,21 +1009,15 @@ export default function IDManagement() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2 ml-4 shrink-0">
-                            <StatusBadge status={isVoid ? 'void' : r.status || 'pending'} />
+                            <StatusBadge status={isVoid ? 'void' : (r.status || 'pending')} />
                             {!isVoid && (
-                              <button
-                                onClick={() => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' })}
-                                className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline"
-                              >
+                              <button onClick={() => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' })}
+                                className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline">
                                 <Eye size={14} /> Review
                               </button>
                             )}
-                            <button
-                              onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })}
-                              className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"
-                            >
-                              <Trash2 size={15} />
-                            </button>
+                            <button onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })}
+                              className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
                           </div>
                         </div>
                       );
@@ -1238,58 +1030,32 @@ export default function IDManagement() {
                 <div>
                   <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Reviewed ({verifReviewed.length})</h2>
                   <div className="space-y-2">
-                    {verifReviewed.map((r) => {
+                    {verifReviewed.map(r => {
                       const repeat = isRepeat(r);
-                      const rName = nameOf(r) || 'Unknown';
-                      const rId = idOf(r);
+                      const rName  = nameOf(r) || 'Unknown';
+                      const rId    = idOf(r);
                       return (
                         <div key={r.id} className={`rounded-2xl p-4 flex items-center justify-between border ${repeat ? 'bg-orange-50/60 border-orange-200' : 'bg-white border-gray-100'}`}>
                           <div className="flex items-center gap-3 flex-1 min-w-0">
-                            {verifTab === 'submissions' ? (
-                              r.idImageUrl || r.imageBase64 ? (
-                                <img src={r.idImageUrl ?? `data:image/jpeg;base64,${r.imageBase64}`} alt="ID" className="w-12 h-8 rounded-md object-cover border border-gray-200 shrink-0" />
-                              ) : (
-                                <div className="w-12 h-8 rounded-md bg-gray-100 flex items-center justify-center shrink-0">
-                                  <FileImage size={12} className="text-gray-300" />
-                                </div>
-                              )
-                            ) : (
-                              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
-                                <FileText size={13} className="text-gray-400" />
-                              </div>
-                            )}
+                            {verifTab === 'submissions'
+                              ? ((r.idImageUrl || r.imageBase64) ? <img src={r.idImageUrl ?? `data:image/jpeg;base64,${r.imageBase64}`} alt="ID" className="w-12 h-8 rounded-md object-cover border border-gray-200 shrink-0" /> : <div className="w-12 h-8 rounded-md bg-gray-100 flex items-center justify-center shrink-0"><FileImage size={12} className="text-gray-300" /></div>)
+                              : <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center shrink-0"><FileText size={13} className="text-gray-400" /></div>
+                            }
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-medium text-gray-800">{rName}</p>
-                                {repeat && (
-                                  <span className="flex items-center gap-1 text-[10px] font-bold bg-orange-400 text-white px-2 py-0.5 rounded-full">
-                                    <AlertTriangle size={9} /> REPEAT
-                                  </span>
-                                )}
-                                {r.verifiedVia === 'manual_override' && (
-                                  <span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">MANUAL CHECK</span>
-                                )}
+                                {repeat && <span className="flex items-center gap-1 text-[10px] font-bold bg-orange-400 text-white px-2 py-0.5 rounded-full"><AlertTriangle size={9} /> REPEAT</span>}
                               </div>
                               <p className="text-xs text-gray-400 mt-0.5">
                                 {rId ? `OSCA ID: ${rId}` : ''}
-                                {r.reviewedAt && ` · Reviewed ${r.reviewedAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}`}
+                                {r.reviewedAt && ` · Reviewed ${r.reviewedAt?.toDate?.()?.toLocaleDateString?.() || '—'}`}
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 ml-4 shrink-0">
                             <StatusBadge status={r.status} />
-                            <button
-                              onClick={() => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' })}
-                              className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#0f52ba]"
-                            >
-                              <Eye size={13} /> View
-                            </button>
-                            <button
-                              onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })}
-                              className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"
-                            >
-                              <Trash2 size={15} />
-                            </button>
+                            <button onClick={() => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' })} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#0f52ba]"><Eye size={13} /> View</button>
+                            <button onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
                           </div>
                         </div>
                       );
@@ -1309,44 +1075,40 @@ export default function IDManagement() {
         </>
       )}
 
+      {/* ═══ RELEASE PANEL ═══ */}
       {mainTab === 'release' && (
         <>
+          {/* Stats */}
           {isSuperAdmin && (
             <div className="grid grid-cols-4 gap-4 mb-6">
-              <StatCard label="Pending Requests" value={relPending.length} icon={ClockIcon} color="text-yellow-600" bg="bg-yellow-50" />
-              <StatCard label="Approved" value={relApproved.length} icon={CheckCircle2} color="text-green-600" bg="bg-green-50" />
-              <StatCard label="Released" value={relReleased.length} icon={Send} color="text-blue-600" bg="bg-blue-50" />
-              <StatCard label="Void / Incomplete" value={voidRelReqs.length} icon={AlertTriangle} color="text-orange-600" bg="bg-orange-50" />
+              <StatCard label="Pending Requests"  value={relPending.length}   icon={ClockIcon}     color="text-yellow-600" bg="bg-yellow-50" />
+              <StatCard label="Approved"           value={relApproved.length}  icon={CheckCircle2}  color="text-green-600"  bg="bg-green-50"  />
+              <StatCard label="Released"           value={relReleased.length}  icon={Send}          color="text-blue-600"   bg="bg-blue-50"   />
+              <StatCard label="Void / Incomplete"  value={voidRelReqs.length}  icon={AlertTriangle} color="text-orange-600" bg="bg-orange-50" />
             </div>
           )}
           {isSubAdmin && (
             <div className="grid grid-cols-3 gap-4 mb-6">
-              <StatCard label="Awaiting Pickup" value={notified.length} icon={Bell} color="text-purple-600" bg="bg-purple-50" />
-              <StatCard label="Collected" value={collected.length} icon={CheckCircle2} color="text-green-600" bg="bg-green-50" />
-              <StatCard label="Total Released" value={myReleased.length} icon={Package} color="text-blue-600" bg="bg-blue-50" />
+              <StatCard label="Awaiting Pickup" value={notified.length}   icon={Bell}         color="text-purple-600" bg="bg-purple-50" />
+              <StatCard label="Collected"        value={collected.length}  icon={CheckCircle2} color="text-green-600"  bg="bg-green-50"  />
+              <StatCard label="Total Released"   value={myReleased.length} icon={Package}      color="text-blue-600"   bg="bg-blue-50"   />
             </div>
           )}
 
+          {/* Search */}
           <div className="flex gap-3 mb-5">
             <div className="relative flex-1">
               <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by name or OSCA ID…"
-                value={relSearch}
-                onChange={(e) => setRelSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
-              />
+              <input type="text" placeholder="Search by name or OSCA ID…" value={relSearch} onChange={e => setRelSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white" />
             </div>
           </div>
 
+          {/* Sub-tabs */}
           <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
-            {relTabs.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setReleaseTab(t.key)}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${releaseTab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-              >
+            {relTabs.map(t => (
+              <button key={t.key} onClick={() => setReleaseTab(t.key)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${releaseTab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                 {t.label}
                 {t.badge > 0 && <span className="ml-1.5 bg-[#0f52ba] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{t.badge}</span>}
               </button>
@@ -1354,25 +1116,22 @@ export default function IDManagement() {
           </div>
 
           {loadingRel ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 size={24} className="animate-spin text-blue-500" />
-            </div>
+            <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-blue-500" /></div>
           ) : (
             <>
+              {/* ─ Pending requests (super admin) */}
               {releaseTab === 'requests' && isSuperAdmin && (
                 <div>
                   {voidRelReqs.length > 0 && (
                     <div className="mb-4 px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 flex items-start gap-2">
                       <AlertTriangle size={13} className="mt-0.5 text-orange-500 shrink-0" />
-                      <span>
-                        <strong>{voidRelReqs.length}</strong> request(s) are void: user did not complete sign-up.
-                      </span>
+                      <span><strong>{voidRelReqs.length}</strong> request(s) are void — user did not complete sign-up.</span>
                     </div>
                   )}
                   {relPending.length > 0 ? (
                     <div className="space-y-3">
                       <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Pending Requests ({relPending.length})</h2>
-                      {relPending.map((r) => {
+                      {relPending.map(r => {
                         const isVoid = r.isVoid || (!r.seniorName && !r.fullName && !r.seniorId);
                         const noBday = !hasBirthday(r);
                         return (
@@ -1381,11 +1140,7 @@ export default function IDManagement() {
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-semibold text-gray-900">{r.seniorName || r.fullName || 'Unknown'}</p>
                                 {isVoid && <span className="text-[10px] font-bold bg-gray-400 text-white px-2 py-0.5 rounded-full">VOID</span>}
-                                {noBday && !isVoid && (
-                                  <span className="text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
-                                    <AlertTriangle size={8} /> NO BIRTHDAY
-                                  </span>
-                                )}
+                                {noBday && !isVoid && <span className="text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle size={8} /> NO BIRTHDAY</span>}
                               </div>
                               <p className="text-xs text-gray-500 mt-0.5">
                                 {r.seniorId ? `OSCA ID: ${r.seniorId}` : ''}
@@ -1395,14 +1150,8 @@ export default function IDManagement() {
                             </div>
                             <div className="flex items-center gap-2 ml-4 shrink-0">
                               <StatusBadge status={isVoid ? 'void' : 'pending'} />
-                              {!isVoid && (
-                                <button onClick={() => setDetailRecord(r)} className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline">
-                                  <Eye size={14} /> Review
-                                </button>
-                              )}
-                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || 'Unknown', col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50">
-                                <Trash2 size={15} />
-                              </button>
+                              {!isVoid && <button onClick={() => setDetailRecord(r)} className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline"><Eye size={14} /> Review</button>}
+                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || 'Unknown', col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
                             </div>
                           </div>
                         );
@@ -1418,7 +1167,7 @@ export default function IDManagement() {
                     <div className="mt-6">
                       <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Rejected ({relRejected.length})</h2>
                       <div className="space-y-2">
-                        {relRejected.map((r) => (
+                        {relRejected.map(r => (
                           <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between opacity-60">
                             <div>
                               <p className="font-medium text-gray-800">{r.seniorName || r.fullName || 'Unknown'}</p>
@@ -1426,9 +1175,7 @@ export default function IDManagement() {
                             </div>
                             <div className="flex items-center gap-2">
                               <StatusBadge status="rejected" />
-                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || 'Unknown', col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50">
-                                <Trash2 size={15} />
-                              </button>
+                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || 'Unknown', col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
                             </div>
                           </div>
                         ))}
@@ -1438,6 +1185,7 @@ export default function IDManagement() {
                 </div>
               )}
 
+              {/* ─ Approved, ready to release (super admin) */}
               {releaseTab === 'approved' && isSuperAdmin && (
                 <div>
                   {relApproved.length > 0 ? (
@@ -1447,7 +1195,7 @@ export default function IDManagement() {
                         Click "Release" to do a final verification of the ID card before sending to the sub-admin.
                       </div>
                       <div className="space-y-3">
-                        {relApproved.map((r) => (
+                        {relApproved.map(r => (
                           <div key={r.id} className="bg-white border border-green-100 rounded-2xl p-5 flex items-center justify-between">
                             <div>
                               <p className="font-semibold text-gray-900">{r.seniorName || r.fullName || 'Unknown'}</p>
@@ -1475,18 +1223,19 @@ export default function IDManagement() {
                 </div>
               )}
 
+              {/* ─ Released (super admin view) */}
               {releaseTab === 'released' && isSuperAdmin && (
                 <div>
                   {relReleased.length > 0 ? (
                     <div className="space-y-2">
-                      {relReleased.map((r) => (
+                      {relReleased.map(r => (
                         <div key={r.id} className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center justify-between">
                           <div>
                             <p className="font-medium text-gray-800">{r.seniorName || r.fullName || 'Unknown'}</p>
                             <p className="text-xs text-gray-400">
                               {r.seniorId ? `OSCA ID: ${r.seniorId}` : ''}
                               {r.barangay ? ` · Brgy. ${r.barangay}` : ''}
-                              {r.releasedAt && ` · Released ${r.releasedAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}`}
+                              {r.releasedAt && ` · Released ${r.releasedAt?.toDate?.()?.toLocaleDateString?.() || '—'}`}
                             </p>
                           </div>
                           <StatusBadge status="released" />
@@ -1502,6 +1251,7 @@ export default function IDManagement() {
                 </div>
               )}
 
+              {/* ─ Sub-admin: My released IDs */}
               {releaseTab === 'released' && isSubAdmin && (
                 <div>
                   {notified.length > 0 && (
@@ -1512,7 +1262,7 @@ export default function IDManagement() {
                       </div>
                       <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Awaiting Pickup ({notified.length})</h2>
                       <div className="space-y-3">
-                        {notified.map((r) => (
+                        {notified.map(r => (
                           <div key={r.id} className="bg-white border border-purple-100 rounded-2xl p-5 flex items-center justify-between">
                             <div>
                               <p className="font-semibold text-gray-900">{r.seniorName || 'Unknown'}</p>
@@ -1520,15 +1270,12 @@ export default function IDManagement() {
                                 {r.seniorId ? `OSCA ID: ${r.seniorId}` : ''}
                                 {r.address ? ` · ${r.address}` : ''}
                               </p>
-                              {r.notifiedAt && <p className="text-xs text-purple-400 mt-0.5">Released: {r.notifiedAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>}
+                              {r.notifiedAt && <p className="text-xs text-purple-400 mt-0.5">Released: {r.notifiedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
                             </div>
                             <div className="flex items-center gap-2">
                               <StatusBadge status="notified" />
-                              <button
-                                disabled={processing}
-                                onClick={() => handleCollected(r.id)}
-                                className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors"
-                              >
+                              <button disabled={processing} onClick={() => handleCollected(r.id)}
+                                className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors">
                                 <CheckCircle2 size={12} /> Mark Collected
                               </button>
                             </div>
@@ -1541,11 +1288,11 @@ export default function IDManagement() {
                     <div>
                       <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Collected ({collected.length})</h2>
                       <div className="space-y-2">
-                        {collected.map((r) => (
+                        {collected.map(r => (
                           <div key={r.id} className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center justify-between opacity-70">
                             <div>
                               <p className="font-medium text-gray-700">{r.seniorName || 'Unknown'}</p>
-                              <p className="text-xs text-gray-400">Collected: {r.collectedAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>
+                              <p className="text-xs text-gray-400">Collected: {r.collectedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>
                             </div>
                             <StatusBadge status="collected" />
                           </div>

@@ -1,4 +1,3 @@
-// src/pages/EventCheckIn.jsx — new file
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   QrCode, Camera, CameraOff, CheckCircle2, XCircle, Search,
@@ -18,17 +17,14 @@ import { useAuth } from "../context/AuthContext";
 const READER_ELEMENT_ID = "scia-qr-reader";
 
 /**
- * Resolves whatever the scanned QR text turns out to be into a user uid.
- *
- * IMPORTANT: the mobile repo pushed to GitHub doesn't yet contain the QR
- * generation code shown in the dev chat (only "Fix Build" is on main), so
- * the exact payload format couldn't be confirmed against source. This
- * resolver tries the three most likely formats in order:
+ * Resolves a scanned QR code into a user uid. The mobile app's exact QR
+ * payload format isn't confirmed here, so this tries the three most
+ * likely formats in order:
  *   1. JSON payload with a `uid` field, e.g. {"uid":"abc123"}
  *   2. Raw text that IS a users/{uid} doc id (the plain-uid case)
  *   3. Raw text that matches a user's `idNumber` (OSCA ID) field instead
- * If your account QR turns out to encode something else, tell me the
- * exact string it produces and I'll tighten this to a single case.
+ * If scans consistently fail, log the raw scanned text to see which
+ * format it actually is and narrow this down to a single case.
  */
 async function resolveUidFromScan(rawText) {
   const text = (rawText || "").trim();
@@ -42,7 +38,7 @@ async function resolveUidFromScan(rawText) {
       if (snap.exists()) return snap.id;
     }
   } catch {
-    // not JSON — fall through
+    // not JSON, fall through
   }
 
   // 2) Raw uid
@@ -88,7 +84,7 @@ export default function EventCheckIn() {
     [events, selectedEventId]
   );
 
-  // ── Load joinable events ────────────────────────────────────────────────
+  // Load joinable events
   useEffect(() => {
     const q = query(
       collection(db, COLLECTIONS.EVENTS),
@@ -111,7 +107,7 @@ export default function EventCheckIn() {
     return () => unsub();
   }, [myBarangay]);
 
-  // ── Attendees list for the selected event ───────────────────────────────
+  // Attendees list for the selected event
   useEffect(() => {
     if (!selectedEventId) { setAttendees([]); return; }
     setAttendeesLoading(true);
@@ -134,15 +130,14 @@ export default function EventCheckIn() {
     return () => unsub();
   }, [selectedEventId]);
 
-  // ── Check a resolved uid into the currently selected event ──────────────
-  // Wraps a Firestore call with a hard timeout so a stalled request surfaces
-  // as a visible, logged failure instead of an infinite spinner. Temporary
-  // debugging aid — safe to remove once the root cause is confirmed.
+  // Check a resolved uid into the currently selected event.
+  // Wraps the Firestore call with a hard timeout so a stalled request
+  // surfaces as a visible, logged failure instead of an infinite spinner.
   const withTimeout = (promise, ms, label) =>
     Promise.race([
       promise.then((v) => { console.log(`[check-in] ${label} resolved`); return v; }),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`[check-in] ${label} timed out after ${ms}ms — request never came back`)), ms)
+        setTimeout(() => reject(new Error(`[check-in] ${label} timed out after ${ms}ms, request never came back`)), ms)
       ),
     ]);
 
@@ -186,7 +181,7 @@ export default function EventCheckIn() {
         10000,
         "updateDoc attendee/" + uid
       );
-      console.log("[check-in] done — success");
+      console.log("[check-in] done, success");
       setResult({ status: "success", name, uid, attendee });
     } catch (err) {
       console.error("[check-in] FAILED:", err.code || err.message, err);
@@ -214,7 +209,7 @@ export default function EventCheckIn() {
     setTimeout(() => { busyRef.current = false; }, 1500);
   }, [checkInUid]);
 
-  // ── Camera lifecycle ─────────────────────────────────────────────────────
+  // Camera lifecycle
   const startScanning = async () => {
     setScanError("");
     setResult(null);
@@ -226,7 +221,7 @@ export default function EventCheckIn() {
 
     const config = { fps: 10, qrbox: 260 };
     const onDecoded = (decodedText) => { handleDecodedText(decodedText); };
-    const onDecodeMiss = () => { /* per-frame decode miss — ignore, this fires constantly */ };
+    const onDecodeMiss = () => { /* per-frame decode miss, ignore, this fires constantly */ };
 
     let instance;
     try {
@@ -238,7 +233,7 @@ export default function EventCheckIn() {
         await instance.start({ facingMode: "environment" }, config, onDecoded, onDecodeMiss);
       } catch (envErr) {
         // Most laptops/desktops have no rear camera, so the constraint above
-        // fails immediately — fall back to whatever camera the browser has
+        // fails immediately, fall back to whatever camera the browser has
         // (front-facing webcam, external USB cam, etc.)
         console.warn("Rear camera unavailable, falling back to any camera:", envErr);
         const cameras = await Html5Qrcode.getCameras();
@@ -304,7 +299,6 @@ export default function EventCheckIn() {
         <p className="text-gray-500">Scan a senior's account QR to check them in to a joinable event.</p>
       </div>
 
-      {/* Event selector */}
       <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm mb-6">
         <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Event</label>
         {events.length === 0 ? (
@@ -330,7 +324,6 @@ export default function EventCheckIn() {
         )}
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-2 mb-6">
         <button
           onClick={() => setTab("scan")}
@@ -348,7 +341,6 @@ export default function EventCheckIn() {
 
       {tab === "scan" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Camera panel */}
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-900">Camera Scanner</h3>
@@ -386,7 +378,6 @@ export default function EventCheckIn() {
               </div>
             )}
 
-            {/* Manual fallback */}
             <form onSubmit={handleManualSubmit} className="mt-5 pt-5 border-t border-gray-100">
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                 Or enter code manually
@@ -406,7 +397,6 @@ export default function EventCheckIn() {
             </form>
           </div>
 
-          {/* Result panel */}
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
             <h3 className="font-bold text-gray-900 mb-4">Result</h3>
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { collection, query, orderBy, limit, doc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { X, Megaphone, ChevronRight, Pencil, Trash2, Save, Loader2 } from 'lucide-react';
+import { X, Megaphone, ChevronRight, Pencil, Trash2, Save, Loader2, AlertTriangle, ShieldAlert, Users, Activity, MapPin } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import mapOfValenzuela from '../assets/map_of_valenzuela.jpg';
@@ -322,7 +322,7 @@ export default function Dashboard() {
             title="Go to Live SOS Map"
           >
             <div className="flex justify-between items-center mb-4">
-              <span className="text-red-200">✱</span>
+              <AlertTriangle size={18} className="text-red-200" />
               <span className="bg-red-700 text-white px-2 py-0.5 rounded text-xs font-bold">IMMEDIATE</span>
             </div>
             <div className="text-red-100 text-sm font-medium">Active SOS Alerts</div>
@@ -334,8 +334,14 @@ export default function Dashboard() {
               <>
                 <div className="text-4xl font-bold mt-1">{String(activeSosCount).padStart(2, '0')}</div>
                 <div className="flex gap-3 mt-2">
-                  <span className="text-[10px] text-red-200 font-semibold">🔴 {pendingSosCount} Pending</span>
-                  <span className="text-[10px] text-red-200 font-semibold">🟠 {dispatchedCount} Dispatched</span>
+                  <span className="text-[10px] text-red-200 font-semibold inline-flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
+                    {pendingSosCount} Pending
+                  </span>
+                  <span className="text-[10px] text-red-200 font-semibold inline-flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-orange-400 inline-block" />
+                    {dispatchedCount} Dispatched
+                  </span>
                 </div>
               </>
             )}
@@ -347,7 +353,7 @@ export default function Dashboard() {
             title="Go to User Management"
           >
             <div className="flex justify-between items-center mb-4">
-              <span>🛡</span>
+              <ShieldAlert size={18} className="text-yellow-700" />
               <span className="bg-yellow-300 text-yellow-900 px-2 py-0.5 rounded text-xs font-bold">QUEUE</span>
             </div>
             <div className="text-yellow-800 text-sm font-medium">Pending Verifications</div>
@@ -369,7 +375,7 @@ export default function Dashboard() {
             title="Go to User Management"
           >
             <div className="flex justify-between items-center mb-4">
-              <span>👥</span>
+              <Users size={18} className="text-gray-400" />
               {usersLoading ? (
                 <Loader2 size={14} className="animate-spin text-gray-400" />
               ) : (
@@ -391,7 +397,7 @@ export default function Dashboard() {
 
           <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between">
             <div className="flex justify-between items-center mb-4">
-              <span>📊</span>
+              <Activity size={18} className="text-gray-400" />
               <span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded">99.9% Up</span>
             </div>
             <div className="text-gray-500 text-sm font-medium">System Load</div>
@@ -485,12 +491,13 @@ export default function Dashboard() {
                 <div className="flex justify-between items-center">
                   <div>
                     <div className="text-[10px] text-gray-400 font-bold tracking-wider uppercase mb-0.5">Active SOS Region</div>
-                    <div className="text-sm font-bold text-gray-900">
+                    <div className="text-sm font-bold text-gray-900 inline-flex items-center gap-1">
+                      <MapPin size={14} className="text-gray-400 shrink-0" />
                       {sosLoading
                         ? '...'
                         : latestActiveAlert
-                          ? `📍 ${latestActiveAlert.barangay ?? latestActiveAlert.address ?? 'Unknown location'}`
-                          : '📍 No active alerts'}
+                          ? (latestActiveAlert.barangay ?? latestActiveAlert.address ?? 'Unknown location')
+                          : 'No active alerts'}
                     </div>
                   </div>
                   <span className="bg-red-100 text-red-700 px-2.5 py-1 rounded-md text-xs font-bold">

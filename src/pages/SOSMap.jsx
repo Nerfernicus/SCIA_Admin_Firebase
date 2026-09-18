@@ -193,7 +193,6 @@ export default function SOSMap() {
   return (
     <div className="flex-1 flex flex-col h-screen overflow-hidden font-sans bg-white">
 
-      {/* Toast */}
       {toast && (
         <div className={`fixed top-6 right-6 z-[9999] text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 ${
           toastType === 'error' ? 'bg-red-600' : 'bg-gray-900'
@@ -207,7 +206,6 @@ export default function SOSMap() {
         </div>
       )}
 
-      {/* Delete modal */}
       {deleteTarget && (
         <DeleteConfirmModal
           alert={deleteTarget}
@@ -227,7 +225,6 @@ export default function SOSMap() {
 
       <div className="relative flex-1 w-full bg-blue-50/20">
 
-        {/* Map */}
         <div className="absolute inset-0 z-0">
           <MapContainer center={mapCenter} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
             <TileLayer
@@ -268,7 +265,6 @@ export default function SOSMap() {
           </MapContainer>
         </div>
 
-        {/* Locate me button */}
         <div className="absolute bottom-8 left-6 flex flex-col gap-3 z-[1000]">
           <button onClick={handleLocateMe} disabled={isLocating}
             className={`bg-white/90 backdrop-blur p-3 rounded-2xl shadow-lg border border-gray-100 transition-colors ${
@@ -278,10 +274,8 @@ export default function SOSMap() {
           </button>
         </div>
 
-        {/* Alerts panel */}
         <div className="absolute top-6 right-6 w-100 max-h-[calc(100vh-200px)] overflow-y-auto bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border border-white p-5 z-[1000] hidden sm:block hide-scrollbar">
 
-          {/* Panel header */}
           <div className="flex justify-between items-start mb-4">
             <div>
               <h2 className="text-xl font-bold text-gray-900">Live Alerts</h2>
@@ -301,7 +295,6 @@ export default function SOSMap() {
             </div>
           </div>
 
-          {/* Repeat warning */}
           {repeatKeys.size > 0 && (
             <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-medium">
               <AlertTriangle size={12} className="text-orange-500 shrink-0" />
@@ -309,7 +302,6 @@ export default function SOSMap() {
             </div>
           )}
 
-          {/* History toggle */}
           {resolvedAlerts.length > 0 && (
             <button
               onClick={() => setShowHistory(h => !h)}
@@ -350,7 +342,6 @@ export default function SOSMap() {
                           : 'bg-yellow-50 border-yellow-200'
                   }`}
                 >
-                  {/* Delete button */}
                   <button
                     onClick={() => setDeleteTarget(alert)}
                     title="Delete alert"

@@ -11,7 +11,6 @@ import {
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 
-// ── Static 3S Health Centers ─────────────────────────────────────────────────
 // "3S Centers" (Serbisyo sa Senior Sitizen) are barangay-based senior services
 // centers in Valenzuela City. These are fixed, not dynamic. Each carries a
 // `barangay` field matching the barangay list used across the app (Sidebar /
@@ -60,7 +59,6 @@ const GEN_T_CENTERS = [
 const APPOINTMENT_STATUSES = ['pending', 'confirmed', 'completed', 'cancelled'];
 const MEDICATION_STATUSES   = ['active', 'completed', 'discontinued'];
 
-// ── Appointment Row ───────────────────────────────────────────────────────────
 function AppointmentRow({ appt, onUpdate }) {
     const [loading, setLoading] = useState(false);
 
@@ -125,7 +123,6 @@ function AppointmentRow({ appt, onUpdate }) {
     );
 }
 
-// ── Medication Row ────────────────────────────────────────────────────────────
 function MedicationRow({ med, onUpdate }) {
     const [loading, setLoading] = useState(false);
 
@@ -174,7 +171,7 @@ function MedicationRow({ med, onUpdate }) {
     );
 }
 
-// ── Add Appointment Modal ────────────────────────────────────────────────────
+// Add Appointment Modal
 function AddAppointmentModal({ centerId, centerName, onClose }) {
     const [patientName, setPatientName] = useState('');
     const [date, setDate]               = useState('');
@@ -236,7 +233,7 @@ function AddAppointmentModal({ centerId, centerName, onClose }) {
     );
 }
 
-// ── Add Medication Modal ─────────────────────────────────────────────────────
+// Add Medication Modal
 function AddMedicationModal({ centerId, centerName, onClose }) {
     const [patientName,    setPatientName]    = useState('');
     const [medicationName, setMedicationName] = useState('');
@@ -294,7 +291,7 @@ function AddMedicationModal({ centerId, centerName, onClose }) {
     );
 }
 
-// ── Center Detail Panel ──────────────────────────────────────────────────────
+// Center Detail Panel
 function CenterDetail({ center, onClose }) {
     const [tab, setTab]                   = useState('appointments');
     const [appointments, setAppointments] = useState([]);
@@ -339,7 +336,6 @@ function CenterDetail({ center, onClose }) {
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
             <div className="relative ml-auto w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col overflow-hidden z-10">
 
-                {/* Header */}
                 <div className="relative h-44 shrink-0 overflow-hidden">
                     <img src={center.imgUrl} alt={center.name}
                         className="w-full h-full object-cover"
@@ -361,7 +357,6 @@ function CenterDetail({ center, onClose }) {
                     </div>
                 </div>
 
-                {/* Info strip */}
                 <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 grid grid-cols-3 gap-3 shrink-0">
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Head Official</p>
@@ -377,7 +372,6 @@ function CenterDetail({ center, onClose }) {
                     </div>
                 </div>
 
-                {/* Services */}
                 <div className="px-5 py-3 border-b border-gray-100 shrink-0">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Services</p>
                     <div className="flex flex-wrap gap-1.5">
@@ -387,7 +381,6 @@ function CenterDetail({ center, onClose }) {
                     </div>
                 </div>
 
-                {/* Tabs */}
                 <div className="flex border-b border-gray-100 shrink-0">
                     <button onClick={() => setTab('appointments')}
                         className={`flex-1 py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
@@ -413,7 +406,6 @@ function CenterDetail({ center, onClose }) {
                     </button>
                 </div>
 
-                {/* Tab content */}
                 <div className="flex-1 overflow-y-auto p-5">
                     {tab === 'appointments' && (
                         <div>
@@ -477,7 +469,7 @@ function CenterDetail({ center, onClose }) {
     );
 }
 
-// ── Main Page ────────────────────────────────────────────────────────────────
+// Main Page
 export default function HealthCenters() {
     const { adminData } = useAuth();
     // null for OSCA + the generic sub_admin (oversees every barangay)
@@ -517,13 +509,12 @@ export default function HealthCenters() {
     return (
         <div className="flex-1 bg-[#f8f9fa] min-h-screen p-8 font-sans">
 
-            {/* Header — NO duplicate bell/settings/avatar */}
+            {/* No bell/settings/avatar here — already in the layout header */}
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Health Centers</h1>
                 <p className="text-gray-500">Manage 3S Centers, appointments, and medications for senior citizens.</p>
             </div>
 
-            {/* KPI Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-50">
                     <div className="flex justify-between items-start mb-4">
@@ -569,7 +560,6 @@ export default function HealthCenters() {
                 {visibleCenters.map(center => (
                     <div key={center.id} className="bg-white rounded-3xl shadow-sm border border-gray-50 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
 
-                        {/* Center Image */}
                         <div className="relative h-44 overflow-hidden bg-gray-100">
                             <img
                                 src={center.imgUrl}
@@ -578,7 +568,6 @@ export default function HealthCenters() {
                                 onError={e => { e.target.src = 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600&q=80'; }}
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                            {/* Barangay badge */}
                             <div className="absolute top-3 left-3">
                                 <span className="bg-white text-[#0f52ba] text-[10px] font-bold uppercase px-2.5 py-1 rounded-full shadow-sm">
                                     Brgy. {center.barangay} · 3S
@@ -596,7 +585,6 @@ export default function HealthCenters() {
                             </div>
                         </div>
 
-                        {/* Content */}
                         <div className="p-5 flex-1 flex flex-col">
                             <p className="text-gray-500 text-sm flex items-center gap-1.5 mb-4">
                                 <MapPin size={13} className="text-gray-400" /> {center.location}

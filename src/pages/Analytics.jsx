@@ -263,7 +263,11 @@ export default function Analytics() {
   const [trendLoading, setTrendLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+    let firstLoad = true;
+
     async function loadStats() {
+      if (firstLoad) setLoading(true);
       try {
         const queries = [
           countDocs('editorial_health', ...(myBarangay ? [where('barangay', '==', myBarangay)] : [])),
@@ -282,14 +286,27 @@ export default function Analytics() {
 
         const results = await Promise.all(queries);
         const [announcements, sosEvents, healthCenters, totalUsers, activeUsers, pendingIDs, approvedIDs] = results;
-        setStats({ announcements, sosEvents, healthCenters, totalUsers, activeUsers, pendingIDs, approvedIDs });
+        if (!cancelled) {
+          setStats({ announcements, sosEvents, healthCenters, totalUsers, activeUsers, pendingIDs, approvedIDs });
+        }
       } catch (err) {
         console.error(err);
       } finally {
-        setLoading(false);
+        if (!cancelled && firstLoad) {
+          setLoading(false);
+          firstLoad = false;
+        }
       }
     }
+
     loadStats();
+    // Re-poll the lightweight count queries every 60s so the numbers on this
+    // page stay live without a manual refresh or a full-page reload flicker.
+    const interval = setInterval(loadStats, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [isSuperAdmin, myBarangay]);
 
   useEffect(() => {
@@ -338,7 +355,17 @@ export default function Analytics() {
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <BarChart3 size={24} className="text-[#0f52ba]" /> Analytics & Reports
           </h1>
-          <p className="text-sm text-gray-500 mt-1">{pageSub}</p>
+          <p className="text-sm text-gray-500 mt-1 flex items-center gap-1.5">
+            {pageSub}
+            <span className="inline-flex items-center gap-1 text-gray-400">
+              <span className="text-gray-300">&middot;</span>
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0f52ba] opacity-50" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#0f52ba]" />
+              </span>
+              live
+            </span>
+          </p>
         </div>
         <PeriodToggle value={period} onChange={setPeriod} />
       </div>
@@ -376,8 +403,8 @@ export default function Analytics() {
               <DonutChart
                 title="ID Verification Status"
                 segments={[
-                  { label: 'Approved', value: stats.approvedIDs, color: '#22c55e' },
-                  { label: 'Pending', value: stats.pendingIDs, color: '#eab308' },
+                  { label: 'Approved', value: stats.approvedIDs, color: '#0f52ba' },
+                  { label: 'Pending', value: stats.pendingIDs, color: '#f59e0b' },
                 ]}
               />
             ) : (
@@ -385,8 +412,8 @@ export default function Analytics() {
                 title="Activity Mix"
                 segments={[
                   { label: 'SOS Events', value: stats?.sosEvents ?? 0, color: '#ef4444' },
-                  { label: 'Announcements', value: stats?.announcements ?? 0, color: '#a855f7' },
-                  { label: 'Health Centers', value: stats?.healthCenters ?? 0, color: '#14b8a6' },
+                  { label: 'Announcements', value: stats?.announcements ?? 0, color: '#5b8fdb' },
+                  { label: 'Health Centers', value: stats?.healthCenters ?? 0, color: '#0b3d91' },
                 ]}
               />
             )}
@@ -398,7 +425,7 @@ export default function Analytics() {
               label="Announcements"
               value={stats?.announcements}
               sub={activitySub}
-              gradient="bg-gradient-to-br from-purple-500 to-purple-600"
+              gradient="bg-gradient-to-br from-[#3d74c9] to-[#5b8fdb]"
             />
             <GradientStatCard
               icon={Map}
@@ -412,7 +439,7 @@ export default function Analytics() {
               label="Health Centers"
               value={stats?.healthCenters}
               sub="Listed facilities"
-              gradient="bg-gradient-to-br from-teal-500 to-teal-600"
+              gradient="bg-gradient-to-br from-[#0a2f6b] to-[#0f52ba]"
             />
             {isSuperAdmin ? (
               <GradientStatCard
@@ -446,9 +473,9 @@ export default function Analytics() {
             <CategoryBarChart
               title="Activity by Category"
               bars={[
-                { label: 'Announcements', value: stats?.announcements ?? 0, color: '#a855f7' },
+                { label: 'Announcements', value: stats?.announcements ?? 0, color: '#5b8fdb' },
                 { label: 'SOS Events', value: stats?.sosEvents ?? 0, color: '#ef4444' },
-                { label: 'Health Centers', value: stats?.healthCenters ?? 0, color: '#14b8a6' },
+                { label: 'Health Centers', value: stats?.healthCenters ?? 0, color: '#0b3d91' },
               ]}
             />
           </div>
@@ -464,7 +491,7 @@ export default function Analytics() {
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <TrendChart title="SOS Events" points={trend?.sosTrend ?? []} color="#ef4444" />
-                <TrendChart title="Announcements" points={trend?.announcementsTrend ?? []} color="#a855f7" />
+                <TrendChart title="Announcements" points={trend?.announcementsTrend ?? []} color="#5b8fdb" />
               </div>
             )}
           </div>

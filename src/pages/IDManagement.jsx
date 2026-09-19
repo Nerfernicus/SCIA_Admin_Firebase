@@ -1,18 +1,3 @@
-/**
- * IDManagement.jsx — Unified ID Module
- *
- * Single file combining IDVerification + IDRelease into one page with top-level tabs:
- *   1. ID Verification   (OSCA submissions + Physical ID requests)
- *   2. ID Release        (Super admin: approve/release · Sub-admin: distribute)
- *
- * Key rules enforced:
- *  • "Birthday not on record" → Approve button is DISABLED in both verification modals
- *  • "Birthday not on record" → Release button is DISABLED in the Release modal
- *  • Barangay field shown in Physical ID verification modal
- *
- * Replaces: IDVerification.jsx, IDRelease.jsx
- */
-
 import React, { useEffect, useState } from 'react';
 import {
   ShieldCheck, Clock as ClockIcon, CheckCircle2, XCircle, Eye,
@@ -669,8 +654,8 @@ export default function IDManagement() {
           <CreditCard size={24} className="text-[#0f52ba]" /> ID Management
         </h1>
         <p className="text-sm text-gray-500 mt-1 flex items-center gap-1.5">
-          <Globe size={13} className="text-[#0f52ba]" />
-          Live NCSC verification · Birthday required to approve or release
+          <ShieldCheck size={13} className="text-[#0f52ba]" />
+          Review and manage senior citizen ID verifications and releases
         </p>
       </div>
 

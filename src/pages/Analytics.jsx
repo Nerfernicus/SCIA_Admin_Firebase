@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BarChart3, Users, ShieldCheck, Megaphone, Map, Building2, Loader2 } from 'lucide-react';
+import { BarChart3, Users, ShieldCheck, Megaphone, Map, Building2, Loader2, X } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, getCountFromServer, getDocs, query, where } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
@@ -29,18 +29,24 @@ function PeriodToggle({ value, onChange }) {
   );
 }
 
-// Gradient tile in the app's existing per-metric colors (same hues used by
-// the old white StatCards — purple for announcements, red for SOS, etc.)
-function GradientStatCard({ icon: Icon, label, value, sub, gradient }) {
+// Gradient tile in the app's existing per-metric colors. Clickable when
+// onClick is passed — opens the DetailModal for that metric.
+function GradientStatCard({ icon: Icon, label, value, sub, gradient, onClick }) {
+  const Wrapper = onClick ? 'button' : 'div';
   return (
-    <div className={`rounded-2xl p-5 text-white shadow-lg ${gradient}`}>
+    <Wrapper
+      onClick={onClick}
+      className={`rounded-2xl p-5 text-white shadow-lg text-left w-full ${gradient} ${
+        onClick ? 'cursor-pointer hover:brightness-110 hover:-translate-y-0.5 transition-all' : ''
+      }`}
+    >
       <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center mb-3">
         <Icon size={16} className="text-white" />
       </div>
       <p className="text-2xl font-bold">{value ?? 'N/A'}</p>
       <p className="text-xs text-white/85 mt-0.5">{label}</p>
       {sub && <p className="text-[11px] text-white/60 mt-1">{sub}</p>}
-    </div>
+    </Wrapper>
   );
 }
 
@@ -173,6 +179,171 @@ function TrendChart({ title, points, color = '#0f52ba' }) {
   );
 }
 
+// Compact trend chart used inside DetailModal (no card wrapper, since it's
+// already inside one).
+function MiniTrend({ points, color }) {
+  const max = Math.max(...points.map((p) => p.value), 1);
+  return (
+    <div className="flex items-end gap-1.5 h-24">
+      {points.map((p, i) => (
+        <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+          <span className="text-[9px] text-gray-400">{p.value}</span>
+          <div className="w-full flex items-end h-16 bg-gray-50 rounded overflow-hidden">
+            <div className="w-full rounded-t" style={{ height: `${Math.max((p.value / max) * 100, p.value > 0 ? 6 : 0)}%`, background: color }} />
+          </div>
+          <span className="text-[9px] text-gray-400">{p.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// What each clickable stat tile drills into: its Firestore collection, and
+// the icon/color to reuse for a consistent look with the tile itself.
+const DETAIL_META = {
+  announcements: { label: 'Announcements', collectionName: 'editorial_health', icon: Megaphone, iconBg: 'bg-[#eaf1fb]', iconColor: 'text-[#3d74c9]', color: '#5b8fdb' },
+  sos: { label: 'SOS Events', collectionName: 'emergencies', icon: Map, iconBg: 'bg-red-50', iconColor: 'text-red-500', color: '#ef4444' },
+  health: { label: 'Health Centers', collectionName: 'health_centers', icon: Building2, iconBg: 'bg-[#eaf1fb]', iconColor: 'text-[#0f52ba]', color: '#0b3d91' },
+  users: { label: 'Active Users', collectionName: 'users', icon: Users, iconBg: 'bg-amber-50', iconColor: 'text-amber-500', color: '#f59e0b' },
+};
+
+// Detail popup for a clicked stat tile. Barangay admins only ever see their
+// own barangay's records (the collection query itself is scoped), so no
+// per-barangay breakdown is shown for them — OSCA (super admin) sees every
+// barangay and gets a citywide breakdown bar for comparison.
+function DetailModal({ type, onClose, isSuperAdmin, myBarangay, period, periodMeta }) {
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(null);
+  const meta = type ? DETAIL_META[type] : null;
+
+  useEffect(() => {
+    if (!type) return;
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      try {
+        const ref = collection(db, meta.collectionName);
+        const conditions = myBarangay ? [where('barangay', '==', myBarangay)] : [];
+        const q = conditions.length ? query(ref, ...conditions) : ref;
+        const snap = await getDocs(q);
+
+        const statusCounts = {};
+        const barangayCounts = {};
+        snap.forEach((doc) => {
+          const d = doc.data();
+          if (d.status) {
+            const s = String(d.status).toLowerCase();
+            statusCounts[s] = (statusCounts[s] || 0) + 1;
+          }
+          if (isSuperAdmin && d.barangay) {
+            barangayCounts[d.barangay] = (barangayCounts[d.barangay] || 0) + 1;
+          }
+        });
+
+        const trendPoints = await fetchTrend(meta.collectionName, period, myBarangay);
+
+        if (!cancelled) setData({ total: snap.size, statusCounts, barangayCounts, trendPoints });
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setData({ total: 0, statusCounts: {}, barangayCounts: {}, trendPoints: [] });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [type, myBarangay, period, isSuperAdmin, meta]);
+
+  if (!type) return null;
+
+  const Icon = meta.icon;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${meta.iconBg}`}>
+              <Icon size={18} className={meta.iconColor} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">{meta.label}</h2>
+              <p className="text-xs text-gray-400">{myBarangay ? `Brgy. ${myBarangay}` : 'Citywide'}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="py-16 flex items-center justify-center">
+            <Loader2 size={24} className="animate-spin text-[#0f52ba]" />
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div>
+              <p className="text-3xl font-bold text-gray-900">{data.total}</p>
+              <p className="text-xs text-gray-400">Total records</p>
+            </div>
+
+            {Object.keys(data.statusCounts).length > 0 && (
+              <div>
+                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">By Status</h3>
+                <div className="space-y-2.5">
+                  {Object.entries(data.statusCounts).map(([status, count]) => (
+                    <div key={status}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="capitalize text-gray-600 font-medium">{status}</span>
+                        <span className="font-semibold text-gray-900">{count}</span>
+                      </div>
+                      <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${(count / data.total) * 100}%`, background: meta.color }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {isSuperAdmin && Object.keys(data.barangayCounts).length > 0 && (
+              <div>
+                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">By Barangay</h3>
+                <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
+                  {Object.entries(data.barangayCounts)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([brgy, count]) => (
+                      <div key={brgy}>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="text-gray-600 font-medium">{brgy}</span>
+                          <span className="font-semibold text-gray-900">{count}</span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full bg-[#0f52ba]" style={{ width: `${(count / data.total) * 100}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
+                Trend &middot; {periodMeta.sub}
+              </h3>
+              <MiniTrend points={data.trendPoints} color={meta.color} />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function countDocs(collectionName, ...conditions) {
   const ref = collection(db, collectionName);
   const q = conditions.length ? query(ref, ...conditions) : ref;
@@ -261,6 +432,8 @@ export default function Analytics() {
   const [period, setPeriod] = useState('monthly');
   const [trend, setTrend] = useState(null);
   const [trendLoading, setTrendLoading] = useState(true);
+
+  const [activeDetail, setActiveDetail] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -426,6 +599,7 @@ export default function Analytics() {
               value={stats?.announcements}
               sub={activitySub}
               gradient="bg-gradient-to-br from-[#3d74c9] to-[#5b8fdb]"
+              onClick={() => setActiveDetail('announcements')}
             />
             <GradientStatCard
               icon={Map}
@@ -433,6 +607,7 @@ export default function Analytics() {
               value={stats?.sosEvents}
               sub={activitySub}
               gradient="bg-gradient-to-br from-red-500 to-red-600"
+              onClick={() => setActiveDetail('sos')}
             />
             <GradientStatCard
               icon={Building2}
@@ -440,6 +615,7 @@ export default function Analytics() {
               value={stats?.healthCenters}
               sub="Listed facilities"
               gradient="bg-gradient-to-br from-[#0a2f6b] to-[#0f52ba]"
+              onClick={() => setActiveDetail('health')}
             />
             {isSuperAdmin ? (
               <GradientStatCard
@@ -448,6 +624,7 @@ export default function Analytics() {
                 value={stats?.activeUsers}
                 sub={activeUserPercent !== null ? `${activeUserPercent}% of total` : undefined}
                 gradient="bg-gradient-to-br from-amber-400 to-amber-500"
+                onClick={() => setActiveDetail('users')}
               />
             ) : (
               <GradientStatCard
@@ -497,6 +674,15 @@ export default function Analytics() {
           </div>
         </>
       )}
+
+      <DetailModal
+        type={activeDetail}
+        onClose={() => setActiveDetail(null)}
+        isSuperAdmin={isSuperAdmin}
+        myBarangay={myBarangay}
+        period={period}
+        periodMeta={periodMeta}
+      />
     </div>
   );
 }

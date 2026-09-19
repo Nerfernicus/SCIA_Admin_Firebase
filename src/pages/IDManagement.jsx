@@ -13,111 +13,23 @@
  * Replaces: IDVerification.jsx, IDRelease.jsx
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ShieldCheck, Clock as ClockIcon, CheckCircle2, XCircle, Eye,
   Loader2, Trash2, AlertTriangle, X, User, Search, Database,
-  FileImage, RotateCcw, FileText, MapPin, Phone, CreditCard,
-  Globe, WifiOff, Send, Bell, Package, CalendarDays,
+  FileImage, FileText, MapPin, Phone, CreditCard,
+  Send, Bell, Package,
 } from 'lucide-react';
-import { db, functions } from '../lib/firebase';
-import { httpsCallable } from 'firebase/functions';
+import { db } from '../lib/firebase';
 import {
   collection, onSnapshot, query, orderBy, where,
-  doc, updateDoc, setDoc, deleteDoc, serverTimestamp,
+  doc, updateDoc, deleteDoc, serverTimestamp,
   getDocs, addDoc, getDoc,
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import OSCAIdCard from '../components/Oscaidcard';
 
-/* ─── Cloud Function ─────────────────────────────────────────────────────────── */
-const ncscVerifyFn = httpsCallable(functions, 'ncscVerify');
-
-/* ─── NCSC live verification ─────────────────────────────────────────────────── */
-async function runNCSCVerify(record) {
-  const rawName  = (record.fullName || record.seniorName || '').trim();
-  const lastName  = record.lastName   || record.surname       || '';
-  const firstName = record.firstName  || record.givenName     || '';
-  const middleName= record.middleName || record.middleInitial || '';
-
-  let ln = lastName, fn = firstName, mn = middleName;
-  if (!ln && rawName) {
-    if (rawName.includes(',')) {
-      const [l, rest] = rawName.split(',').map(s => s.trim());
-      ln = l;
-      const parts = rest.split(' ').filter(Boolean);
-      fn = parts[0] || '';
-      mn = parts.slice(1).join(' ');
-    } else {
-      const parts = rawName.split(' ').filter(Boolean);
-      fn = parts[0] || '';
-      mn = parts.length > 2 ? parts.slice(1, -1).join(' ') : '';
-      ln = parts[parts.length - 1] || '';
-    }
-  }
-
-  const dob = record.dob || record.dateOfBirth || record.birthday || '';
-  let month = '', day = '';
-  if (dob) {
-    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sept','Oct','Nov','Dec'];
-    const isoMatch   = dob.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    const slashMatch = dob.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    const textMatch  = dob.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
-    if (isoMatch)   { month = monthNames[parseInt(isoMatch[2],10)-1]||'';  day = String(parseInt(isoMatch[3],10)); }
-    else if (slashMatch) { month = monthNames[parseInt(slashMatch[1],10)-1]||''; day = String(parseInt(slashMatch[2],10)); }
-    else if (textMatch)  { month = textMatch[1].charAt(0).toUpperCase()+textMatch[1].slice(1,3).toLowerCase(); day = String(parseInt(textMatch[2],10)); }
-  }
-
-  if (!ln || !fn) {
-    return runLocalNCSIDCheck(record);
-  }
-
-  // If birthday is missing, we can only do a name-only check — returns special status
-  if (!month || !day) {
-    try {
-      // Try name-only by passing empty month/day — server may still match by name
-      const result = await ncscVerifyFn({ lastName: ln, firstName: fn, middleName: mn, month: '', day: '' });
-      const { found, error } = result.data;
-      if (error === 'ncsc_unreachable') return 'unreachable';
-      // Even if found by name, birthday wasn't verified — use special status
-      return found ? 'found_name_only' : 'not_found';
-    } catch (err) {
-      return runLocalNCSIDCheck(record);
-    }
-  }
-
-  try {
-    const result = await ncscVerifyFn({ lastName: ln, firstName: fn, middleName: mn, month, day });
-    const { found, error } = result.data;
-    if (error === 'ncsc_unreachable') return 'unreachable';
-    return found ? 'found' : 'not_found';
-  } catch (err) {
-    return runLocalNCSIDCheck(record);
-  }
-}
-
-async function runLocalNCSIDCheck(record) {
-  try {
-    let found = false;
-    const idNum = record.idNumber || record.seniorId || record.controlNumber;
-    if (idNum) {
-      const q = await getDocs(query(collection(db, 'users'), where('oscaId', '==', idNum)));
-      if (!q.empty) found = true;
-    }
-    if (!found && (record.fullName || record.seniorName)) {
-      const name = (record.fullName || record.seniorName || '').trim().toUpperCase();
-      const q = await getDocs(query(collection(db, 'users'), where('fullNameUpper', '==', name)));
-      if (!q.empty) found = true;
-    }
-    if (!found && record.uid) {
-      const q = await getDocs(query(collection(db, 'users'), where('uid', '==', record.uid)));
-      if (!q.empty) found = true;
-    }
-    return found ? 'found' : 'not_found';
-  } catch (e) { return 'not_found'; }
-}
-
-/* ─── Helpers ────────────────────────────────────────────────────────────────── */
+/* Helpers */
 const hasBirthday = r => !!(r.dob || r.dateOfBirth || r.birthday);
 
 /* ─── Status Badge ───────────────────────────────────────────────────────────── */
@@ -136,84 +48,16 @@ const StatusBadge = ({ status }) => {
   return <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${cls}`}>{label}</span>;
 };
 
-/* ─── NCSC status indicator ──────────────────────────────────────────────────── */
-function NCSCStatusBadge({ status }) {
-  if (status === 'checking')        return <span className="flex items-center gap-1 text-xs text-blue-600 font-medium"><Loader2 size={11} className="animate-spin" /> Checking NCSC…</span>;
-  if (status === 'found')           return <span className="flex items-center gap-1 text-xs text-green-700 font-semibold bg-green-50 px-2 py-0.5 rounded-full"><CheckCircle2 size={11} /> Registered in NCSC</span>;
-  if (status === 'found_name_only') return <span className="flex items-center gap-1 text-xs text-orange-600 font-semibold bg-orange-50 px-2 py-0.5 rounded-full"><AlertTriangle size={11} /> Name Found — Birthday Unverified</span>;
-  if (status === 'not_found')       return <span className="flex items-center gap-1 text-xs text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded-full"><XCircle size={11} /> NOT Registered in NCSC</span>;
-  if (status === 'unreachable')     return <span className="flex items-center gap-1 text-xs text-orange-600 font-semibold bg-orange-50 px-2 py-0.5 rounded-full"><WifiOff size={11} /> NCSC Unreachable</span>;
-  return null;
-}
-
-/* ─── NCSC Banner ────────────────────────────────────────────────────────────── */
-function NCSCBanner({ status, onRecheck, missingBirthday }) {
-  const bannerCls =
-    status === 'found'            ? 'bg-green-50 border-green-200' :
-    status === 'found_name_only'  ? 'bg-orange-50 border-orange-300' :
-    status === 'not_found'        ? 'bg-red-50 border-red-300' :
-    status === 'unreachable'      ? 'bg-orange-50 border-orange-200' :
-    'bg-blue-50 border-blue-100';
-  const iconCls =
-    status === 'found'            ? 'text-green-600' :
-    status === 'found_name_only'  ? 'text-orange-500' :
-    status === 'not_found'        ? 'text-red-500' :
-    status === 'unreachable'      ? 'text-orange-500' :
-    'text-blue-500';
-
-  return (
-    <>
-      <div className={`rounded-xl px-4 py-3 mb-4 flex items-center justify-between border ${bannerCls}`}>
-        <div className="flex items-center gap-2">
-          <Globe size={14} className={iconCls} />
-          <span className="text-xs font-semibold text-gray-700">NCSC Live Registration Check</span>
-        </div>
-        <NCSCStatusBadge status={status} />
-        <button onClick={onRecheck} title="Re-check" className="ml-2 text-gray-400 hover:text-gray-600">
-          <RotateCcw size={12} />
-        </button>
-      </div>
-
-      {status === 'found_name_only' && (
-        <div className="mb-4 px-4 py-2.5 bg-orange-50 border border-orange-300 rounded-xl text-xs text-orange-700 font-semibold flex items-start gap-2">
-          <AlertTriangle size={13} className="text-orange-500 mt-0.5 shrink-0" />
-          <span>
-            <strong>Cannot approve</strong> — NCSC found this senior by name only. Birthday is missing so full verification could not be completed. Please update the senior's birthday before approving.
-          </span>
-        </div>
-      )}
-      {status === 'not_found' && (
-        <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
-          <AlertTriangle size={13} className="text-red-500 mt-0.5 shrink-0" />
-          <span>
-            <strong>Cannot approve</strong> —{' '}
-            {missingBirthday
-              ? 'name and birthday are not registered in NCSC. Please update the senior\'s birthday and verify their identity before approving.'
-              : 'this senior\'s name and birthday were not found in NCSC records. Please verify their identity before approving.'}
-          </span>
-        </div>
-      )}
-      {status === 'unreachable' && (
-        <div className="mb-4 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-medium flex items-start gap-2">
-          <WifiOff size={13} className="text-orange-500 mt-0.5 shrink-0" />
-          <span>The NCSC website is currently <strong>unreachable</strong>. Falling back to local records. Proceed with caution.</span>
-        </div>
-      )}
-    </>
-  );
-}
-
-/* ─── Birthday warning pill ──────────────────────────────────────────────────── */
-function BirthdayWarning({ ncscStatus }) {
-  if (ncscStatus === "unreachable") return null;
+/* Birthday warning pill */
+function BirthdayWarning() {
   return (
     <p className="text-xs text-orange-500 pl-5 font-semibold flex items-center gap-1">
-      <AlertTriangle size={11} /> Birthday not on record — NCSC check used name only
+      <AlertTriangle size={11} /> Birthday not on record
     </p>
   );
 }
 
-/* ─── Delete confirm modal ───────────────────────────────────────────────────── */
+/* Delete confirm modal */
 function DeleteConfirmModal({ name, onClose, onConfirm, loading }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -241,18 +85,8 @@ function DeleteConfirmModal({ name, onClose, onConfirm, loading }) {
 
 /* ─── OSCA ID Submission Review Modal ────────────────────────────────────────── */
 function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
-  const [ncscStatus, setNcscStatus] = useState('checking');
   const missingBirthday = !hasBirthday(record);
-
-  const doCheck = useCallback(() => {
-    setNcscStatus('checking');
-    runNCSCVerify(record).then(setNcscStatus);
-  }, [record]);
-
-  useEffect(() => { doCheck(); }, [doCheck]);
-
-  // Block approve if birthday is missing OR NCSC says not found
-  const canApprove = !processing && ncscStatus === 'found';
+  const canApprove = !processing;
 
   const name = record.fullName || record.seniorName || 'Unknown';
 
@@ -265,23 +99,10 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
               <ShieldCheck size={20} className="text-[#0f52ba]" />
               <h3 className="text-lg font-bold text-gray-900">OSCA ID Verification</h3>
             </div>
-            <p className="text-xs text-gray-400">Verifying against live NCSC records using name & birthday.</p>
+            <p className="text-xs text-gray-400">Review the submitted ID photo and details below.</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1"><X size={18} /></button>
         </div>
-
-        <NCSCBanner status={ncscStatus} onRecheck={doCheck} missingBirthday={missingBirthday} />
-
-        {/* Birthday missing — hard block (only shown when NCSC found by name only, not when not_found since banner covers that) */}
-        {missingBirthday && ncscStatus !== 'not_found' && ncscStatus !== 'found_name_only' && ncscStatus !== 'unreachable' && (
-          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
-            <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
-            <span>
-              <strong>Cannot approve</strong> — birthday is not on record. NCSC could only verify by name.
-              Please update the senior's birthday before approving.
-            </span>
-          </div>
-        )}
 
         {/* Senior info */}
         <div className="bg-gray-50 rounded-2xl px-4 py-3 mb-5 space-y-1.5">
@@ -301,9 +122,9 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
           {record.barangay && <p className="text-xs text-gray-400 pl-5">Barangay: <strong>{record.barangay}</strong></p>}
           {record.sex && <p className="text-xs text-gray-400 pl-5">Sex: {record.sex}</p>}
           {record.submittedAt && (
-            <p className="text-xs text-gray-400 pl-5">Submitted: {record.submittedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>
+            <p className="text-xs text-gray-400 pl-5">Submitted: {record.submittedAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>
           )}
-          {missingBirthday && <BirthdayWarning ncscStatus={null} />}
+          {missingBirthday && <BirthdayWarning />}
         </div>
 
         {/* Uploaded ID photo */}
@@ -325,12 +146,10 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
           )}
         </div>
 
-        {ncscStatus === 'found' && !missingBirthday && (
-          <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 font-medium flex items-start gap-2">
-            <CreditCard size={13} className="text-blue-500 mt-0.5 shrink-0" />
-            <span>Approving will: ① verify the senior's account, ② create their digital ID, and ③ queue a physical ID for release.</span>
-          </div>
-        )}
+        <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 font-medium flex items-start gap-2">
+          <CreditCard size={13} className="text-blue-500 mt-0.5 shrink-0" />
+          <span>Approving will verify the senior's account and queue a physical ID for release. Their digital ID can then be released from the Digital ID page.</span>
+        </div>
 
         <div className="flex gap-3">
           <button
@@ -344,7 +163,6 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
             disabled={!canApprove}
             onClick={() => onDecision(record.id, 'approved', 'id_verifications', record)}
             className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            title={missingBirthday ? 'Birthday required to approve' : ''}
           >
             {processing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
             Approve & Verify
@@ -356,21 +174,11 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
   );
 }
 
-/* ─── Physical ID Request Review Modal ───────────────────────────────────────── */
+/* Physical ID Request Review Modal */
 function PhysicalIDModal({ record, onClose, onDecision, processing }) {
-  const [ncscStatus, setNcscStatus] = useState('checking');
   const missingBirthday = !hasBirthday(record);
-
-  const doCheck = useCallback(() => {
-    setNcscStatus('checking');
-    runNCSCVerify(record).then(setNcscStatus);
-  }, [record]);
-
-  useEffect(() => { doCheck(); }, [doCheck]);
-
   const name = record.seniorName || record.fullName || 'Unknown';
-  // Block approve if birthday missing OR NCSC says not found
-  const canApprove = !processing && ncscStatus === 'found';
+  const canApprove = !processing;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -380,23 +188,10 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <FileText size={18} className="text-[#0f52ba]" /> Physical ID Request
             </h3>
-            <p className="text-xs text-gray-400 mt-0.5">Live NCSC verification by name & birthday</p>
+            <p className="text-xs text-gray-400 mt-0.5">Review the request details below.</p>
           </div>
           <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
-
-        <NCSCBanner status={ncscStatus} onRecheck={doCheck} missingBirthday={missingBirthday} />
-
-        {/* Birthday hard block — only show when found by name only (not when not_found, banner handles that) */}
-        {missingBirthday && ncscStatus !== 'not_found' && ncscStatus !== 'found_name_only' && ncscStatus !== 'unreachable' && (
-          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
-            <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
-            <span>
-              <strong>Cannot approve</strong> — birthday is not on record. NCSC could only verify by name.
-              Please update the senior's birthday before approving.
-            </span>
-          </div>
-        )}
 
         <div className="bg-gray-50 rounded-2xl p-4 space-y-1.5 mb-5">
           <div className="flex items-center gap-2">
@@ -407,15 +202,14 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
           {(record.dob || record.dateOfBirth) && <p className="text-xs text-gray-500 pl-5"><span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><rect x='3' y='10' width='18' height='12' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/><line x1='12' y1='14' x2='12' y2='18'/></svg> DOB:</span> <strong>{record.dob || record.dateOfBirth}</strong></p>}
           {record.address       && <p className="text-xs text-gray-500 pl-5 flex items-center gap-1"><MapPin size={10} />{record.address}</p>}
           {record.contactNumber && <p className="text-xs text-gray-500 pl-5 flex items-center gap-1"><Phone size={10} />{record.contactNumber}</p>}
-          {/* Barangay field prominently shown */}
           <p className="text-xs text-gray-500 pl-5 flex items-center gap-1">
             Barangay: {record.barangay
               ? <strong>{record.barangay}</strong>
               : <span className="text-orange-500 font-semibold italic">Not specified</span>}
           </p>
           {record.reason    && <p className="text-xs text-gray-400 pl-5 italic">Reason: {record.reason}</p>}
-          {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
-          {missingBirthday && <BirthdayWarning ncscStatus={null} />}
+          {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>}
+          {missingBirthday && <BirthdayWarning />}
         </div>
 
         <div className="flex gap-3">
@@ -430,7 +224,6 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
             disabled={!canApprove}
             onClick={() => onDecision(record.id, 'approved', 'id_requests', record)}
             className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-            title={missingBirthday ? 'Birthday required to approve' : ''}
           >
             {processing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
             Approve Request
@@ -442,13 +235,11 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
   );
 }
 
-/* ─── OSCA ID Card adapter — uses shared Oscaidcard template ─────────────────── */
-/* ─── OSCAIDCard (Release Modal version) — uses shared OSCAIdCard template ───── */
-/* ValenzuelaSeal and OscaLogo SVG helpers removed; real images used by Oscaidcard.jsx */
+/* OSCA ID Card adapter, uses shared Oscaidcard template */
 function OSCAIDCard({ record }) {
-  const dob = record.dob || record.dateOfBirth || '—';
+  const dob = record.dob || record.dateOfBirth || 'N/A';
   let dobFormatted = dob;
-  if (dob && dob !== '—') {
+  if (dob && dob !== 'N/A') {
     const isoM   = dob.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     const slashM = dob.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (isoM)        dobFormatted = `${isoM[2]}-${isoM[3]}-${isoM[1].slice(2)}`;
@@ -598,7 +389,7 @@ function RequestDetailModal({ record, onClose, onApprove, onReject, processing }
           <p className="text-xs text-gray-500 pl-5">Barangay: {record.barangay ? <strong>{record.barangay}</strong> : <span className="text-orange-500 italic font-semibold">Not specified</span>}</p>
           {record.reason    && <p className="text-xs text-gray-400 pl-5 italic">Reason: {record.reason}</p>}
           {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
-          {missingBirthday && <BirthdayWarning ncscStatus={null} />}
+          {missingBirthday && <BirthdayWarning />}
         </div>
 
         <div className="flex gap-3">
@@ -701,16 +492,9 @@ export default function IDManagement() {
           if (uid) {
             try { await updateDoc(doc(db, 'users', uid), { isVerified: true, status: 'VERIFIED', verifiedAt: serverTimestamp() }); } catch (e) {}
           }
-          const digitalIdData = {
-            uid: uid || null, fullName: record.fullName || record.seniorName || '',
-            firstName: record.firstName || '', lastName: record.lastName || record.surname || '',
-            middleName: record.middleName || '', dob: record.dob || record.dateOfBirth || '',
-            sex: record.sex || '', address: record.address || '', barangay: record.barangay || '',
-            email: record.email || '', idNumber: record.idNumber || record.seniorId || '',
-            idImageUrl: record.idImageUrl || '', status: 'active', isVerified: true,
-            createdAt: serverTimestamp(), verifiedAt: serverTimestamp(), sourceDocId: id,
-          };
-          if (uid) await setDoc(doc(db, 'digital_ids', uid), digitalIdData, { merge: true });
+          // Digital ID creation is a separate, explicit step now: once verified
+          // here, the senior shows up on the Digital ID page with a "Release
+          // Digital ID" button that builds it from this same record's data.
 
           const controlNumber = record.idNumber || record.seniorId || id.slice(-6).toUpperCase();
           try {
@@ -746,7 +530,7 @@ export default function IDManagement() {
       }
 
       setSelected(null);
-      showToast(decision === 'approved' ? 'Approved! Digital ID created & physical ID queued for release.' : 'Request rejected.');
+      showToast(decision === 'approved' ? 'Approved! Senior verified and physical ID queued for release.' : 'Request rejected.');
     } finally { setProcessing(false); }
   }
 

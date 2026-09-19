@@ -1,20 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  CreditCard, CheckCircle2, Loader2, Eye, Download,
-  ShieldCheck, User2, Search, AlertTriangle, X, XCircle,
-  Database, RotateCcw, Shield,
+  CreditCard, Loader2, Eye, Download,
+  ShieldCheck, User2, Search, X, XCircle,
+  Shield, RotateCcw,
 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import {
   collection, onSnapshot, query, orderBy, doc,
-  updateDoc, serverTimestamp, getDocs, where,
+  updateDoc, setDoc, serverTimestamp, where,
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import OSCAIdCard from '../components/Oscaidcard';
 
-const fmt = (ts) => ts?.toDate?.()?.toLocaleDateString('en-PH') ?? '—';
+const fmt = (ts) => ts?.toDate?.()?.toLocaleDateString('en-PH') ?? 'N/A';
 
-/* ─── Status badge ─────────────────────────────────────────────────────────── */
+/* Status badge */
 const StatusBadge = ({ status }) => {
   const map = {
     released:    'bg-blue-100 text-blue-700',
@@ -30,32 +30,11 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-/* ─── NCSID Check helper ────────────────────────────────────────────────────── */
-async function checkNCSID(record) {
-  try {
-    let found = false;
-    if (record.controlNumber) {
-      const q = await getDocs(query(collection(db, 'users'), where('oscaId', '==', record.controlNumber)));
-      if (!q.empty) found = true;
-    }
-    if (!found && record.fullName) {
-      const name = record.fullName.trim().toUpperCase();
-      const q = await getDocs(query(collection(db, 'users'), where('fullNameUpper', '==', name)));
-      if (!q.empty) found = true;
-    }
-    if (!found && record.uid) {
-      const q = await getDocs(query(collection(db, 'users'), where('uid', '==', record.uid)));
-      if (!q.empty) found = true;
-    }
-    return found;
-  } catch { return false; }
-}
-
-/* ─── Helper: normalise a senior record to OSCAIdCard props ─────────────────── */
+/* Helper: normalise a senior record to OSCAIdCard props */
 function seniorToCardProps(senior) {
-  const dob = senior.dob || '—';
+  const dob = senior.dob || 'N/A';
   let dobFormatted = dob;
-  if (dob && dob !== '—') {
+  if (dob && dob !== 'N/A') {
     const isoM   = dob.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     const slashM = dob.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (isoM)        dobFormatted = `${isoM[2]}-${isoM[3]}-${isoM[1].slice(2)}`;
@@ -156,7 +135,7 @@ function DigitalIDCard({ senior }) {
   );
 }
 
-/* ─── Main page ─────────────────────────────────────────────────────────────── */
+/* Main page */
 export default function DigitalID() {
   const { isSuperAdmin, isSubAdmin } = useAuth();
 
@@ -164,9 +143,13 @@ export default function DigitalID() {
   const [loading, setLoading]       = useState(true);
   const [search, setSearch]         = useState('');
   const [previewID, setPreviewID]   = useState(null);
-  const [ncsidMap, setNcsidMap]     = useState({}); // id -> true|false|'checking'
   const [invalidating, setInvalidating] = useState(null);
   const [toast, setToast]           = useState('');
+
+  // Seniors OSCA has already approved in ID Verification, but who don't have
+  // a digital ID yet — these get a "Release Digital ID" button below.
+  const [verifiedPending, setVerifiedPending] = useState([]);
+  const [releasing, setReleasing] = useState(null);
 
   useEffect(() => {
     const q = query(collection(db, 'digital_ids'), orderBy('releasedAt', 'desc'));
@@ -177,13 +160,43 @@ export default function DigitalID() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    const q = query(collection(db, 'id_verifications'), where('status', '==', 'approved'));
+    return onSnapshot(q, snap => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => (b.reviewedAt?.toMillis?.() || 0) - (a.reviewedAt?.toMillis?.() || 0));
+      setVerifiedPending(list);
+    });
+  }, [isSuperAdmin]);
+
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 3500); }
 
-  async function verifyNCSID(record) {
-    setNcsidMap(m => ({ ...m, [record.id]: 'checking' }));
-    const found = await checkNCSID(record);
-    setNcsidMap(m => ({ ...m, [record.id]: found }));
-    if (!found) showToast(`Not registered: ${record.fullName} may not be in NCSID.`);
+  // Builds the digital ID straight from the senior's own verified record and
+  // writes it using the same OSCAIdCard template every digital ID uses.
+  async function releaseDigitalId(record) {
+    const uid = record.uid;
+    if (!uid) { showToast('This record has no linked account, cannot release.'); return; }
+    setReleasing(record.id);
+    try {
+      const controlNumber = record.idNumber || record.seniorId || uid.slice(-6).toUpperCase();
+      await setDoc(doc(db, 'digital_ids', uid), {
+        uid, fullName: record.fullName || record.seniorName || '',
+        firstName: record.firstName || '', lastName: record.lastName || record.surname || '',
+        middleName: record.middleName || '', dob: record.dob || record.dateOfBirth || '',
+        sex: record.sex || '', address: record.address || '', barangay: record.barangay || '',
+        email: record.email || '', idNumber: record.idNumber || record.seniorId || '',
+        idImageUrl: record.idImageUrl || '', controlNumber,
+        status: 'active', isVerified: true,
+        createdAt: serverTimestamp(), releasedAt: serverTimestamp(), sourceDocId: record.id,
+      }, { merge: true });
+      showToast(`Digital ID released for ${record.fullName || record.seniorName}.`);
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to release digital ID. Please try again.');
+    } finally {
+      setReleasing(null);
+    }
   }
 
   async function handleInvalidate(record) {
@@ -193,11 +206,16 @@ export default function DigitalID() {
       await updateDoc(doc(db, 'digital_ids', record.id), {
         status: 'invalidated',
         invalidatedAt: serverTimestamp(),
-        invalidatedReason: 'Not registered in NCSID',
+        invalidatedReason: 'Invalidated by OSCA admin',
       });
       showToast(`Digital ID for ${record.fullName} has been invalidated.`);
     } finally { setInvalidating(null); }
   }
+
+  // Verified seniors who don't have a digital_ids doc yet (matched by uid)
+  const readyToRelease = verifiedPending.filter(
+    r => r.uid && !digitalIDs.some(d => d.id === r.uid)
+  );
 
   const filtered = digitalIDs.filter(r => {
     const name = (r.fullName || '').toLowerCase();
@@ -230,18 +248,6 @@ export default function DigitalID() {
                 <X size={18} />
               </button>
             </div>
-
-            {ncsidMap[previewID.id] !== undefined && (
-              <div className={`mb-4 px-4 py-2.5 rounded-xl text-xs font-medium flex items-center gap-2 ${
-                ncsidMap[previewID.id] === 'checking' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
-                ncsidMap[previewID.id] === true ? 'bg-green-50 text-green-700 border border-green-200' :
-                'bg-red-50 text-red-700 border border-red-200'
-              }`}>
-                {ncsidMap[previewID.id] === 'checking' ? <><Loader2 size={12} className="animate-spin" /> Checking NCSID…</> :
-                 ncsidMap[previewID.id] === true ? <><CheckCircle2 size={12} /> Confirmed registered in NCSID</> :
-                 <><XCircle size={12} /> NOT found in NCSID — this ID may be invalid</>}
-              </div>
-            )}
 
             <DigitalIDCard senior={previewID} />
 
@@ -292,11 +298,39 @@ export default function DigitalID() {
       </div>
 
       {isSuperAdmin && (
-        <div className="mb-5 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 flex items-start gap-2">
-          <Database size={13} className="text-blue-500 mt-0.5 shrink-0" />
-          <span>
-            As OSCA admin, you can verify each ID holder against the NCSID database. Click <strong>Check NCSID</strong> on any record. If not found, you may <strong>invalidate</strong> their digital ID.
-          </span>
+        <div className="mb-6">
+          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">
+            Verified Seniors, Ready for Digital ID Release ({readyToRelease.length})
+          </h2>
+          {readyToRelease.length === 0 ? (
+            <p className="text-xs text-gray-400 mb-2">No verified seniors waiting on a digital ID right now.</p>
+          ) : (
+            <div className="space-y-3">
+              {readyToRelease.map(record => (
+                <div key={record.id} className="bg-white border border-gray-100 rounded-2xl p-5 flex items-center justify-between hover:border-green-200 transition-colors">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center shrink-0">
+                      <ShieldCheck size={18} className="text-green-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900">{record.fullName || record.seniorName}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Verified {fmt(record.reviewedAt)}{record.barangay ? ` · Brgy. ${record.barangay}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => releaseDigitalId(record)}
+                    disabled={releasing === record.id}
+                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors shrink-0"
+                  >
+                    {releasing === record.id ? <Loader2 size={13} className="animate-spin" /> : <CreditCard size={13} />}
+                    Release Digital ID
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -327,22 +361,7 @@ export default function DigitalID() {
                         <User2 size={18} className="text-[#0f52ba]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-semibold text-gray-900">{r.fullName}</p>
-                          {ncsidMap[r.id] === true && (
-                            <span className="flex items-center gap-1 text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                              <CheckCircle2 size={9} /> NCSID ✓
-                            </span>
-                          )}
-                          {ncsidMap[r.id] === false && (
-                            <span className="flex items-center gap-1 text-[10px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
-                              <AlertTriangle size={9} /> Not in NCSID
-                            </span>
-                          )}
-                          {ncsidMap[r.id] === 'checking' && (
-                            <span className="text-[10px] text-blue-500 flex items-center gap-1"><Loader2 size={9} className="animate-spin" /> Checking…</span>
-                          )}
-                        </div>
+                        <p className="font-semibold text-gray-900">{r.fullName}</p>
                         <p className="text-xs text-gray-500 mt-0.5">
                           Ctrl No. <span className="font-bold text-red-500">{r.controlNumber}</span>
                           {' · '}Released {fmt(r.releasedAt)}
@@ -351,16 +370,8 @@ export default function DigitalID() {
                     </div>
                     <div className="flex items-center gap-2 ml-4 shrink-0">
                       <StatusBadge status={r.status || 'released'} />
-                      {isSuperAdmin && (
-                        <button
-                          onClick={() => verifyNCSID(r)}
-                          className="flex items-center gap-1 text-xs text-blue-600 hover:underline font-semibold"
-                        >
-                          <Database size={12} /> Check NCSID
-                        </button>
-                      )}
                       <button
-                        onClick={() => { setPreviewID(r); if (isSuperAdmin) verifyNCSID(r); }}
+                        onClick={() => setPreviewID(r)}
                         className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline"
                       >
                         <Eye size={14} /> View ID

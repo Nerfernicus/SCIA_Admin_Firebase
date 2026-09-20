@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+/* ────────────────────────────────────────────────────────────────────────
+   Base palette — softened for comfort/readability (senior users especially).
+   Light mode used pure #ffffff backgrounds, which glare under normal
+   lighting. Swapping the base `white` / `gray-50` / `gray-100` tokens to a
+   warm, slightly off-white paper tone removes the glare everywhere
+   `bg-white` is used, without touching text contrast (gray-200 and darker,
+   which carry most of the text/border weight, are left at Tailwind's
+   defaults so legibility doesn't drop).
+   ──────────────────────────────────────────────────────────────────────── */
+@theme {
+  --color-white:    #fdfcfa;
+  --color-gray-50:  #f7f6f2;
+  --color-gray-100: #efeee7;
+}
+
 /* Enable class-based dark mode (Tailwind v4). Toggling `.dark` on <html>
    activates every `dark:` utility used across the app. */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -13,62 +28,68 @@
    Components that DO add explicit `dark:` classes (Sidebar, Header, the
    Digital ID and ID Management pages) simply take precedence via normal
    CSS specificity/source order below.
+
+   Colors here are a warm neutral charcoal rather than blue-black — cold,
+   high-contrast dark themes (pure black + pure white text) can be
+   uncomfortable to read for long stretches, especially for older users.
+   Text tops out around #f0efec (soft, not blazing white) against a body of
+   #17181b (not #000), which keeps contrast comfortably readable without
+   the glare of full black/white extremes.
    ──────────────────────────────────────────────────────────────────────── */
 html.dark {
   color-scheme: dark;
 }
 
 .dark body {
-  background-color: #0b0e14;
-  color: #e5e7eb;
+  background-color: #17181b;
+  color: #ddd9d2;
 }
 
 /* Surfaces */
-.dark .bg-white       { background-color: #12151c; }
-.dark .bg-gray-50      { background-color: #0f1218; }
-.dark .bg-gray-100      { background-color: #1a1e27; }
-.dark .bg-gray-200      { background-color: #232838; }
-.dark .bg-gray-900      { background-color: #05070a; }
-.dark .hover\:bg-gray-50:hover  { background-color: #1a1e27; }
-.dark .hover\:bg-gray-100:hover { background-color: #232838; }
+.dark .bg-white        { background-color: #202124; }
+.dark .bg-gray-50       { background-color: #1b1c1f; }
+.dark .bg-gray-100       { background-color: #26282c; }
+.dark .bg-gray-200       { background-color: #313339; }
+.dark .bg-gray-900       { background-color: #0d0e10; }
+.dark .hover\:bg-gray-50:hover  { background-color: #26282c; }
+.dark .hover\:bg-gray-100:hover { background-color: #313339; }
 
 /* Custom hex surfaces — several pages use one-off hex utilities
    (bg-[#f8f9fa], bg-[#f4f6fc], bg-[#fff9ed], bg-[#eaf1fb]) instead of the
-   gray-* scale as their page/card background. These were never covered
-   above, so in dark mode the background stayed near-white while the text
-   sitting on it (text-gray-900 etc.) was being retinted light by the
-   rules further down — light text on a near-white background. This is
-   what was making most pages unreadable in dark mode.
+   gray-* scale as their page/card background. These aren't covered by the
+   rules above, so without this block the background stays near-white in
+   dark mode while the text sitting on it turns light — unreadable.
    UserManagement.jsx / EventCheckIn.jsx / HealthCenters.jsx /
    Announcements.jsx (full-page bg), UserManagement.jsx (info cards),
-   Analytics.jsx (icon chips). */
-.dark .bg-\[\#f8f9fa\] { background-color: #0b0e14; }
-.dark .bg-\[\#f4f6fc\] { background-color: #131a2a; }
-.dark .bg-\[\#fff9ed\] { background-color: #241f0f; }
-.dark .bg-\[\#eaf1fb\] { background-color: #16233a; }
+   Analytics.jsx (icon chips). Kept as soft tinted-dark rather than pure
+   black so the page doesn't feel like a different app from the rest. */
+.dark .bg-\[\#f8f9fa\] { background-color: #17181b; }
+.dark .bg-\[\#f4f6fc\] { background-color: #1c2233; }
+.dark .bg-\[\#fff9ed\] { background-color: #262016; }
+.dark .bg-\[\#eaf1fb\] { background-color: #1a2233; }
 
 /* Text */
-.dark .text-gray-900 { color: #f3f4f6; }
-.dark .text-gray-800 { color: #e5e7eb; }
-.dark .text-gray-700 { color: #d1d5db; }
-.dark .text-gray-600 { color: #b3bac6; }
-.dark .text-gray-500 { color: #9aa2b1; }
-.dark .text-gray-400 { color: #78808f; }
-.dark .text-gray-300 { color: #5b6270; }
-.dark .hover\:text-gray-700:hover { color: #e5e7eb; }
-.dark .hover\:text-gray-800:hover { color: #f3f4f6; }
+.dark .text-gray-900 { color: #f0efec; }
+.dark .text-gray-800 { color: #ddd9d2; }
+.dark .text-gray-700 { color: #c9c7c0; }
+.dark .text-gray-600 { color: #aeada6; }
+.dark .text-gray-500 { color: #96958d; }
+.dark .text-gray-400 { color: #7a7970; }
+.dark .text-gray-300 { color: #5c5b55; }
+.dark .hover\:text-gray-700:hover { color: #ddd9d2; }
+.dark .hover\:text-gray-800:hover { color: #f0efec; }
 .dark .hover\:text-gray-900:hover { color: #ffffff; }
 
 /* Borders */
-.dark .border-gray-50   { border-color: #1c2028; }
-.dark .border-gray-100  { border-color: #232838; }
-.dark .border-gray-200  { border-color: #2b3141; }
-.dark .border-gray-300  { border-color: #384056; }
+.dark .border-gray-50   { border-color: #232427; }
+.dark .border-gray-100  { border-color: #2c2d31; }
+.dark .border-gray-200  { border-color: #35373c; }
+.dark .border-gray-300  { border-color: #45474d; }
 
 /* Borders paired with the custom-hex cards above (UserManagement.jsx info
    panels) — kept subtle instead of a bright light-mode border on a now
    dark card. */
-.dark .border-blue-50   { border-color: #1c2a42; }
+.dark .border-blue-50   { border-color: #232f45; }
 .dark .border-yellow-100 { border-color: #362f10; }
 
 /* Soft/tinted status backgrounds — darken so white text/icons on top still

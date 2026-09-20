@@ -10,6 +10,7 @@ import {
   updateDoc, setDoc, serverTimestamp, where,
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import OSCAIdCard from '../components/Oscaidcard';
 
 const fmt = (ts) => ts?.toDate?.()?.toLocaleDateString('en-PH') ?? 'N/A';
@@ -55,6 +56,7 @@ function seniorToCardProps(senior) {
 
 /* ─── Blank template preview — shows the ID design without personal data ──────── */
 function IDTemplatePreview() {
+  const { t } = useLang();
   const [open, setOpen] = useState(false);
 
   return (
@@ -64,14 +66,14 @@ function IDTemplatePreview() {
         className="flex items-center gap-2 text-sm font-semibold text-[#0f52ba] hover:text-blue-800 transition-colors"
       >
         <CreditCard size={15} />
-        {open ? 'Hide' : 'View'} ID Card Template Design
-        <span className="ml-1 text-xs font-normal text-gray-400">(blank sample)</span>
+        {open ? t.hideTemplate : t.viewTemplate}
+        <span className="ml-1 text-xs font-normal text-gray-400">{t.blankSample}</span>
       </button>
 
       {open && (
         <div className="mt-4 bg-gray-50 border border-gray-200 rounded-2xl p-6 flex flex-col items-center gap-3">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-            Sample Design — No Personal Data
+            {t.sampleDesignNoData}
           </p>
           <OSCAIdCard
             mode="digital"
@@ -84,11 +86,10 @@ function IDTemplatePreview() {
             photoUrl={null}
           />
           <p className="text-xs text-gray-400 flex items-center gap-1.5">
-            <RotateCcw size={11} /> Click the card to flip and see benefits layout
+            <RotateCcw size={11} /> {t.clickToFlip}
           </p>
           <div className="mt-2 px-4 py-2 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-600 text-center max-w-sm">
-            This is the official OSCA Valenzuela digital ID template with real logos.
-            Actual IDs will display the senior's personal information.
+            {t.templateNote}
           </div>
         </div>
       )}
@@ -98,6 +99,7 @@ function IDTemplatePreview() {
 
 /* ─── Wrapper with print/download button ───────────────────────────────────── */
 function DigitalIDCard({ senior }) {
+  const { t } = useLang();
   const cardRef = useRef(null);
 
   const handlePrint = () => {
@@ -122,14 +124,14 @@ function DigitalIDCard({ senior }) {
       </div>
 
       <p className="text-xs text-gray-400 flex items-center gap-1.5">
-        <RotateCcw size={11} /> Digital ID Preview
+        <RotateCcw size={11} /> {t.digitalIdPreview}
       </p>
 
       <button
         onClick={handlePrint}
         className="w-full flex items-center justify-center gap-2 bg-[#0a3d91] hover:bg-blue-800 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
       >
-        <Download size={15} /> Download / Print ID
+        <Download size={15} /> {t.downloadPrintId}
       </button>
     </div>
   );
@@ -138,6 +140,7 @@ function DigitalIDCard({ senior }) {
 /* Main page */
 export default function DigitalID() {
   const { isSuperAdmin, isSubAdmin } = useAuth();
+  const { t } = useLang();
 
   const [digitalIDs, setDigitalIDs] = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -176,7 +179,7 @@ export default function DigitalID() {
   // writes it using the same OSCAIdCard template every digital ID uses.
   async function releaseDigitalId(record) {
     const uid = record.uid;
-    if (!uid) { showToast('This record has no linked account, cannot release.'); return; }
+    if (!uid) { showToast(t.digitalIdNoLinkedAccount); return; }
     setReleasing(record.id);
     try {
       const controlNumber = record.idNumber || record.seniorId || uid.slice(-6).toUpperCase();
@@ -190,17 +193,17 @@ export default function DigitalID() {
         status: 'active', isVerified: true,
         createdAt: serverTimestamp(), releasedAt: serverTimestamp(), sourceDocId: record.id,
       }, { merge: true });
-      showToast(`Digital ID released for ${record.fullName || record.seniorName}.`);
+      showToast(`${t.digitalIdReleasedFor} ${record.fullName || record.seniorName}.`);
     } catch (err) {
       console.error(err);
-      showToast('Failed to release digital ID. Please try again.');
+      showToast(t.digitalIdReleaseFailed);
     } finally {
       setReleasing(null);
     }
   }
 
   async function handleInvalidate(record) {
-    if (!window.confirm(`Invalidate digital ID for ${record.fullName}? This will mark it as revoked.`)) return;
+    if (!window.confirm(`${t.invalidateConfirm} ${record.fullName}? ${t.invalidateConfirmSuffix}`)) return;
     setInvalidating(record.id);
     try {
       await updateDoc(doc(db, 'digital_ids', record.id), {
@@ -208,7 +211,7 @@ export default function DigitalID() {
         invalidatedAt: serverTimestamp(),
         invalidatedReason: 'Invalidated by OSCA admin',
       });
-      showToast(`Digital ID for ${record.fullName} has been invalidated.`);
+      showToast(`${t.digitalIdInvalidatedFor} ${record.fullName} ${t.digitalIdInvalidatedSuffix}`);
     } finally { setInvalidating(null); }
   }
 
@@ -242,7 +245,7 @@ export default function DigitalID() {
           <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-2xl w-full max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <CreditCard size={18} className="text-[#0f52ba]" /> Digital ID
+                <CreditCard size={18} className="text-[#0f52ba]" /> {t.digitalId}
               </h3>
               <button onClick={() => setPreviewID(null)} className="text-gray-400 hover:text-gray-600">
                 <X size={18} />
@@ -258,7 +261,7 @@ export default function DigitalID() {
                 className="mt-3 w-full py-2.5 rounded-xl border-2 border-red-200 text-red-600 font-semibold text-sm hover:bg-red-50 transition-colors disabled:opacity-50"
               >
                 {invalidating === previewID.id ? <Loader2 size={14} className="animate-spin inline mr-2" /> : null}
-                Invalidate This ID
+                {t.invalidateThisId}
               </button>
             )}
           </div>
@@ -268,10 +271,10 @@ export default function DigitalID() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <CreditCard size={24} className="text-[#0f52ba]" /> Digital IDs
+          <CreditCard size={24} className="text-[#0f52ba]" /> {t.digitalIdsTitle}
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          View all issued digital OSCA IDs · Verify registration status · Invalidate if not actually registered
+          {t.digitalIdsSubtitle}
         </p>
       </div>
 
@@ -281,9 +284,9 @@ export default function DigitalID() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
-          { label: 'Active IDs',   value: active.length,      color: 'text-green-600', bg: 'bg-green-50', icon: Shield },
-          { label: 'Invalidated',  value: invalidated.length, color: 'text-red-600',   bg: 'bg-red-50',   icon: XCircle },
-          { label: 'Total Issued', value: digitalIDs.length,  color: 'text-blue-600',  bg: 'bg-blue-50',  icon: CreditCard },
+          { label: t.statActiveIds,   value: active.length,      color: 'text-green-600', bg: 'bg-green-50', icon: Shield },
+          { label: t.statInvalidated, value: invalidated.length, color: 'text-red-600',   bg: 'bg-red-50',   icon: XCircle },
+          { label: t.statTotalIssued, value: digitalIDs.length,  color: 'text-blue-600',  bg: 'bg-blue-50',  icon: CreditCard },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl border border-gray-100 p-5 flex items-center gap-4">
             <div className={`w-10 h-10 ${s.bg} rounded-xl flex items-center justify-center`}>
@@ -300,10 +303,10 @@ export default function DigitalID() {
       {isSuperAdmin && (
         <div className="mb-6">
           <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">
-            Verified Seniors, Ready for Digital ID Release ({readyToRelease.length})
+            {t.readyForReleaseSection} ({readyToRelease.length})
           </h2>
           {readyToRelease.length === 0 ? (
-            <p className="text-xs text-gray-400 mb-2">No verified seniors waiting on a digital ID right now.</p>
+            <p className="text-xs text-gray-400 mb-2">{t.noSeniorsReady}</p>
           ) : (
             <div className="space-y-3">
               {readyToRelease.map(record => (
@@ -315,7 +318,7 @@ export default function DigitalID() {
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-gray-900">{record.fullName || record.seniorName}</p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        Verified {fmt(record.reviewedAt)}{record.barangay ? ` · Brgy. ${record.barangay}` : ''}
+                        {t.verifiedLabel} {fmt(record.reviewedAt)}{record.barangay ? ` · Brgy. ${record.barangay}` : ''}
                       </p>
                     </div>
                   </div>
@@ -325,7 +328,7 @@ export default function DigitalID() {
                     className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors shrink-0"
                   >
                     {releasing === record.id ? <Loader2 size={13} className="animate-spin" /> : <CreditCard size={13} />}
-                    Release Digital ID
+                    {t.releaseDigitalId}
                   </button>
                 </div>
               ))}
@@ -338,7 +341,7 @@ export default function DigitalID() {
       <div className="relative mb-6">
         <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
-          type="text" placeholder="Search by name or control number…"
+          type="text" placeholder={t.searchByNameOrControl}
           value={search} onChange={e => setSearch(e.target.value)}
           className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
         />
@@ -352,7 +355,7 @@ export default function DigitalID() {
         <>
           {active.length > 0 && (
             <div className="mb-6">
-              <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Active Digital IDs ({active.length})</h2>
+              <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.activeDigitalIds} ({active.length})</h2>
               <div className="space-y-3">
                 {active.map(r => (
                   <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-5 flex items-center justify-between hover:border-blue-200 transition-colors">
@@ -363,8 +366,8 @@ export default function DigitalID() {
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-gray-900">{r.fullName}</p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          Ctrl No. <span className="font-bold text-red-500">{r.controlNumber}</span>
-                          {' · '}Released {fmt(r.releasedAt)}
+                          {t.ctrlNo} <span className="font-bold text-red-500">{r.controlNumber}</span>
+                          {' · '}{t.releasedLabel} {fmt(r.releasedAt)}
                         </p>
                       </div>
                     </div>
@@ -374,7 +377,7 @@ export default function DigitalID() {
                         onClick={() => setPreviewID(r)}
                         className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline"
                       >
-                        <Eye size={14} /> View ID
+                        <Eye size={14} /> {t.viewId}
                       </button>
                     </div>
                   </div>
@@ -385,7 +388,7 @@ export default function DigitalID() {
 
           {invalidated.length > 0 && (
             <div>
-              <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Invalidated IDs ({invalidated.length})</h2>
+              <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.invalidatedIds} ({invalidated.length})</h2>
               <div className="space-y-2">
                 {invalidated.map(r => (
                   <div key={r.id} className="bg-red-50/50 border border-red-100 rounded-2xl p-4 flex items-center justify-between opacity-60">
@@ -396,7 +399,7 @@ export default function DigitalID() {
                       <div>
                         <p className="font-medium text-gray-700">{r.fullName}</p>
                         <p className="text-xs text-gray-400">
-                          Ctrl No. {r.controlNumber} · Invalidated {fmt(r.invalidatedAt)}
+                          {t.ctrlNo} {r.controlNumber} · {t.invalidatedLabel} {fmt(r.invalidatedAt)}
                           {r.invalidatedReason && ` — ${r.invalidatedReason}`}
                         </p>
                       </div>
@@ -411,7 +414,7 @@ export default function DigitalID() {
           {filtered.length === 0 && (
             <div className="text-center py-20 text-gray-400">
               <CreditCard size={40} className="mx-auto mb-3 opacity-40" />
-              <p className="font-medium">{search ? 'No results found' : 'No digital IDs issued yet'}</p>
+              <p className="font-medium">{search ? t.noResultsFound : t.noDigitalIdsYet}</p>
             </div>
           )}
         </>

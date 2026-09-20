@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLang, LANGUAGES } from '../context/LangContext';
+import { useTheme } from '../context/ThemeContext';
 import { doc, updateDoc, collection, onSnapshot, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
@@ -102,8 +103,8 @@ function NotificationsPanel({ onClose, myBarangay }) {
   };
 
   return (
-    <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+    <div className="absolute right-0 top-12 w-80 bg-white dark:bg-[#12151c] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 z-50 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/10">
         <span className="font-bold text-gray-900 text-sm">{t.notifications}</span>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
           <X size={16} />
@@ -151,23 +152,34 @@ function NotificationsPanel({ onClose, myBarangay }) {
   );
 }
 
-function SettingsToggle({ label, icon: Icon, storageKey, defaultOn = true }) {
-  const [on, setOn] = useState(() => {
+function SettingsToggle({ label, icon: Icon, storageKey, defaultOn = true, checked, onChange }) {
+  // Controlled mode (checked/onChange supplied, e.g. dark mode driven by
+  // ThemeContext) takes over from the plain localStorage-backed toggle used
+  // for settings that don't need to affect anything outside this panel.
+  const isControlled = checked !== undefined;
+
+  const [internalOn, setInternalOn] = useState(() => {
     try {
       const stored = localStorage.getItem(storageKey);
       return stored === null ? defaultOn : stored === 'true';
     } catch { return defaultOn; }
   });
 
+  const on = isControlled ? checked : internalOn;
+
   const toggle = (e) => {
     e.stopPropagation();
+    if (isControlled) {
+      onChange?.(!on);
+      return;
+    }
     const next = !on;
-    setOn(next);
+    setInternalOn(next);
     try { localStorage.setItem(storageKey, String(next)); } catch {}
   };
 
   return (
-    <div className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors">
+    <div className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
       <div className="flex items-center gap-2 min-w-0 mr-3">
         {Icon && <Icon size={14} className="text-gray-400 shrink-0" />}
         <span className="text-sm text-gray-700 truncate">{label}</span>
@@ -197,10 +209,11 @@ function SettingsToggle({ label, icon: Icon, storageKey, defaultOn = true }) {
 
 function SettingsPanel({ onClose }) {
   const { t, lang, setLang } = useLang();
+  const { dark, toggleDark } = useTheme();
 
   return (
-    <div className="absolute right-0 top-12 w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+    <div className="absolute right-0 top-12 w-72 bg-white dark:bg-[#12151c] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 z-50 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/10">
         <span className="font-bold text-gray-900 text-sm">{t.settings}</span>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
           <X size={16} />
@@ -210,15 +223,15 @@ function SettingsPanel({ onClose }) {
       <div className="p-2">
         <SettingsToggle label={t.emailNotifs} icon={Mail}    storageKey="setting_email_notifs" defaultOn={true} />
         <SettingsToggle label={t.sosSound}    icon={Volume2} storageKey="setting_sos_sound"    defaultOn={true} />
-        <SettingsToggle label={t.darkMode}    icon={Moon}    storageKey="setting_dark_mode"    defaultOn={false} />
+        <SettingsToggle label={t.darkMode}    icon={Moon}    checked={dark} onChange={toggleDark} />
       </div>
 
-      <div className="px-4 py-3 border-t border-gray-100">
+      <div className="px-4 py-3 border-t border-gray-100 dark:border-white/10">
         <div className="flex items-center gap-2 mb-2">
           <Globe size={14} className="text-gray-400 shrink-0" />
           <span className="text-sm font-semibold text-gray-700">{t.language}</span>
         </div>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
           {Object.entries(LANGUAGES).map(([code, def]) => (
             <button
               key={code}
@@ -235,7 +248,7 @@ function SettingsPanel({ onClose }) {
         </div>
       </div>
 
-      <div className="px-4 pb-3 pt-1 border-t border-gray-100">
+      <div className="px-4 pb-3 pt-1 border-t border-gray-100 dark:border-white/10">
         <p className="text-[10px] text-gray-400 text-center">{t.version}</p>
       </div>
     </div>
@@ -422,7 +435,7 @@ export default function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between font-sans">
+      <header className="sticky top-0 z-30 bg-white dark:bg-[#12151c] border-b border-gray-100 dark:border-white/10 px-6 py-3 flex items-center justify-between font-sans">
         <div>
           <p className="text-xs text-gray-400 font-medium">
             {new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}

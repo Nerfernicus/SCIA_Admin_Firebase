@@ -12,6 +12,7 @@ import {
   getDocs, addDoc, getDoc,
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import OSCAIdCard from '../components/Oscaidcard';
 
 /* Helpers */
@@ -19,15 +20,16 @@ const hasBirthday = r => !!(r.dob || r.dateOfBirth || r.birthday);
 
 /* ─── Status Badge ───────────────────────────────────────────────────────────── */
 const StatusBadge = ({ status }) => {
+  const { t } = useLang();
   const map = {
-    pending:   { cls: 'bg-yellow-100 text-yellow-700',  label: 'Pending'   },
-    approved:  { cls: 'bg-green-100 text-green-700',    label: 'Approved'  },
-    rejected:  { cls: 'bg-red-100 text-red-700',        label: 'Rejected'  },
-    verified:  { cls: 'bg-green-100 text-green-700',    label: 'Verified'  },
-    released:  { cls: 'bg-blue-100 text-blue-700',      label: 'Released'  },
-    notified:  { cls: 'bg-purple-100 text-purple-700',  label: 'Notified'  },
-    collected: { cls: 'bg-gray-100 text-gray-700',      label: 'Collected' },
-    void:      { cls: 'bg-gray-100 text-gray-500',      label: 'Void'      },
+    pending:   { cls: 'bg-yellow-100 text-yellow-700',  label: t.statusPending   },
+    approved:  { cls: 'bg-green-100 text-green-700',    label: t.statusApproved  },
+    rejected:  { cls: 'bg-red-100 text-red-700',        label: t.statusRejected  },
+    verified:  { cls: 'bg-green-100 text-green-700',    label: t.statusVerified  },
+    released:  { cls: 'bg-blue-100 text-blue-700',      label: t.statusReleased  },
+    notified:  { cls: 'bg-purple-100 text-purple-700',  label: t.statusNotified  },
+    collected: { cls: 'bg-gray-100 text-gray-700',      label: t.statusCollected },
+    void:      { cls: 'bg-gray-100 text-gray-500',      label: t.statusVoid      },
   };
   const { cls, label } = map[status] || map.pending;
   return <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${cls}`}>{label}</span>;
@@ -35,15 +37,17 @@ const StatusBadge = ({ status }) => {
 
 /* Birthday warning pill */
 function BirthdayWarning() {
+  const { t } = useLang();
   return (
     <p className="text-xs text-orange-500 pl-5 font-semibold flex items-center gap-1">
-      <AlertTriangle size={11} /> Birthday not on record
+      <AlertTriangle size={11} /> {t.birthdayNotOnRecordPill}
     </p>
   );
 }
 
 /* Delete confirm modal */
 function DeleteConfirmModal({ name, onClose, onConfirm, loading }) {
+  const { t } = useLang();
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
@@ -51,16 +55,16 @@ function DeleteConfirmModal({ name, onClose, onConfirm, loading }) {
         <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <Trash2 size={24} className="text-red-500" />
         </div>
-        <h2 className="text-lg font-bold text-gray-900 mb-1">Delete Request?</h2>
-        <p className="text-sm text-gray-500 mb-1">You are about to delete the request from</p>
+        <h2 className="text-lg font-bold text-gray-900 mb-1">{t.deleteRequestTitle}</h2>
+        <p className="text-sm text-gray-500 mb-1">{t.deleteRequestBody1}</p>
         <p className="text-sm font-bold text-gray-800 mb-4">"{name}"</p>
         <p className="text-xs text-red-500 font-semibold bg-red-50 rounded-xl px-4 py-2 mb-6">
-          This will permanently remove the record from the system.
+          {t.deleteRequestWarning}
         </p>
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">Cancel</button>
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">{t.cancel}</button>
           <button onClick={onConfirm} disabled={loading} className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2">
-            {loading ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} {t.delete}
           </button>
         </div>
       </div>
@@ -70,10 +74,11 @@ function DeleteConfirmModal({ name, onClose, onConfirm, loading }) {
 
 /* ─── OSCA ID Submission Review Modal ────────────────────────────────────────── */
 function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
+  const { t } = useLang();
   const missingBirthday = !hasBirthday(record);
   const canApprove = !processing;
 
-  const name = record.fullName || record.seniorName || 'Unknown';
+  const name = record.fullName || record.seniorName || t.unknownLabel;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -82,9 +87,9 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <ShieldCheck size={20} className="text-[#0f52ba]" />
-              <h3 className="text-lg font-bold text-gray-900">OSCA ID Verification</h3>
+              <h3 className="text-lg font-bold text-gray-900">{t.oscaVerifTitle}</h3>
             </div>
-            <p className="text-xs text-gray-400">Review the submitted ID photo and details below.</p>
+            <p className="text-xs text-gray-400">{t.oscaVerifSubtitle}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1"><X size={18} /></button>
         </div>
@@ -98,16 +103,16 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
           {record.idNumber && (
             <div className="flex items-center gap-2 pl-1">
               <ShieldCheck size={13} className="text-blue-400" />
-              <span className="text-xs text-gray-600">OSCA ID on card: <strong className="text-blue-700">{record.idNumber}</strong></span>
+              <span className="text-xs text-gray-600">{t.oscaIdOnCard}: <strong className="text-blue-700">{record.idNumber}</strong></span>
             </div>
           )}
-          {record.dob && <p className="text-xs text-gray-400 pl-5"><span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><rect x='3' y='10' width='18' height='12' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/><line x1='12' y1='14' x2='12' y2='18'/></svg> DOB:</span> <strong>{record.dob}</strong></p>}
+          {record.dob && <p className="text-xs text-gray-400 pl-5"><span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><rect x='3' y='10' width='18' height='12' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/><line x1='12' y1='14' x2='12' y2='18'/></svg> {t.dobLabel}:</span> <strong>{record.dob}</strong></p>}
           {record.email && <p className="text-xs text-gray-400 pl-5">{record.email}</p>}
           {record.address && <p className="text-xs text-gray-400 pl-5">{record.address}</p>}
-          {record.barangay && <p className="text-xs text-gray-400 pl-5">Barangay: <strong>{record.barangay}</strong></p>}
-          {record.sex && <p className="text-xs text-gray-400 pl-5">Sex: {record.sex}</p>}
+          {record.barangay && <p className="text-xs text-gray-400 pl-5">{t.barangayLabel}: <strong>{record.barangay}</strong></p>}
+          {record.sex && <p className="text-xs text-gray-400 pl-5">{t.sexLabel}: {record.sex}</p>}
           {record.submittedAt && (
-            <p className="text-xs text-gray-400 pl-5">Submitted: {record.submittedAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>
+            <p className="text-xs text-gray-400 pl-5">{t.submittedLabel}: {record.submittedAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>
           )}
           {missingBirthday && <BirthdayWarning />}
         </div>
@@ -115,7 +120,7 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
         {/* Uploaded ID photo */}
         <div className="mb-5">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-            <FileImage size={12} /> Uploaded OSCA ID Photo
+            <FileImage size={12} /> {t.uploadedIdPhoto}
           </p>
           {(record.idImageUrl || record.imageBase64) ? (
             <img
@@ -126,14 +131,14 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
           ) : (
             <div className="w-full rounded-xl border border-dashed border-gray-200 py-10 flex flex-col items-center gap-2 text-gray-400">
               <FileImage size={28} className="opacity-30" />
-              <p className="text-xs">No ID image uploaded</p>
+              <p className="text-xs">{t.noIdImageUploaded}</p>
             </div>
           )}
         </div>
 
         <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 font-medium flex items-start gap-2">
           <CreditCard size={13} className="text-blue-500 mt-0.5 shrink-0" />
-          <span>Approving will verify the senior's account and queue a physical ID for release. Their digital ID can then be released from the Digital ID page.</span>
+          <span>{t.approveVerifyNote}</span>
         </div>
 
         <div className="flex gap-3">
@@ -142,7 +147,7 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
             onClick={() => onDecision(record.id, 'rejected')}
             className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-semibold text-sm hover:bg-red-50 transition-colors disabled:opacity-50"
           >
-            Reject
+            {t.reject}
           </button>
           <button
             disabled={!canApprove}
@@ -150,10 +155,10 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
             className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {processing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-            Approve & Verify
+            {t.approveVerify}
           </button>
         </div>
-        <button onClick={onClose} className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600">Cancel</button>
+        <button onClick={onClose} className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
       </div>
     </div>
   );
@@ -161,8 +166,9 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
 
 /* Physical ID Request Review Modal */
 function PhysicalIDModal({ record, onClose, onDecision, processing }) {
+  const { t } = useLang();
   const missingBirthday = !hasBirthday(record);
-  const name = record.seniorName || record.fullName || 'Unknown';
+  const name = record.seniorName || record.fullName || t.unknownLabel;
   const canApprove = !processing;
 
   return (
@@ -171,9 +177,9 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <FileText size={18} className="text-[#0f52ba]" /> Physical ID Request
+              <FileText size={18} className="text-[#0f52ba]" /> {t.physicalIdReqTitle}
             </h3>
-            <p className="text-xs text-gray-400 mt-0.5">Review the request details below.</p>
+            <p className="text-xs text-gray-400 mt-0.5">{t.reviewReqDetails}</p>
           </div>
           <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
@@ -183,17 +189,17 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
             <User size={13} className="text-gray-400" />
             <span className="text-sm font-bold text-gray-800">{name}</span>
           </div>
-          {record.seniorId      && <p className="text-xs text-gray-500 pl-5">OSCA ID: <strong className="text-blue-700">{record.seniorId}</strong></p>}
-          {(record.dob || record.dateOfBirth) && <p className="text-xs text-gray-500 pl-5"><span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><rect x='3' y='10' width='18' height='12' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/><line x1='12' y1='14' x2='12' y2='18'/></svg> DOB:</span> <strong>{record.dob || record.dateOfBirth}</strong></p>}
+          {record.seniorId      && <p className="text-xs text-gray-500 pl-5">{t.oscaIdPrefix}: <strong className="text-blue-700">{record.seniorId}</strong></p>}
+          {(record.dob || record.dateOfBirth) && <p className="text-xs text-gray-500 pl-5"><span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><rect x='3' y='10' width='18' height='12' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/><line x1='12' y1='14' x2='12' y2='18'/></svg> {t.dobLabel}:</span> <strong>{record.dob || record.dateOfBirth}</strong></p>}
           {record.address       && <p className="text-xs text-gray-500 pl-5 flex items-center gap-1"><MapPin size={10} />{record.address}</p>}
           {record.contactNumber && <p className="text-xs text-gray-500 pl-5 flex items-center gap-1"><Phone size={10} />{record.contactNumber}</p>}
           <p className="text-xs text-gray-500 pl-5 flex items-center gap-1">
-            Barangay: {record.barangay
+            {t.barangayLabel}: {record.barangay
               ? <strong>{record.barangay}</strong>
-              : <span className="text-orange-500 font-semibold italic">Not specified</span>}
+              : <span className="text-orange-500 font-semibold italic">{t.notSpecified}</span>}
           </p>
-          {record.reason    && <p className="text-xs text-gray-400 pl-5 italic">Reason: {record.reason}</p>}
-          {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>}
+          {record.reason    && <p className="text-xs text-gray-400 pl-5 italic">{t.reasonLabel}: {record.reason}</p>}
+          {record.createdAt && <p className="text-xs text-gray-400 pl-5">{t.requestedLabel}: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || 'N/A'}</p>}
           {missingBirthday && <BirthdayWarning />}
         </div>
 
@@ -203,7 +209,7 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
             onClick={() => onDecision(record.id, 'rejected', 'id_requests', record)}
             className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-semibold text-sm hover:bg-red-50 disabled:opacity-50 transition-colors"
           >
-            Reject
+            {t.reject}
           </button>
           <button
             disabled={!canApprove}
@@ -211,10 +217,10 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
             className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
           >
             {processing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-            Approve Request
+            {t.approveRequest}
           </button>
         </div>
-        <button onClick={onClose} className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600">Cancel</button>
+        <button onClick={onClose} className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
       </div>
     </div>
   );
@@ -252,6 +258,7 @@ function OSCAIDCard({ record }) {
 
 /* ─── Release Modal ──────────────────────────────────────────────────────────── */
 function ReleaseModal({ record, onClose, onRelease, processing }) {
+  const { t } = useLang();
   const [verified, setVerified] = useState(false);
   const missingBirthday = !hasBirthday(record);
 
@@ -264,11 +271,11 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
   );
 
   const checks = [
-    { label: 'Full Name',            ok: !!(record.seniorName || record.fullName) },
-    { label: 'Date of Birth',        ok: !missingBirthday },
-    { label: 'Address',              ok: !!record.address },
-    { label: 'OSCA ID / Control No.',ok: !!(record.seniorId || record.controlNumber || record.idNumber) },
-    { label: 'Barangay Assignment',  ok: !!(record.barangay || record.sub_admin_barangay) },
+    { label: t.fullName,               ok: !!(record.seniorName || record.fullName) },
+    { label: t.dateOfBirthCheck,       ok: !missingBirthday },
+    { label: t.addressCheck,           ok: !!record.address },
+    { label: t.oscaIdControlNoCheck,   ok: !!(record.seniorId || record.controlNumber || record.idNumber) },
+    { label: t.barangayAssignmentCheck,ok: !!(record.barangay || record.sub_admin_barangay) },
   ];
 
   return (
@@ -277,26 +284,26 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Send size={18} className="text-[#0f52ba]" /> Release Physical ID
+              <Send size={18} className="text-[#0f52ba]" /> {t.releasePhysicalId}
             </h3>
-            <p className="text-xs text-gray-400 mt-0.5">Final verification before releasing to sub-admin</p>
+            <p className="text-xs text-gray-400 mt-0.5">{t.finalVerificationSubtitle}</p>
           </div>
           <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
 
         <div className="mb-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">ID Card Preview</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">{t.idCardPreview}</p>
           <OSCAIDCard record={record} />
         </div>
 
         {/* Information check */}
         <div className={`rounded-xl px-4 py-3 mb-4 ${hasAllInfo ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
-          <p className="text-xs font-semibold mb-2 text-gray-700">Required Information Check</p>
+          <p className="text-xs font-semibold mb-2 text-gray-700">{t.requiredInfoCheck}</p>
           {checks.map(({ label, ok }) => (
             <div key={label} className="flex items-center gap-2 text-xs py-0.5">
               {ok ? <CheckCircle2 size={12} className="text-green-600" /> : <XCircle size={12} className="text-orange-500" />}
               <span className={ok ? 'text-gray-700' : 'text-orange-700 font-semibold'}>{label}</span>
-              {!ok && <span className="text-orange-500 italic">— Missing</span>}
+              {!ok && <span className="text-orange-500 italic">— {t.missing}</span>}
             </div>
           ))}
         </div>
@@ -306,7 +313,7 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
           <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={13} className="text-red-500 mt-0.5 shrink-0" />
             <span>
-              <strong>Cannot release</strong> — birthday is not on record. Please update the senior's birthday before releasing the ID.
+              <strong>{t.cannotRelease}</strong> — {t.birthdayNotOnRecordRelease}
             </span>
           </div>
         )}
@@ -314,7 +321,7 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
         {!hasAllInfo && !missingBirthday && (
           <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-2">
             <AlertTriangle size={13} className="text-red-500" />
-            Cannot release — required information is incomplete. Please update the senior's record first.
+            {t.cannotReleaseIncomplete}
           </div>
         )}
 
@@ -322,20 +329,20 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
           <label className="flex items-start gap-2 mb-5 cursor-pointer">
             <input type="checkbox" checked={verified} onChange={e => setVerified(e.target.checked)} className="mt-0.5 accent-blue-600" />
             <span className="text-xs text-gray-600">
-              I confirm that all information on this physical ID is correct and complete. This ID will be sent to the assigned sub-admin for barangay distribution.
+              {t.confirmReleaseCheckbox}
             </span>
           </label>
         )}
 
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50">Cancel</button>
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50">{t.cancel}</button>
           <button
             disabled={processing || !hasAllInfo || !verified}
             onClick={() => onRelease(record)}
             className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 text-white font-semibold text-sm disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
           >
             {processing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            Release to Sub-Admin
+            {t.releaseToSubAdmin}
           </button>
         </div>
       </div>
@@ -345,15 +352,16 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
 
 /* ─── Release Request Detail Modal ──────────────────────────────────────────── */
 function RequestDetailModal({ record, onClose, onApprove, onReject, processing }) {
+  const { t } = useLang();
   const missingBirthday = !hasBirthday(record);
-  const name = record.seniorName || record.fullName || 'Unknown';
+  const name = record.seniorName || record.fullName || t.unknownLabel;
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><FileText size={18} className="text-[#0f52ba]" /> Physical ID Request</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Review and verify before approving</p>
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><FileText size={18} className="text-[#0f52ba]" /> {t.physicalIdReqTitle}</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{t.reviewVerifyBeforeApproving}</p>
           </div>
           <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
@@ -361,29 +369,29 @@ function RequestDetailModal({ record, onClose, onApprove, onReject, processing }
         {missingBirthday && (
           <div className="mb-4 px-4 py-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
             <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
-            <span><strong>Cannot approve</strong> — birthday not on record. Update the senior's birthday first.</span>
+            <span><strong>{t.cannotApprove}</strong> — {t.birthdayNotOnRecordApprove}</span>
           </div>
         )}
 
         <div className="bg-gray-50 rounded-2xl p-4 space-y-2 mb-5">
           <div className="flex items-center gap-2"><User size={13} className="text-gray-400" /><span className="text-sm font-bold text-gray-800">{name}</span></div>
-          {record.seniorId      && <p className="text-xs text-gray-500 pl-5">OSCA ID: <strong className="text-blue-700">{record.seniorId}</strong></p>}
-          {(record.dob || record.dateOfBirth) && <p className="text-xs text-gray-500 pl-5"><span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><rect x='3' y='10' width='18' height='12' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/><line x1='12' y1='14' x2='12' y2='18'/></svg> DOB:</span> <strong>{record.dob || record.dateOfBirth}</strong></p>}
+          {record.seniorId      && <p className="text-xs text-gray-500 pl-5">{t.oscaIdPrefix}: <strong className="text-blue-700">{record.seniorId}</strong></p>}
+          {(record.dob || record.dateOfBirth) && <p className="text-xs text-gray-500 pl-5"><span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><rect x='3' y='10' width='18' height='12' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/><line x1='12' y1='14' x2='12' y2='18'/></svg> {t.dobLabel}:</span> <strong>{record.dob || record.dateOfBirth}</strong></p>}
           {record.address       && <p className="text-xs text-gray-500 pl-5 flex items-center gap-1"><MapPin size={10} />{record.address}</p>}
           {record.contactNumber && <p className="text-xs text-gray-500 pl-5 flex items-center gap-1"><Phone size={10} />{record.contactNumber}</p>}
-          <p className="text-xs text-gray-500 pl-5">Barangay: {record.barangay ? <strong>{record.barangay}</strong> : <span className="text-orange-500 italic font-semibold">Not specified</span>}</p>
-          {record.reason    && <p className="text-xs text-gray-400 pl-5 italic">Reason: {record.reason}</p>}
-          {record.createdAt && <p className="text-xs text-gray-400 pl-5">Requested: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
+          <p className="text-xs text-gray-500 pl-5">{t.barangayLabel}: {record.barangay ? <strong>{record.barangay}</strong> : <span className="text-orange-500 italic font-semibold">{t.notSpecified}</span>}</p>
+          {record.reason    && <p className="text-xs text-gray-400 pl-5 italic">{t.reasonLabel}: {record.reason}</p>}
+          {record.createdAt && <p className="text-xs text-gray-400 pl-5">{t.requestedLabel}: {record.createdAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
           {missingBirthday && <BirthdayWarning />}
         </div>
 
         <div className="flex gap-3">
-          <button disabled={processing} onClick={() => onReject(record.id)} className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-semibold text-sm hover:bg-red-50 disabled:opacity-50">Reject</button>
-          <button disabled={processing || missingBirthday} onClick={() => onApprove(record)} className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2" title={missingBirthday ? 'Birthday required' : ''}>
-            {processing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Approve Request
+          <button disabled={processing} onClick={() => onReject(record.id)} className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-semibold text-sm hover:bg-red-50 disabled:opacity-50">{t.reject}</button>
+          <button disabled={processing || missingBirthday} onClick={() => onApprove(record)} className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2" title={missingBirthday ? t.birthdayRequired : ''}>
+            {processing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} {t.approveRequest}
           </button>
         </div>
-        <button onClick={onClose} className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600">Cancel</button>
+        <button onClick={onClose} className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600">{t.cancel}</button>
       </div>
     </div>
   );
@@ -409,6 +417,7 @@ function StatCard({ label, value, icon: Icon, color, bg }) {
 ═══════════════════════════════════════════════════════════════════════════════ */
 export default function IDManagement() {
   const { isSuperAdmin, isSubAdmin, adminData } = useAuth();
+  const { t } = useLang();
 
   /* ── Shared state ── */
   const [toast, setToast]           = useState({ msg: '', type: 'success' });
@@ -515,7 +524,7 @@ export default function IDManagement() {
       }
 
       setSelected(null);
-      showToast(decision === 'approved' ? 'Approved! Senior verified and physical ID queued for release.' : 'Request rejected.');
+      showToast(decision === 'approved' ? t.toastApprovedQueued : t.toastRequestRejected);
     } finally { setProcessing(false); }
   }
 
@@ -524,7 +533,7 @@ export default function IDManagement() {
     setDeleting(true);
     try {
       await deleteDoc(doc(db, deleteTarget.col, deleteTarget.id));
-      showToast(`"${deleteTarget.name}" deleted.`);
+      showToast(`"${deleteTarget.name}" ${t.deleteRequestFor}`);
       setDeleteTarget(null);
     } finally { setDeleting(false); }
   }
@@ -535,7 +544,7 @@ export default function IDManagement() {
     try {
       await updateDoc(doc(db, 'id_requests', record.id), { status: 'approved', reviewedAt: serverTimestamp() });
       setDetailRecord(null);
-      showToast(`Request for ${record.seniorName || record.fullName} approved.`);
+      showToast(`${t.toastRequestForPrefix} ${record.seniorName || record.fullName} ${t.toastRequestForSuffix}`);
     } finally { setProcessing(false); }
   }
 
@@ -544,7 +553,7 @@ export default function IDManagement() {
     try {
       await updateDoc(doc(db, 'id_requests', id), { status: 'rejected', reviewedAt: serverTimestamp() });
       setDetailRecord(null);
-      showToast('Request rejected.');
+      showToast(t.toastRequestRejected);
     } finally { setProcessing(false); }
   }
 
@@ -561,7 +570,7 @@ export default function IDManagement() {
       });
       await updateDoc(doc(db, 'id_requests', record.id), { status: 'released', releasedAt: serverTimestamp() });
       setReleaseRecord(null);
-      showToast(`Physical ID for ${record.seniorName || record.fullName} released to sub-admin.`);
+      showToast(`${t.toastPhysicalIdReleasedPrefix} ${record.seniorName || record.fullName} ${t.toastPhysicalIdReleasedSuffix}`);
     } finally { setProcessing(false); }
   }
 
@@ -569,7 +578,7 @@ export default function IDManagement() {
     setProcessing(true);
     try {
       await updateDoc(doc(db, 'released_ids', id), { status: 'collected', collectedAt: serverTimestamp() });
-      showToast('Marked as collected.');
+      showToast(t.toastMarkedCollected);
     } finally { setProcessing(false); }
   }
 
@@ -612,22 +621,22 @@ export default function IDManagement() {
 
   /* ── Top-level tabs ── */
   const topTabs = [
-    { key: 'verification', label: 'ID Verification', badge: submissions.filter(r => !r.status || r.status === 'pending').length + physicalReqs.filter(r => !r.status || r.status === 'pending').length },
-    { key: 'release',      label: 'ID Release',      badge: isSuperAdmin ? relPending.length : notified.length },
+    { key: 'verification', label: t.tabIdVerification, badge: submissions.filter(r => !r.status || r.status === 'pending').length + physicalReqs.filter(r => !r.status || r.status === 'pending').length },
+    { key: 'release',      label: t.tabIdRelease,      badge: isSuperAdmin ? relPending.length : notified.length },
   ];
 
   const verifTabs = [
-    { key: 'submissions', label: 'OSCA ID Submissions',  badge: submissions.filter(r => !r.status || r.status === 'pending').length },
-    { key: 'physical',    label: 'Physical ID Requests', badge: physicalReqs.filter(r => !r.status || r.status === 'pending').length },
+    { key: 'submissions', label: t.tabOscaSubmissions,  badge: submissions.filter(r => !r.status || r.status === 'pending').length },
+    { key: 'physical',    label: t.tabPhysicalRequests, badge: physicalReqs.filter(r => !r.status || r.status === 'pending').length },
   ];
 
   const relTabs = [
     ...(isSuperAdmin ? [
-      { key: 'requests',  label: 'ID Requests', badge: relPending.length },
-      { key: 'approved',  label: 'Approved',    badge: relApproved.length },
-      { key: 'released',  label: 'Released',    badge: 0 },
+      { key: 'requests',  label: t.tabIdRequests,       badge: relPending.length },
+      { key: 'approved',  label: t.tabApproved,         badge: relApproved.length },
+      { key: 'released',  label: t.tabReleased,         badge: 0 },
     ] : []),
-    ...(isSubAdmin ? [{ key: 'released', label: 'My Released IDs', badge: notified.length }] : []),
+    ...(isSubAdmin ? [{ key: 'released', label: t.tabMyReleasedIds, badge: notified.length }] : []),
   ];
 
   return (
@@ -651,24 +660,24 @@ export default function IDManagement() {
       {/* Page header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <CreditCard size={24} className="text-[#0f52ba]" /> ID Management
+          <CreditCard size={24} className="text-[#0f52ba]" /> {t.idManagement}
         </h1>
         <p className="text-sm text-gray-500 mt-1 flex items-center gap-1.5">
           <ShieldCheck size={13} className="text-[#0f52ba]" />
-          Review and manage senior citizen ID verifications and releases
+          {t.idMgmtSubtitle}
         </p>
       </div>
 
       {/* Top-level tabs */}
       <div className="flex gap-1 mb-8 bg-gray-100 p-1 rounded-xl w-fit">
-        {topTabs.map(t => (
+        {topTabs.map(tab => (
           <button
-            key={t.key}
-            onClick={() => setMainTab(t.key)}
-            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${mainTab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            key={tab.key}
+            onClick={() => setMainTab(tab.key)}
+            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${mainTab === tab.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            {t.label}
-            {t.badge > 0 && <span className="ml-1.5 bg-[#0f52ba] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{t.badge}</span>}
+            {tab.label}
+            {tab.badge > 0 && <span className="ml-1.5 bg-[#0f52ba] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
           </button>
         ))}
       </div>
@@ -679,17 +688,17 @@ export default function IDManagement() {
           {/* Stats */}
           {verifTab === 'submissions' ? (
             <div className="grid grid-cols-4 gap-4 mb-6">
-              <StatCard label="Pending Review"  value={submissions.filter(r => !r.status || r.status === 'pending').length} icon={ClockIcon}    color="text-yellow-600" bg="bg-yellow-50" />
-              <StatCard label="Approved"         value={submissions.filter(r => r.status === 'approved').length}             icon={CheckCircle2} color="text-green-600"  bg="bg-green-50"  />
-              <StatCard label="Rejected"         value={submissions.filter(r => r.status === 'rejected').length}             icon={XCircle}      color="text-red-600"    bg="bg-red-50"    />
-              <StatCard label="Total Submitted"  value={submissions.length}                                                  icon={FileImage}    color="text-blue-600"   bg="bg-blue-50"   />
+              <StatCard label={t.statPendingReview} value={submissions.filter(r => !r.status || r.status === 'pending').length} icon={ClockIcon}    color="text-yellow-600" bg="bg-yellow-50" />
+              <StatCard label={t.statApproved}       value={submissions.filter(r => r.status === 'approved').length}             icon={CheckCircle2} color="text-green-600"  bg="bg-green-50"  />
+              <StatCard label={t.statRejected}       value={submissions.filter(r => r.status === 'rejected').length}             icon={XCircle}      color="text-red-600"    bg="bg-red-50"    />
+              <StatCard label={t.statTotalSubmitted} value={submissions.length}                                                  icon={FileImage}    color="text-blue-600"   bg="bg-blue-50"   />
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-4 mb-6">
-              <StatCard label="Pending"          value={physicalReqs.filter(r => !r.status || r.status === 'pending').length} icon={ClockIcon}     color="text-yellow-600" bg="bg-yellow-50" />
-              <StatCard label="Approved"          value={physicalReqs.filter(r => r.status === 'approved').length}             icon={CheckCircle2}  color="text-green-600"  bg="bg-green-50"  />
-              <StatCard label="Rejected"          value={physicalReqs.filter(r => r.status === 'rejected').length}             icon={XCircle}       color="text-red-600"    bg="bg-red-50"    />
-              <StatCard label="Void/Incomplete"   value={voidVerifReqs.length}                                                 icon={AlertTriangle} color="text-orange-600" bg="bg-orange-50" />
+              <StatCard label={t.statPending}         value={physicalReqs.filter(r => !r.status || r.status === 'pending').length} icon={ClockIcon}     color="text-yellow-600" bg="bg-yellow-50" />
+              <StatCard label={t.statApproved}        value={physicalReqs.filter(r => r.status === 'approved').length}             icon={CheckCircle2}  color="text-green-600"  bg="bg-green-50"  />
+              <StatCard label={t.statRejected}        value={physicalReqs.filter(r => r.status === 'rejected').length}             icon={XCircle}       color="text-red-600"    bg="bg-red-50"    />
+              <StatCard label={t.statVoidIncomplete}  value={voidVerifReqs.length}                                                 icon={AlertTriangle} color="text-orange-600" bg="bg-orange-50" />
             </div>
           )}
 
@@ -697,23 +706,23 @@ export default function IDManagement() {
           {verifTab === 'submissions' && repeatKeys.size > 0 && (
             <div className="flex items-center gap-2 mb-5 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-medium">
               <AlertTriangle size={14} className="text-orange-500 shrink-0" />
-              {repeatKeys.size} user{repeatKeys.size > 1 ? 's have' : ' has'} submitted <strong className="mx-1">multiple requests</strong> — highlighted in orange.
+              {repeatKeys.size} {t.multipleReqsWarning}
             </div>
           )}
           {verifTab === 'physical' && voidVerifReqs.length > 0 && (
             <div className="flex items-center gap-2 mb-5 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-medium">
               <AlertTriangle size={14} className="text-orange-500 shrink-0" />
-              <strong>{voidVerifReqs.length}</strong>&nbsp;request(s) are void — incomplete profile.
+              <strong>{voidVerifReqs.length}</strong>&nbsp;{t.voidReqsWarning}
             </div>
           )}
 
           {/* Sub-tabs */}
           <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
-            {verifTabs.map(t => (
-              <button key={t.key} onClick={() => { setVerifTab(t.key); setVerifSearch(''); setFilterStatus('all'); }}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${verifTab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                {t.label}
-                {t.badge > 0 && <span className="ml-1.5 bg-[#0f52ba] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{t.badge}</span>}
+            {verifTabs.map(tab => (
+              <button key={tab.key} onClick={() => { setVerifTab(tab.key); setVerifSearch(''); setFilterStatus('all'); }}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${verifTab === tab.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                {tab.label}
+                {tab.badge > 0 && <span className="ml-1.5 bg-[#0f52ba] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
               </button>
             ))}
           </div>
@@ -722,14 +731,19 @@ export default function IDManagement() {
           <div className="flex gap-3 mb-6">
             <div className="relative flex-1">
               <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input type="text" placeholder="Search by name or OSCA ID…" value={verifSearch} onChange={e => setVerifSearch(e.target.value)}
+              <input type="text" placeholder={t.searchByNameOrOsca} value={verifSearch} onChange={e => setVerifSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 bg-white" />
             </div>
             <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-              {['all','pending','approved','rejected'].map(f => (
-                <button key={f} onClick={() => setFilterStatus(f)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${filterStatus === f ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                  {f}
+              {[
+                { key: 'all', label: t.filterAll },
+                { key: 'pending', label: t.filterPending },
+                { key: 'approved', label: t.filterApproved },
+                { key: 'rejected', label: t.filterRejected },
+              ].map(f => (
+                <button key={f.key} onClick={() => setFilterStatus(f.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${filterStatus === f.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                  {f.label}
                 </button>
               ))}
             </div>
@@ -741,12 +755,12 @@ export default function IDManagement() {
             <>
               {verifPending.length > 0 && (
                 <div className="mb-6">
-                  <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Pending Review ({verifPending.length})</h2>
+                  <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.statPendingReview} ({verifPending.length})</h2>
                   <div className="space-y-3">
                     {verifPending.map(r => {
                       const repeat = isRepeat(r);
                       const isVoid = verifTab === 'physical' && (r.isVoid || (!r.seniorName && !r.fullName && !r.seniorId));
-                      const rName  = nameOf(r) || 'Unknown';
+                      const rName  = nameOf(r) || t.unknownLabel;
                       const rId    = idOf(r);
                       const rDate  = (verifTab === 'submissions' ? r.submittedAt?.toDate?.()?.toLocaleDateString?.() : r.createdAt?.toDate?.()?.toLocaleDateString?.()) || null;
                       const noBday = !hasBirthday(r);
@@ -765,16 +779,16 @@ export default function IDManagement() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-semibold text-gray-900">{rName}</p>
-                                {repeat && <span className="flex items-center gap-1 text-[10px] font-bold bg-orange-500 text-white px-2 py-0.5 rounded-full"><AlertTriangle size={9} /> REPEAT</span>}
-                                {isVoid && <span className="text-[10px] font-bold bg-gray-400 text-white px-2 py-0.5 rounded-full">VOID</span>}
-                                {noBday && !isVoid && <span className="text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle size={8} /> NO BIRTHDAY</span>}
+                                {repeat && <span className="flex items-center gap-1 text-[10px] font-bold bg-orange-500 text-white px-2 py-0.5 rounded-full"><AlertTriangle size={9} /> {t.repeatBadge}</span>}
+                                {isVoid && <span className="text-[10px] font-bold bg-gray-400 text-white px-2 py-0.5 rounded-full">{t.voidBadge}</span>}
+                                {noBday && !isVoid && <span className="text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle size={8} /> {t.noBirthdayBadge}</span>}
                               </div>
                               <p className="text-xs text-gray-500 mt-0.5">
-                                {rId ? `OSCA ID: ${rId}` : ''}
+                                {rId ? `${t.oscaIdPrefix}: ${rId}` : ''}
                                 {r.barangay ? ` · Brgy. ${r.barangay}` : ''}
                                 {rDate ? ` · ${rDate}` : ''}
                               </p>
-                              {r.reason && <p className="text-xs text-gray-400 mt-0.5 italic">Reason: {r.reason}</p>}
+                              {r.reason && <p className="text-xs text-gray-400 mt-0.5 italic">{t.reasonLabel}: {r.reason}</p>}
                             </div>
                           </div>
                           <div className="flex items-center gap-2 ml-4 shrink-0">
@@ -782,7 +796,7 @@ export default function IDManagement() {
                             {!isVoid && (
                               <button onClick={() => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' })}
                                 className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline">
-                                <Eye size={14} /> Review
+                                <Eye size={14} /> {t.reviewAction}
                               </button>
                             )}
                             <button onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })}
@@ -797,11 +811,11 @@ export default function IDManagement() {
 
               {verifReviewed.length > 0 && (
                 <div>
-                  <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Reviewed ({verifReviewed.length})</h2>
+                  <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.reviewedSection} ({verifReviewed.length})</h2>
                   <div className="space-y-2">
                     {verifReviewed.map(r => {
                       const repeat = isRepeat(r);
-                      const rName  = nameOf(r) || 'Unknown';
+                      const rName  = nameOf(r) || t.unknownLabel;
                       const rId    = idOf(r);
                       return (
                         <div key={r.id} className={`rounded-2xl p-4 flex items-center justify-between border ${repeat ? 'bg-orange-50/60 border-orange-200' : 'bg-white border-gray-100'}`}>
@@ -813,17 +827,17 @@ export default function IDManagement() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-medium text-gray-800">{rName}</p>
-                                {repeat && <span className="flex items-center gap-1 text-[10px] font-bold bg-orange-400 text-white px-2 py-0.5 rounded-full"><AlertTriangle size={9} /> REPEAT</span>}
+                                {repeat && <span className="flex items-center gap-1 text-[10px] font-bold bg-orange-400 text-white px-2 py-0.5 rounded-full"><AlertTriangle size={9} /> {t.repeatBadge}</span>}
                               </div>
                               <p className="text-xs text-gray-400 mt-0.5">
-                                {rId ? `OSCA ID: ${rId}` : ''}
-                                {r.reviewedAt && ` · Reviewed ${r.reviewedAt?.toDate?.()?.toLocaleDateString?.() || '—'}`}
+                                {rId ? `${t.oscaIdPrefix}: ${rId}` : ''}
+                                {r.reviewedAt && ` · ${t.reviewedSection} ${r.reviewedAt?.toDate?.()?.toLocaleDateString?.() || '—'}`}
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 ml-4 shrink-0">
                             <StatusBadge status={r.status} />
-                            <button onClick={() => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' })} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#0f52ba]"><Eye size={13} /> View</button>
+                            <button onClick={() => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' })} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#0f52ba]"><Eye size={13} /> {t.view}</button>
                             <button onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
                           </div>
                         </div>
@@ -836,7 +850,7 @@ export default function IDManagement() {
               {filteredVerif.length === 0 && (
                 <div className="text-center py-20 text-gray-400">
                   <ShieldCheck size={40} className="mx-auto mb-3 opacity-40" />
-                  <p className="font-medium">{verifSearch ? 'No results found' : verifTab === 'submissions' ? 'No verification requests yet' : 'No physical ID requests yet'}</p>
+                  <p className="font-medium">{verifSearch ? t.noResultsFound : verifTab === 'submissions' ? t.noVerificationYet : t.noPhysicalReqsYet}</p>
                 </div>
               )}
             </>
@@ -850,17 +864,17 @@ export default function IDManagement() {
           {/* Stats */}
           {isSuperAdmin && (
             <div className="grid grid-cols-4 gap-4 mb-6">
-              <StatCard label="Pending Requests"  value={relPending.length}   icon={ClockIcon}     color="text-yellow-600" bg="bg-yellow-50" />
-              <StatCard label="Approved"           value={relApproved.length}  icon={CheckCircle2}  color="text-green-600"  bg="bg-green-50"  />
-              <StatCard label="Released"           value={relReleased.length}  icon={Send}          color="text-blue-600"   bg="bg-blue-50"   />
-              <StatCard label="Void / Incomplete"  value={voidRelReqs.length}  icon={AlertTriangle} color="text-orange-600" bg="bg-orange-50" />
+              <StatCard label={t.statPendingRequests} value={relPending.length}   icon={ClockIcon}     color="text-yellow-600" bg="bg-yellow-50" />
+              <StatCard label={t.statApproved}         value={relApproved.length}  icon={CheckCircle2}  color="text-green-600"  bg="bg-green-50"  />
+              <StatCard label={t.statReleasedCount}    value={relReleased.length}  icon={Send}          color="text-blue-600"   bg="bg-blue-50"   />
+              <StatCard label={t.statVoidIncomplete2}  value={voidRelReqs.length}  icon={AlertTriangle} color="text-orange-600" bg="bg-orange-50" />
             </div>
           )}
           {isSubAdmin && (
             <div className="grid grid-cols-3 gap-4 mb-6">
-              <StatCard label="Awaiting Pickup" value={notified.length}   icon={Bell}         color="text-purple-600" bg="bg-purple-50" />
-              <StatCard label="Collected"        value={collected.length}  icon={CheckCircle2} color="text-green-600"  bg="bg-green-50"  />
-              <StatCard label="Total Released"   value={myReleased.length} icon={Package}      color="text-blue-600"   bg="bg-blue-50"   />
+              <StatCard label={t.statAwaitingPickup} value={notified.length}   icon={Bell}         color="text-purple-600" bg="bg-purple-50" />
+              <StatCard label={t.statCollected}       value={collected.length}  icon={CheckCircle2} color="text-green-600"  bg="bg-green-50"  />
+              <StatCard label={t.statTotalReleased}   value={myReleased.length} icon={Package}      color="text-blue-600"   bg="bg-blue-50"   />
             </div>
           )}
 
@@ -868,18 +882,18 @@ export default function IDManagement() {
           <div className="flex gap-3 mb-5">
             <div className="relative flex-1">
               <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input type="text" placeholder="Search by name or OSCA ID…" value={relSearch} onChange={e => setRelSearch(e.target.value)}
+              <input type="text" placeholder={t.searchByNameOrOsca} value={relSearch} onChange={e => setRelSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white" />
             </div>
           </div>
 
           {/* Sub-tabs */}
           <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
-            {relTabs.map(t => (
-              <button key={t.key} onClick={() => setReleaseTab(t.key)}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${releaseTab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                {t.label}
-                {t.badge > 0 && <span className="ml-1.5 bg-[#0f52ba] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{t.badge}</span>}
+            {relTabs.map(tab => (
+              <button key={tab.key} onClick={() => setReleaseTab(tab.key)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${releaseTab === tab.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                {tab.label}
+                {tab.badge > 0 && <span className="ml-1.5 bg-[#0f52ba] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
               </button>
             ))}
           </div>
@@ -894,12 +908,12 @@ export default function IDManagement() {
                   {voidRelReqs.length > 0 && (
                     <div className="mb-4 px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 flex items-start gap-2">
                       <AlertTriangle size={13} className="mt-0.5 text-orange-500 shrink-0" />
-                      <span><strong>{voidRelReqs.length}</strong> request(s) are void — user did not complete sign-up.</span>
+                      <span><strong>{voidRelReqs.length}</strong> {t.voidSignupWarning}</span>
                     </div>
                   )}
                   {relPending.length > 0 ? (
                     <div className="space-y-3">
-                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Pending Requests ({relPending.length})</h2>
+                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.pendingRequestsSection} ({relPending.length})</h2>
                       {relPending.map(r => {
                         const isVoid = r.isVoid || (!r.seniorName && !r.fullName && !r.seniorId);
                         const noBday = !hasBirthday(r);
@@ -907,20 +921,20 @@ export default function IDManagement() {
                           <div key={r.id} className={`rounded-2xl p-5 flex items-center justify-between border ${isVoid ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-yellow-200'}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <p className="font-semibold text-gray-900">{r.seniorName || r.fullName || 'Unknown'}</p>
-                                {isVoid && <span className="text-[10px] font-bold bg-gray-400 text-white px-2 py-0.5 rounded-full">VOID</span>}
-                                {noBday && !isVoid && <span className="text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle size={8} /> NO BIRTHDAY</span>}
+                                <p className="font-semibold text-gray-900">{r.seniorName || r.fullName || t.unknownLabel}</p>
+                                {isVoid && <span className="text-[10px] font-bold bg-gray-400 text-white px-2 py-0.5 rounded-full">{t.voidBadge}</span>}
+                                {noBday && !isVoid && <span className="text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle size={8} /> {t.noBirthdayBadge}</span>}
                               </div>
                               <p className="text-xs text-gray-500 mt-0.5">
-                                {r.seniorId ? `OSCA ID: ${r.seniorId}` : ''}
+                                {r.seniorId ? `${t.oscaIdPrefix}: ${r.seniorId}` : ''}
                                 {r.barangay ? ` · Brgy. ${r.barangay}` : ''}
                               </p>
-                              {r.reason && <p className="text-xs text-gray-400 mt-0.5 italic">Reason: {r.reason}</p>}
+                              {r.reason && <p className="text-xs text-gray-400 mt-0.5 italic">{t.reasonLabel}: {r.reason}</p>}
                             </div>
                             <div className="flex items-center gap-2 ml-4 shrink-0">
                               <StatusBadge status={isVoid ? 'void' : 'pending'} />
-                              {!isVoid && <button onClick={() => setDetailRecord(r)} className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline"><Eye size={14} /> Review</button>}
-                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || 'Unknown', col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
+                              {!isVoid && <button onClick={() => setDetailRecord(r)} className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline"><Eye size={14} /> {t.reviewAction}</button>}
+                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
                             </div>
                           </div>
                         );
@@ -929,22 +943,22 @@ export default function IDManagement() {
                   ) : (
                     <div className="text-center py-20 text-gray-400">
                       <FileText size={40} className="mx-auto mb-3 opacity-40" />
-                      <p className="font-medium">No pending ID requests</p>
+                      <p className="font-medium">{t.noPendingIdRequests}</p>
                     </div>
                   )}
                   {relRejected.length > 0 && (
                     <div className="mt-6">
-                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Rejected ({relRejected.length})</h2>
+                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.rejectedSection} ({relRejected.length})</h2>
                       <div className="space-y-2">
                         {relRejected.map(r => (
                           <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between opacity-60">
                             <div>
-                              <p className="font-medium text-gray-800">{r.seniorName || r.fullName || 'Unknown'}</p>
-                              <p className="text-xs text-gray-400">{r.seniorId ? `OSCA ID: ${r.seniorId}` : ''}</p>
+                              <p className="font-medium text-gray-800">{r.seniorName || r.fullName || t.unknownLabel}</p>
+                              <p className="text-xs text-gray-400">{r.seniorId ? `${t.oscaIdPrefix}: ${r.seniorId}` : ''}</p>
                             </div>
                             <div className="flex items-center gap-2">
                               <StatusBadge status="rejected" />
-                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || 'Unknown', col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
+                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
                             </div>
                           </div>
                         ))}
@@ -961,22 +975,22 @@ export default function IDManagement() {
                     <>
                       <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 flex items-center gap-2">
                         <ShieldCheck size={13} className="text-blue-500" />
-                        Click "Release" to do a final verification of the ID card before sending to the sub-admin.
+                        {t.clickReleaseNote}
                       </div>
                       <div className="space-y-3">
                         {relApproved.map(r => (
                           <div key={r.id} className="bg-white border border-green-100 rounded-2xl p-5 flex items-center justify-between">
                             <div>
-                              <p className="font-semibold text-gray-900">{r.seniorName || r.fullName || 'Unknown'}</p>
+                              <p className="font-semibold text-gray-900">{r.seniorName || r.fullName || t.unknownLabel}</p>
                               <p className="text-xs text-gray-500 mt-0.5">
-                                {r.seniorId ? `OSCA ID: ${r.seniorId}` : ''}
+                                {r.seniorId ? `${t.oscaIdPrefix}: ${r.seniorId}` : ''}
                                 {r.barangay ? ` · Brgy. ${r.barangay}` : ''}
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
                               <StatusBadge status="approved" />
                               <button onClick={() => setReleaseRecord(r)} className="flex items-center gap-1.5 bg-[#0f52ba] hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors">
-                                <Send size={13} /> Release
+                                <Send size={13} /> {t.releaseLabel}
                               </button>
                             </div>
                           </div>
@@ -986,7 +1000,7 @@ export default function IDManagement() {
                   ) : (
                     <div className="text-center py-20 text-gray-400">
                       <CheckCircle2 size={40} className="mx-auto mb-3 opacity-40" />
-                      <p className="font-medium">No approved IDs awaiting release</p>
+                      <p className="font-medium">{t.noApprovedAwaitingRelease}</p>
                     </div>
                   )}
                 </div>
@@ -1000,11 +1014,11 @@ export default function IDManagement() {
                       {relReleased.map(r => (
                         <div key={r.id} className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center justify-between">
                           <div>
-                            <p className="font-medium text-gray-800">{r.seniorName || r.fullName || 'Unknown'}</p>
+                            <p className="font-medium text-gray-800">{r.seniorName || r.fullName || t.unknownLabel}</p>
                             <p className="text-xs text-gray-400">
-                              {r.seniorId ? `OSCA ID: ${r.seniorId}` : ''}
+                              {r.seniorId ? `${t.oscaIdPrefix}: ${r.seniorId}` : ''}
                               {r.barangay ? ` · Brgy. ${r.barangay}` : ''}
-                              {r.releasedAt && ` · Released ${r.releasedAt?.toDate?.()?.toLocaleDateString?.() || '—'}`}
+                              {r.releasedAt && ` · ${t.releasedLabel} ${r.releasedAt?.toDate?.()?.toLocaleDateString?.() || '—'}`}
                             </p>
                           </div>
                           <StatusBadge status="released" />
@@ -1014,7 +1028,7 @@ export default function IDManagement() {
                   ) : (
                     <div className="text-center py-20 text-gray-400">
                       <Send size={40} className="mx-auto mb-3 opacity-40" />
-                      <p className="font-medium">No IDs released yet</p>
+                      <p className="font-medium">{t.noIdsReleasedYet}</p>
                     </div>
                   )}
                 </div>
@@ -1027,25 +1041,25 @@ export default function IDManagement() {
                     <div className="mb-6">
                       <div className="flex items-center gap-2 mb-3 px-4 py-2.5 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-700 font-medium">
                         <Bell size={13} className="text-purple-500" />
-                        You have <strong>{notified.length}</strong> physical ID(s) ready for distribution in your barangay.
+                        {t.readyForPickupPrefix} <strong>{notified.length}</strong> {t.readyForPickupSuffix}
                       </div>
-                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Awaiting Pickup ({notified.length})</h2>
+                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.statAwaitingPickup} ({notified.length})</h2>
                       <div className="space-y-3">
                         {notified.map(r => (
                           <div key={r.id} className="bg-white border border-purple-100 rounded-2xl p-5 flex items-center justify-between">
                             <div>
-                              <p className="font-semibold text-gray-900">{r.seniorName || 'Unknown'}</p>
+                              <p className="font-semibold text-gray-900">{r.seniorName || t.unknownLabel}</p>
                               <p className="text-xs text-gray-500 mt-0.5">
-                                {r.seniorId ? `OSCA ID: ${r.seniorId}` : ''}
+                                {r.seniorId ? `${t.oscaIdPrefix}: ${r.seniorId}` : ''}
                                 {r.address ? ` · ${r.address}` : ''}
                               </p>
-                              {r.notifiedAt && <p className="text-xs text-purple-400 mt-0.5">Released: {r.notifiedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
+                              {r.notifiedAt && <p className="text-xs text-purple-400 mt-0.5">{t.releasedLabel}: {r.notifiedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
                             </div>
                             <div className="flex items-center gap-2">
                               <StatusBadge status="notified" />
                               <button disabled={processing} onClick={() => handleCollected(r.id)}
                                 className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors">
-                                <CheckCircle2 size={12} /> Mark Collected
+                                <CheckCircle2 size={12} /> {t.markCollected}
                               </button>
                             </div>
                           </div>
@@ -1055,13 +1069,13 @@ export default function IDManagement() {
                   )}
                   {collected.length > 0 && (
                     <div>
-                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Collected ({collected.length})</h2>
+                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.statCollected} ({collected.length})</h2>
                       <div className="space-y-2">
                         {collected.map(r => (
                           <div key={r.id} className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center justify-between opacity-70">
                             <div>
-                              <p className="font-medium text-gray-700">{r.seniorName || 'Unknown'}</p>
-                              <p className="text-xs text-gray-400">Collected: {r.collectedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>
+                              <p className="font-medium text-gray-700">{r.seniorName || t.unknownLabel}</p>
+                              <p className="text-xs text-gray-400">{t.statCollected}: {r.collectedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>
                             </div>
                             <StatusBadge status="collected" />
                           </div>
@@ -1072,8 +1086,8 @@ export default function IDManagement() {
                   {myReleased.length === 0 && (
                     <div className="text-center py-20 text-gray-400">
                       <Package size={40} className="mx-auto mb-3 opacity-40" />
-                      <p className="font-medium">No IDs assigned to your barangay yet</p>
-                      <p className="text-xs mt-1">Super admin will release IDs to you when they're ready</p>
+                      <p className="font-medium">{t.noIdsAssignedYet}</p>
+                      <p className="text-xs mt-1">{t.superAdminWillRelease}</p>
                     </div>
                   )}
                 </div>

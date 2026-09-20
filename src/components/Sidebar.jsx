@@ -52,10 +52,10 @@ export default function Sidebar({ children }) {
   const platformLabel = isSuperAdmin ? t.oscaPlatform : t.barangayPlatform;
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-50 dark:bg-[#0b0e14]">
       <aside
         style={{ width: expanded ? '256px' : '68px', transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}
-        className="h-screen sticky top-0 bg-white border-r border-gray-100 flex flex-col py-6 font-sans overflow-hidden shrink-0"
+        className="h-screen sticky top-0 bg-white dark:bg-[#12151c] border-r border-gray-100 dark:border-white/10 flex flex-col py-6 font-sans overflow-hidden shrink-0"
       >
         <div
           className="flex items-center mb-8"

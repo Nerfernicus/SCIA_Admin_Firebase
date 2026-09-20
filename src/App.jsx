@@ -2,6 +2,7 @@ import './App.css';
 import { createBrowserRouter, Outlet, RouterProvider } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { LangProvider } from './context/LangContext';
+import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 
@@ -108,10 +109,12 @@ const router = createBrowserRouter([
 
 export default function App() {
   return (
-    <LangProvider>
-      <AuthProvider>
-        <RouterProvider router={router} />
-      </AuthProvider>
-    </LangProvider>
+    <ThemeProvider>
+      <LangProvider>
+        <AuthProvider>
+          <RouterProvider router={router} />
+        </AuthProvider>
+      </LangProvider>
+    </ThemeProvider>
   );
 }

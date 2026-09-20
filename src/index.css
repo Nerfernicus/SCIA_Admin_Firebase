@@ -32,6 +32,21 @@ html.dark {
 .dark .hover\:bg-gray-50:hover  { background-color: #1a1e27; }
 .dark .hover\:bg-gray-100:hover { background-color: #232838; }
 
+/* Custom hex surfaces — several pages use one-off hex utilities
+   (bg-[#f8f9fa], bg-[#f4f6fc], bg-[#fff9ed], bg-[#eaf1fb]) instead of the
+   gray-* scale as their page/card background. These were never covered
+   above, so in dark mode the background stayed near-white while the text
+   sitting on it (text-gray-900 etc.) was being retinted light by the
+   rules further down — light text on a near-white background. This is
+   what was making most pages unreadable in dark mode.
+   UserManagement.jsx / EventCheckIn.jsx / HealthCenters.jsx /
+   Announcements.jsx (full-page bg), UserManagement.jsx (info cards),
+   Analytics.jsx (icon chips). */
+.dark .bg-\[\#f8f9fa\] { background-color: #0b0e14; }
+.dark .bg-\[\#f4f6fc\] { background-color: #131a2a; }
+.dark .bg-\[\#fff9ed\] { background-color: #241f0f; }
+.dark .bg-\[\#eaf1fb\] { background-color: #16233a; }
+
 /* Text */
 .dark .text-gray-900 { color: #f3f4f6; }
 .dark .text-gray-800 { color: #e5e7eb; }
@@ -50,6 +65,12 @@ html.dark {
 .dark .border-gray-200  { border-color: #2b3141; }
 .dark .border-gray-300  { border-color: #384056; }
 
+/* Borders paired with the custom-hex cards above (UserManagement.jsx info
+   panels) — kept subtle instead of a bright light-mode border on a now
+   dark card. */
+.dark .border-blue-50   { border-color: #1c2a42; }
+.dark .border-yellow-100 { border-color: #362f10; }
+
 /* Soft/tinted status backgrounds — darken so white text/icons on top still
    pop, while keeping each color's identity. */
 .dark .bg-red-50    { background-color: #2a1416; }
@@ -64,6 +85,7 @@ html.dark {
 .dark .bg-green-100  { background-color: #123322; }
 .dark .bg-blue-100   { background-color: #142c44; }
 .dark .bg-yellow-100 { background-color: #362f10; }
+.dark .bg-purple-100 { background-color: #241a3a; }
 
 /* Shadows read as muddy blobs on dark surfaces — soften them */
 .dark .shadow-sm, .dark .shadow, .dark .shadow-md,

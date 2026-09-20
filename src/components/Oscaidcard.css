@@ -23,7 +23,12 @@
    scrollbar can never appear on either face again. */
 .osca-flip-container {
   width: 540px;
-  height: 400px;       /* fixed height — identical for front & back */
+  height: 340px;       /* ID-1 card ratio (85.6×54mm, ~1.586:1) — same
+                           ratio as a real ID/credit card. The back
+                           content was tightened (see .benefits-list,
+                           .back-signers, .back-footer below) to fit
+                           inside this comfortably instead of growing the
+                           card to fit the content. */
   position: relative;
   transform-style: preserve-3d;
   transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);

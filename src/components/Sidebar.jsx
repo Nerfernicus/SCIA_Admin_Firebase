@@ -9,6 +9,7 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
+import { useTheme } from '../context/ThemeContext';
 import GenerateReportModal from './GenerateReportModal';
 import Header from './Header';
 
@@ -16,6 +17,10 @@ export default function Sidebar({ children }) {
   const location = useLocation();
   const { adminData, logout, isSuperAdmin } = useAuth();
   const { t } = useLang();
+  // Read the theme directly from context instead of leaning on the .dark
+  // ancestor class + CSS overrides. This guarantees the sidebar flips the
+  // instant the toggle is clicked, regardless of CSS build/cache state.
+  const { dark } = useTheme();
   const [expanded, setExpanded] = useState(true);
   const [reportOpen, setReportOpen] = useState(false);
 
@@ -52,10 +57,15 @@ export default function Sidebar({ children }) {
   const platformLabel = isSuperAdmin ? t.oscaPlatform : t.barangayPlatform;
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-[#0b0e14]">
+    <div className={dark ? 'flex min-h-screen bg-[#17181b]' : 'flex min-h-screen bg-gray-50'}>
       <aside
         style={{ width: expanded ? '256px' : '68px', transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}
-        className="h-screen sticky top-0 bg-white dark:bg-[#12151c] border-r border-gray-100 dark:border-white/10 flex flex-col py-6 font-sans overflow-hidden shrink-0"
+        className={
+          (dark
+            ? 'h-screen sticky top-0 bg-[#202124] border-r border-white/10'
+            : 'h-screen sticky top-0 bg-white border-r border-gray-100'
+          ) + ' flex flex-col py-6 font-sans overflow-hidden shrink-0'
+        }
       >
         <div
           className="flex items-center mb-8"
@@ -66,13 +76,17 @@ export default function Sidebar({ children }) {
           }}
         >
           <div style={labelStyle(expanded)}>
-            <h1 className="text-xl font-bold text-gray-900">SCIA Admin</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{platformLabel}</p>
+            <h1 className={dark ? 'text-xl font-bold text-[#f0efec]' : 'text-xl font-bold text-gray-900'}>SCIA Admin</h1>
+            <p className={dark ? 'text-sm text-[#96958d] mt-0.5' : 'text-sm text-gray-500 mt-0.5'}>{platformLabel}</p>
           </div>
           <button
             onClick={() => setExpanded(!expanded)}
             title={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors duration-150 shrink-0"
+            className={
+              dark
+                ? 'flex items-center justify-center w-8 h-8 rounded-lg text-[#7a7970] hover:text-[#ddd9d2] hover:bg-white/5 transition-colors duration-150 shrink-0'
+                : 'flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors duration-150 shrink-0'
+            }
           >
             {expanded ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
           </button>
@@ -86,7 +100,9 @@ export default function Sidebar({ children }) {
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
           className={`rounded-2xl flex items-center gap-2.5 ${
-            isSuperAdmin ? 'bg-amber-50 border border-amber-200' : 'bg-blue-50 border border-blue-200'
+            isSuperAdmin
+              ? (dark ? 'bg-[#2a2210] border border-amber-900/40' : 'bg-amber-50 border border-amber-200')
+              : (dark ? 'bg-[#101f30] border border-blue-900/40' : 'bg-blue-50 border border-blue-200')
           }`}
         >
           <div className="shrink-0">
@@ -96,7 +112,7 @@ export default function Sidebar({ children }) {
             <p className={`text-xs font-bold uppercase tracking-wider ${isSuperAdmin ? 'text-amber-600' : 'text-blue-600'}`}>
               {isSuperAdmin ? t.superAdmin : t.subAdmin}
             </p>
-            <p className="text-xs text-gray-500 truncate">{adminData?.name || adminData?.email || 'Admin'}</p>
+            <p className={dark ? 'text-xs text-[#96958d] truncate' : 'text-xs text-gray-500 truncate'}>{adminData?.name || adminData?.email || 'Admin'}</p>
           </div>
         </div>
 
@@ -117,10 +133,12 @@ export default function Sidebar({ children }) {
                   transition: 'padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
                 className={`w-full flex items-center gap-3 rounded-xl text-sm font-medium transition-colors duration-150 ${
-                  isActive ? 'bg-[#0f52ba] text-white shadow-sm' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  isActive
+                    ? 'bg-[#0f52ba] text-white shadow-sm'
+                    : (dark ? 'text-[#aeada6] hover:bg-white/5 hover:text-[#f0efec]' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900')
                 }`}
               >
-                <Icon size={18} className={`shrink-0 ${isActive ? 'text-white' : 'text-gray-400'}`} />
+                <Icon size={18} className={`shrink-0 ${isActive ? 'text-white' : (dark ? 'text-[#7a7970]' : 'text-gray-400')}`} />
                 <span style={labelStyle(expanded)}>{t[item.key] || item.key}</span>
               </Link>
             );
@@ -144,7 +162,7 @@ export default function Sidebar({ children }) {
           </button>
         </div>
 
-        <div className="mt-4 pt-4 border-t border-gray-100 px-2">
+        <div className={(dark ? 'border-white/10' : 'border-gray-100') + ' mt-4 pt-4 border-t px-2'}>
           <button
             onClick={logout}
             title={!expanded ? t.signOut : undefined}
@@ -153,7 +171,11 @@ export default function Sidebar({ children }) {
               justifyContent: expanded ? 'flex-start' : 'center',
               transition: 'padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
-            className="w-full flex items-center gap-3 text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-600 rounded-xl transition-colors"
+            className={
+              dark
+                ? 'w-full flex items-center gap-3 text-sm font-medium text-red-400 hover:bg-red-950/40 hover:text-red-300 rounded-xl transition-colors'
+                : 'w-full flex items-center gap-3 text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-600 rounded-xl transition-colors'
+            }
           >
             <LogOut size={18} className="shrink-0" />
             <span style={labelStyle(expanded)}>{t.signOut}</span>

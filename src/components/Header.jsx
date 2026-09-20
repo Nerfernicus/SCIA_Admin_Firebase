@@ -102,10 +102,12 @@ function NotificationsPanel({ onClose, myBarangay }) {
     return `${Math.round(diff / 1440)}d ago`;
   };
 
+  const { dark } = useTheme();
+
   return (
-    <div className="absolute right-0 top-12 w-80 bg-white dark:bg-[#12151c] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 z-50 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/10">
-        <span className="font-bold text-gray-900 text-sm">{t.notifications}</span>
+    <div className={(dark ? 'bg-[#202124] border-white/10' : 'bg-white border-gray-100') + ' absolute right-0 top-12 w-80 rounded-2xl shadow-2xl border z-50 overflow-hidden'}>
+      <div className={(dark ? 'border-white/10' : 'border-gray-100') + ' flex items-center justify-between px-4 py-3 border-b'}>
+        <span className={(dark ? 'text-[#f0efec]' : 'text-gray-900') + ' font-bold text-sm'}>{t.notifications}</span>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
           <X size={16} />
         </button>
@@ -212,9 +214,9 @@ function SettingsPanel({ onClose }) {
   const { dark, toggleDark } = useTheme();
 
   return (
-    <div className="absolute right-0 top-12 w-72 bg-white dark:bg-[#12151c] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 z-50 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/10">
-        <span className="font-bold text-gray-900 text-sm">{t.settings}</span>
+    <div className={(dark ? 'bg-[#202124] border-white/10' : 'bg-white border-gray-100') + ' absolute right-0 top-12 w-72 rounded-2xl shadow-2xl border z-50 overflow-hidden'}>
+      <div className={(dark ? 'border-white/10' : 'border-gray-100') + ' flex items-center justify-between px-4 py-3 border-b'}>
+        <span className={(dark ? 'text-[#f0efec]' : 'text-gray-900') + ' font-bold text-sm'}>{t.settings}</span>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
           <X size={16} />
         </button>
@@ -226,7 +228,7 @@ function SettingsPanel({ onClose }) {
         <SettingsToggle label={t.darkMode}    icon={Moon}    checked={dark} onChange={toggleDark} />
       </div>
 
-      <div className="px-4 py-3 border-t border-gray-100 dark:border-white/10">
+      <div className={(dark ? 'border-white/10' : 'border-gray-100') + ' px-4 py-3 border-t'}>
         <div className="flex items-center gap-2 mb-2">
           <Globe size={14} className="text-gray-400 shrink-0" />
           <span className="text-sm font-semibold text-gray-700">{t.language}</span>
@@ -248,7 +250,7 @@ function SettingsPanel({ onClose }) {
         </div>
       </div>
 
-      <div className="px-4 pb-3 pt-1 border-t border-gray-100 dark:border-white/10">
+      <div className={(dark ? 'border-white/10' : 'border-gray-100') + ' px-4 pb-3 pt-1 border-t'}>
         <p className="text-[10px] text-gray-400 text-center">{t.version}</p>
       </div>
     </div>
@@ -402,6 +404,7 @@ function AdminProfileModal({ onClose }) {
 export default function Header() {
   const { user, adminData } = useAuth();
   const { t } = useLang();
+  const { dark } = useTheme();
   const [showNotifs,   setShowNotifs]   = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile,  setShowProfile]  = useState(false);
@@ -435,12 +438,12 @@ export default function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-white dark:bg-[#12151c] border-b border-gray-100 dark:border-white/10 px-6 py-3 flex items-center justify-between font-sans">
+      <header className={(dark ? 'bg-[#202124] border-white/10' : 'bg-white border-gray-100') + ' sticky top-0 z-30 border-b px-6 py-3 flex items-center justify-between font-sans'}>
         <div>
-          <p className="text-xs text-gray-400 font-medium">
+          <p className={(dark ? 'text-[#7a7970]' : 'text-gray-400') + ' text-xs font-medium'}>
             {new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
-          <h2 className="text-sm font-bold text-gray-800 leading-tight">
+          <h2 className={(dark ? 'text-[#ddd9d2]' : 'text-gray-800') + ' text-sm font-bold leading-tight'}>
             {t.welcomeBack}, {adminData?.name?.split(' ')[0] || 'Admin'} 👋
           </h2>
         </div>
@@ -449,7 +452,7 @@ export default function Header() {
           <div className="relative" ref={notifsRef}>
             <button
               onClick={() => { setShowNotifs(v => !v); setShowSettings(false); }}
-              className="relative w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors"
+              className={(dark ? 'border-white/10 text-[#96958d] hover:bg-white/5 hover:text-[#ddd9d2]' : 'border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800') + ' relative w-9 h-9 flex items-center justify-center rounded-xl border transition-colors'}
               title={t.notifications}
             >
               <Bell size={17} />
@@ -465,7 +468,7 @@ export default function Header() {
           <div className="relative" ref={settingsRef}>
             <button
               onClick={() => { setShowSettings(v => !v); setShowNotifs(false); }}
-              className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors"
+              className={(dark ? 'border-white/10 text-[#96958d] hover:bg-white/5 hover:text-[#ddd9d2]' : 'border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800') + ' w-9 h-9 flex items-center justify-center rounded-xl border transition-colors'}
               title={t.settings}
             >
               <Settings size={17} />

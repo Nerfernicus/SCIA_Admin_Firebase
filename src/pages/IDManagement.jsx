@@ -9,31 +9,68 @@ import { db } from '../lib/firebase';
 import {
   collection, onSnapshot, query, orderBy, where,
   doc, updateDoc, deleteDoc, serverTimestamp,
-  getDocs, addDoc, getDoc,
+  getDocs, addDoc, getDoc, writeBatch,
 } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import OSCAIdCard from '../components/Oscaidcard';
+import { setIdRequestStatus, buildStatusPayload, ID_STATUS } from '../lib/idRequestStatus';
 
 /* Helpers */
 const hasBirthday = r => !!(r.dob || r.dateOfBirth || r.birthday);
+const fmtDate = ts => ts?.toDate?.()?.toLocaleDateString?.() || null;
+
+// New labels fall back to English until you add keys to LangContext.
+const L = (t, key, fallback) => (t && t[key]) || fallback;
+
+// A released_ids entry is linked to an id_requests doc unless it came from an
+// OSCA-ID verification (those have no physical request behind them).
+const isLinkedRelease = r => !!r.requestId && r.sourceType !== 'id_verification';
+
+// Requests where the senior followed up float to the top of a list.
+const followUpsFirst = list =>
+  [...list].sort((a, b) => ((b.followUpCount || 0) > 0) - ((a.followUpCount || 0) > 0));
 
 /* ─── Status Badge ───────────────────────────────────────────────────────────── */
 const StatusBadge = ({ status }) => {
   const { t } = useLang();
   const map = {
-    pending:   { cls: 'bg-yellow-100 text-yellow-700',  label: t.statusPending   },
-    approved:  { cls: 'bg-green-100 text-green-700',    label: t.statusApproved  },
-    rejected:  { cls: 'bg-red-100 text-red-700',        label: t.statusRejected  },
-    verified:  { cls: 'bg-green-100 text-green-700',    label: t.statusVerified  },
-    released:  { cls: 'bg-blue-100 text-blue-700',      label: t.statusReleased  },
-    notified:  { cls: 'bg-purple-100 text-purple-700',  label: t.statusNotified  },
-    collected: { cls: 'bg-gray-100 text-gray-700',      label: t.statusCollected },
-    void:      { cls: 'bg-gray-100 text-gray-500',      label: t.statusVoid      },
+    pending:    { cls: 'bg-yellow-100 text-yellow-700',  label: t.statusPending   },
+    approved:   { cls: 'bg-green-100 text-green-700',    label: t.statusApproved  },
+    rejected:   { cls: 'bg-red-100 text-red-700',        label: t.statusRejected  },
+    verified:   { cls: 'bg-green-100 text-green-700',    label: t.statusVerified  },
+    released:   { cls: 'bg-blue-100 text-blue-700',      label: t.statusReleased  },
+    notified:   { cls: 'bg-purple-100 text-purple-700',  label: t.statusNotified  },
+    collected:  { cls: 'bg-gray-100 text-gray-700',      label: t.statusCollected },
+    void:       { cls: 'bg-gray-100 text-gray-500',      label: t.statusVoid      },
+    processing: { cls: 'bg-indigo-100 text-indigo-700',  label: L(t, 'statusProcessing', 'Processing') },
+    delivered:  { cls: 'bg-blue-100 text-blue-700',      label: L(t, 'statusDelivered',  'Delivered to barangay') },
+    received:   { cls: 'bg-teal-100 text-teal-700',      label: L(t, 'statusReceived',   'Received by barangay') },
+    done:       { cls: 'bg-green-100 text-green-700',    label: L(t, 'statusClaimed',    'Claimed') },
+    cancelled:  { cls: 'bg-red-100 text-red-700',        label: L(t, 'statusCancelled',  'Cancelled') },
   };
   const { cls, label } = map[status] || map.pending;
   return <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${cls}`}>{label}</span>;
 };
+
+/* Follow-up badge + note (senior nudged OSCA about their request) */
+function FollowUpBadge({ record }) {
+  const { t } = useLang();
+  const n = record.followUpCount || 0;
+  if (!n) return null;
+  const when = fmtDate(record.lastFollowUpAt);
+  return (
+    <span className="flex items-center gap-1 text-[10px] font-bold bg-amber-500 text-white px-2 py-0.5 rounded-full">
+      <Bell size={9} /> {L(t, 'followUpLabel', 'Follow-up')} ×{n}{when ? ` · ${when}` : ''}
+    </span>
+  );
+}
+
+function FollowUpNote({ record }) {
+  if (!record.followUpCount || !record.lastFollowUpNote) return null;
+  return <p className="text-xs text-amber-600 mt-0.5 italic">"{record.lastFollowUpNote}"</p>;
+}
 
 /* Birthday warning pill */
 function BirthdayWarning() {
@@ -65,6 +102,40 @@ function DeleteConfirmModal({ name, onClose, onConfirm, loading }) {
           <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">{t.cancel}</button>
           <button onClick={onConfirm} disabled={loading} className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2">
             {loading ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} {t.delete}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Cancel request modal (OSCA) — asks for a reason the senior will see */
+function CancelRequestModal({ record, onClose, onConfirm, processing }) {
+  const { t } = useLang();
+  const [reason, setReason] = useState('');
+  const name = record.seniorName || record.fullName || t.unknownLabel;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 z-10">
+        <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <XCircle size={24} className="text-red-500" />
+        </div>
+        <h2 className="text-lg font-bold text-gray-900 mb-1 text-center">{L(t, 'cancelRequestTitle', 'Cancel this ID request?')}</h2>
+        <p className="text-sm font-bold text-gray-800 mb-3 text-center">"{name}"</p>
+        <p className="text-xs text-gray-500 mb-2">{L(t, 'cancelReasonHint', 'The senior will be notified. Add a reason so they know what to do next.')}</p>
+        <textarea
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          rows={3}
+          maxLength={200}
+          placeholder={L(t, 'cancelReasonPlaceholder', 'Reason (optional)')}
+          className="w-full rounded-xl border border-gray-200 text-sm p-3 mb-5 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-300"
+        />
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">{L(t, 'keepRequest', 'Keep request')}</button>
+          <button onClick={() => onConfirm(record, reason)} disabled={processing} className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2">
+            {processing ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />} {L(t, 'cancelRequestAction', 'Cancel request')}
           </button>
         </div>
       </div>
@@ -256,7 +327,7 @@ function OSCAIDCard({ record }) {
   );
 }
 
-/* ─── Release Modal ──────────────────────────────────────────────────────────── */
+/* ─── Release (Mark delivered) Modal ─────────────────────────────────────────── */
 function ReleaseModal({ record, onClose, onRelease, processing }) {
   const { t } = useLang();
   const [verified, setVerified] = useState(false);
@@ -342,7 +413,7 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
             className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 text-white font-semibold text-sm disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
           >
             {processing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            {t.releaseToSubAdmin}
+            {L(t, 'markDelivered', 'Mark as delivered')}
           </button>
         </div>
       </div>
@@ -412,6 +483,31 @@ function StatCard({ label, value, icon: Icon, color, bg }) {
   );
 }
 
+/* ─── One row in the OSCA request lists (approved / processing / delivered / claimed) ─── */
+function RequestRow({ r, status, sub, actions, tone = 'border-gray-100' }) {
+  const { t } = useLang();
+  return (
+    <div className={`bg-white border ${tone} rounded-2xl p-5 flex items-center justify-between`}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="font-semibold text-gray-900">{r.seniorName || r.fullName || t.unknownLabel}</p>
+          <FollowUpBadge record={r} />
+        </div>
+        <p className="text-xs text-gray-500 mt-0.5">
+          {r.seniorId ? `${t.oscaIdPrefix}: ${r.seniorId}` : ''}
+          {r.barangay ? ` · Brgy. ${r.barangay}` : ''}
+          {sub ? ` · ${sub}` : ''}
+        </p>
+        <FollowUpNote record={r} />
+      </div>
+      <div className="flex items-center gap-2 ml-4 shrink-0">
+        <StatusBadge status={status} />
+        {actions}
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════════
    MAIN PAGE
 ═══════════════════════════════════════════════════════════════════════════════ */
@@ -443,6 +539,7 @@ export default function IDManagement() {
   const [relSearch, setRelSearch]       = useState('');
   const [detailRecord, setDetailRecord] = useState(null);
   const [releaseRecord, setReleaseRecord] = useState(null);
+  const [cancelRecord, setCancelRecord]   = useState(null);
 
   /* ── Listeners ── */
   useEffect(() => {
@@ -450,15 +547,29 @@ export default function IDManagement() {
     return onSnapshot(q, snap => { setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoadingVerif(false); });
   }, []);
   useEffect(() => {
-    // Single listener for id_requests — feeds both Verification (physicalReqs) and Release (idRequests) panels
-    const q = query(collection(db, 'id_requests'), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, snap => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setPhysicalReqs(data);
-      setIdRequests(data);
-      setLoadingRel(false);
-    });
-  }, []);
+    // Single listener for id_requests — feeds both Verification (physicalReqs) and Release (idRequests) panels.
+    // A barangay sub-admin may only read their own barangay's requests (see firestore.rules),
+    // so their query must be filtered by barangay.
+    let q;
+    if (isSubAdmin && adminData?.barangay) {
+      q = query(collection(db, 'id_requests'), where('barangay', '==', adminData.barangay), orderBy('createdAt', 'desc'));
+    } else {
+      q = query(collection(db, 'id_requests'), orderBy('createdAt', 'desc'));
+    }
+    return onSnapshot(
+      q,
+      snap => {
+        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setPhysicalReqs(data);
+        setIdRequests(data);
+        setLoadingRel(false);
+      },
+      err => {
+        console.error('id_requests listener failed:', err);
+        setLoadingRel(false);
+      }
+    );
+  }, [isSubAdmin, adminData]);
   useEffect(() => {
     let q;
     if (isSubAdmin && adminData?.barangay) {
@@ -473,6 +584,12 @@ export default function IDManagement() {
     setToast({ msg, type });
     setTimeout(() => setToast({ msg: '', type: 'success' }), 3500);
   }
+
+  // Who is doing this action (stored in the request's statusHistory)
+  const getActor = () => ({
+    uid: getAuth().currentUser?.uid || null,
+    role: isSuperAdmin ? 'super_admin' : 'sub_admin',
+  });
 
   /* ── Verification decision handler ── */
   async function handleDecision(id, decision, collectionName = 'id_verifications', record = null) {
@@ -505,22 +622,8 @@ export default function IDManagement() {
           } catch (e) {}
         }
 
-        if (collectionName === 'id_requests') {
-          const controlNumber = record.controlNumber || record.seniorId || id.slice(-6).toUpperCase();
-          try {
-            await addDoc(collection(db, 'released_ids'), {
-              requestId: id, uid: record.uid || null,
-              seniorName: record.seniorName || record.fullName || '',
-              seniorId: record.seniorId || record.idNumber || '',
-              dob: record.dob || record.dateOfBirth || '', sex: record.sex || '',
-              address: record.address || '',
-              barangay: record.barangay || record.sub_admin_barangay || '',
-              controlNumber, status: 'notified', releasedAt: serverTimestamp(),
-              releasedBy: 'auto_physical_approval', notifiedAt: serverTimestamp(), sourceType: 'id_request',
-            });
-            await updateDoc(doc(db, 'id_requests', id), { status: 'released', releasedAt: serverTimestamp() });
-          } catch (e) {}
-        }
+        // NOTE: approving a physical ID request (id_requests) no longer auto-releases it.
+        // It now lands in Release → Approved, then goes Processing → Delivered → Received → Claimed.
       }
 
       setSelected(null);
@@ -557,28 +660,113 @@ export default function IDManagement() {
     } finally { setProcessing(false); }
   }
 
-  async function handleRelease(record) {
+  /* OSCA: approved → processing */
+  async function handleStartProcessing(record) {
     setProcessing(true);
     try {
-      await addDoc(collection(db, 'released_ids'), {
-        requestId: record.id, seniorName: record.seniorName || record.fullName || '',
-        seniorId: record.seniorId || record.idNumber || '', address: record.address || '',
-        dob: record.dob || record.dateOfBirth || '', sex: record.sex || '',
-        controlNumber: record.controlNumber || record.seniorId || record.id.slice(-6).toUpperCase(),
-        barangay: record.barangay || record.sub_admin_barangay || '',
-        status: 'notified', releasedAt: serverTimestamp(), releasedBy: 'super_admin', notifiedAt: serverTimestamp(),
-      });
-      await updateDoc(doc(db, 'id_requests', record.id), { status: 'released', releasedAt: serverTimestamp() });
-      setReleaseRecord(null);
-      showToast(`${t.toastPhysicalIdReleasedPrefix} ${record.seniorName || record.fullName} ${t.toastPhysicalIdReleasedSuffix}`);
+      await setIdRequestStatus(db, record.id, ID_STATUS.PROCESSING, getActor());
+      showToast(`${record.seniorName || record.fullName || ''} — ${L(t, 'toastNowProcessing', 'now processing')}`);
+    } catch (e) {
+      console.error(e);
+      showToast(L(t, 'toastStatusFailed', 'Could not update the status. Please try again.'), 'error');
     } finally { setProcessing(false); }
   }
 
-  async function handleCollected(id) {
+  /* OSCA: approved / processing → cancelled (senior is notified by the Cloud Function) */
+  async function handleCancelRequest(record, reason) {
     setProcessing(true);
     try {
-      await updateDoc(doc(db, 'released_ids', id), { status: 'collected', collectedAt: serverTimestamp() });
-      showToast(t.toastMarkedCollected);
+      const cleaned = (reason || '').trim();
+      await setIdRequestStatus(db, record.id, ID_STATUS.CANCELLED, getActor(), cleaned ? { cancelReason: cleaned } : {});
+      setCancelRecord(null);
+      showToast(L(t, 'toastRequestCancelled', 'Request cancelled'));
+    } catch (e) {
+      console.error(e);
+      showToast(L(t, 'toastStatusFailed', 'Could not update the status. Please try again.'), 'error');
+    } finally { setProcessing(false); }
+  }
+
+  /* OSCA: processing → delivered to the barangay.
+     Creates the barangay's worklist entry (released_ids) AND flips the request
+     status in one atomic batch. The Cloud Function then tells the senior their ID
+     is ready for pick-up. */
+  async function handleRelease(record) {
+    setProcessing(true);
+    try {
+      const bgy = record.barangay || record.sub_admin_barangay || '';
+      const batch = writeBatch(db);
+
+      batch.set(doc(collection(db, 'released_ids')), {
+        requestId: record.id, uid: record.uid || null, sourceType: 'id_request',
+        seniorName: record.seniorName || record.fullName || '',
+        seniorId: record.seniorId || record.idNumber || '', address: record.address || '',
+        dob: record.dob || record.dateOfBirth || '', sex: record.sex || '',
+        controlNumber: record.controlNumber || record.seniorId || record.id.slice(-6).toUpperCase(),
+        barangay: bgy,
+        status: 'notified', releasedAt: serverTimestamp(), releasedBy: 'super_admin', notifiedAt: serverTimestamp(),
+      });
+
+      // `barangay` is written onto the request too so the barangay admin is allowed to read/update it
+      batch.update(
+        doc(db, 'id_requests', record.id),
+        buildStatusPayload(ID_STATUS.DELIVERED, getActor(), { barangay: bgy, releasedAt: serverTimestamp() })
+      );
+
+      await batch.commit();
+      setReleaseRecord(null);
+      showToast(`${t.toastPhysicalIdReleasedPrefix} ${record.seniorName || record.fullName} ${t.toastPhysicalIdReleasedSuffix}`);
+    } catch (e) {
+      console.error(e);
+      showToast(L(t, 'toastStatusFailed', 'Could not update the status. Please try again.'), 'error');
+    } finally { setProcessing(false); }
+  }
+
+  /* Keep the OSCA-side request in step with what the barangay did.
+     Returns false if the request couldn't be updated (e.g. older request with no barangay field). */
+  async function syncRequestStatus(release, status) {
+    if (!isLinkedRelease(release)) return true;
+    try {
+      await setIdRequestStatus(db, release.requestId, status, getActor());
+      return true;
+    } catch (e) {
+      console.warn('Could not sync id_requests status:', e);
+      return false;
+    }
+  }
+
+  /* Barangay: OSCA delivered it → "received" */
+  async function handleReceived(release) {
+    setProcessing(true);
+    try {
+      await updateDoc(doc(db, 'released_ids', release.id), { status: 'received', receivedAt: serverTimestamp() });
+      const synced = await syncRequestStatus(release, ID_STATUS.RECEIVED);
+      showToast(
+        synced
+          ? L(t, 'toastMarkedReceived', 'Marked as received')
+          : L(t, 'toastReceivedNoSync', 'Marked as received here, but OSCA\'s request could not be updated.'),
+        synced ? 'success' : 'error'
+      );
+    } catch (e) {
+      console.error(e);
+      showToast(L(t, 'toastStatusFailed', 'Could not update the status. Please try again.'), 'error');
+    } finally { setProcessing(false); }
+  }
+
+  /* Barangay: senior picked it up → "claimed" (id_requests.status = done) */
+  async function handleCollected(release) {
+    setProcessing(true);
+    try {
+      await updateDoc(doc(db, 'released_ids', release.id), { status: 'collected', collectedAt: serverTimestamp() });
+      const synced = await syncRequestStatus(release, ID_STATUS.DONE);
+      showToast(
+        synced
+          ? t.toastMarkedCollected
+          : L(t, 'toastCollectedNoSync', 'Marked as claimed here, but OSCA\'s request could not be updated.'),
+        synced ? 'success' : 'error'
+      );
+    } catch (e) {
+      console.error(e);
+      showToast(L(t, 'toastStatusFailed', 'Could not update the status. Please try again.'), 'error');
     } finally { setProcessing(false); }
   }
 
@@ -609,20 +797,28 @@ export default function IDManagement() {
     const name = (r.seniorName || r.fullName || '').toLowerCase();
     return !relSearch || name.includes(relSearch.toLowerCase()) || (r.seniorId || '').includes(relSearch);
   });
+  const relByStatus = (statuses) =>
+    followUpsFirst(filteredRel(idRequests.filter(r => statuses.includes(r.status))));
 
-  const relPending  = filteredRel(idRequests.filter(r => !r.status || r.status === 'pending'));
-  const relApproved = filteredRel(idRequests.filter(r => r.status === 'approved'));
-  const relRejected = filteredRel(idRequests.filter(r => r.status === 'rejected'));
-  const relReleased = filteredRel(idRequests.filter(r => r.status === 'released'));
+  const relPending    = followUpsFirst(filteredRel(idRequests.filter(r => !r.status || r.status === 'pending')));
+  const relApproved   = relByStatus(['approved']);
+  const relProcessing = relByStatus(['processing']);
+  // 'released' is the legacy name for 'delivered'
+  const relDelivered  = relByStatus(['delivered', 'released', 'received']);
+  const relDone       = relByStatus(['done']);
+  const relCancelled  = relByStatus(['cancelled']);
+  const relRejected   = filteredRel(idRequests.filter(r => r.status === 'rejected'));
+
   const myReleased  = filteredRel(releasedIDs);
-  const notified    = myReleased.filter(r => r.status === 'notified');
+  const incoming    = myReleased.filter(r => r.status === 'notified');   // delivered by OSCA, waiting for the barangay to confirm
+  const atBarangay  = myReleased.filter(r => r.status === 'received');   // received, ready for the senior to pick up
   const collected   = myReleased.filter(r => r.status === 'collected');
   const voidRelReqs = idRequests.filter(r => r.isVoid || (!r.seniorName && !r.fullName && !r.seniorId));
 
   /* ── Top-level tabs ── */
   const topTabs = [
     { key: 'verification', label: t.tabIdVerification, badge: submissions.filter(r => !r.status || r.status === 'pending').length + physicalReqs.filter(r => !r.status || r.status === 'pending').length },
-    { key: 'release',      label: t.tabIdRelease,      badge: isSuperAdmin ? relPending.length : notified.length },
+    { key: 'release',      label: t.tabIdRelease,      badge: isSuperAdmin ? relPending.length : incoming.length },
   ];
 
   const verifTabs = [
@@ -632,12 +828,22 @@ export default function IDManagement() {
 
   const relTabs = [
     ...(isSuperAdmin ? [
-      { key: 'requests',  label: t.tabIdRequests,       badge: relPending.length },
-      { key: 'approved',  label: t.tabApproved,         badge: relApproved.length },
-      { key: 'released',  label: t.tabReleased,         badge: 0 },
+      { key: 'requests',   label: t.tabIdRequests,                            badge: relPending.length },
+      { key: 'approved',   label: t.tabApproved,                              badge: relApproved.length },
+      { key: 'processing', label: L(t, 'tabProcessing', 'Processing'),        badge: relProcessing.length },
+      { key: 'delivered',  label: L(t, 'tabDelivered',  'Delivered'),         badge: 0 },
+      { key: 'done',       label: L(t, 'tabClaimed',    'Claimed'),           badge: 0 },
     ] : []),
-    ...(isSubAdmin ? [{ key: 'released', label: t.tabMyReleasedIds, badge: notified.length }] : []),
+    ...(isSubAdmin ? [{ key: 'released', label: t.tabMyReleasedIds, badge: incoming.length }] : []),
   ];
+
+  /* Small action buttons reused in the OSCA lists */
+  const CancelBtn = ({ r }) => (
+    <button disabled={processing} onClick={() => setCancelRecord(r)}
+      className="flex items-center gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 text-xs font-bold px-3 py-2 rounded-xl transition-colors">
+      <XCircle size={12} /> {L(t, 'cancelRequestAction', 'Cancel request')}
+    </button>
+  );
 
   return (
     <div className="p-8 max-w-5xl mx-auto relative">
@@ -656,6 +862,7 @@ export default function IDManagement() {
       {selected?.type === 'physical'   && <PhysicalIDModal     record={selected.record} onClose={() => setSelected(null)} onDecision={handleDecision} processing={processing} />}
       {detailRecord  && <RequestDetailModal record={detailRecord}  onClose={() => setDetailRecord(null)}  onApprove={handleApprove} onReject={handleReject} processing={processing} />}
       {releaseRecord && <ReleaseModal       record={releaseRecord} onClose={() => setReleaseRecord(null)} onRelease={handleRelease} processing={processing} />}
+      {cancelRecord  && <CancelRequestModal record={cancelRecord}  onClose={() => setCancelRecord(null)}  onConfirm={handleCancelRequest} processing={processing} />}
 
       {/* Page header */}
       <div className="mb-6">
@@ -782,6 +989,7 @@ export default function IDManagement() {
                                 {repeat && <span className="flex items-center gap-1 text-[10px] font-bold bg-orange-500 text-white px-2 py-0.5 rounded-full"><AlertTriangle size={9} /> {t.repeatBadge}</span>}
                                 {isVoid && <span className="text-[10px] font-bold bg-gray-400 text-white px-2 py-0.5 rounded-full">{t.voidBadge}</span>}
                                 {noBday && !isVoid && <span className="text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle size={8} /> {t.noBirthdayBadge}</span>}
+                                {verifTab === 'physical' && <FollowUpBadge record={r} />}
                               </div>
                               <p className="text-xs text-gray-500 mt-0.5">
                                 {rId ? `${t.oscaIdPrefix}: ${rId}` : ''}
@@ -789,6 +997,7 @@ export default function IDManagement() {
                                 {rDate ? ` · ${rDate}` : ''}
                               </p>
                               {r.reason && <p className="text-xs text-gray-400 mt-0.5 italic">{t.reasonLabel}: {r.reason}</p>}
+                              {verifTab === 'physical' && <FollowUpNote record={r} />}
                             </div>
                           </div>
                           <div className="flex items-center gap-2 ml-4 shrink-0">
@@ -861,20 +1070,22 @@ export default function IDManagement() {
       {/* ═══ RELEASE PANEL ═══ */}
       {mainTab === 'release' && (
         <>
-          {/* Stats */}
+          {/* Stats — OSCA */}
           {isSuperAdmin && (
             <div className="grid grid-cols-4 gap-4 mb-6">
-              <StatCard label={t.statPendingRequests} value={relPending.length}   icon={ClockIcon}     color="text-yellow-600" bg="bg-yellow-50" />
-              <StatCard label={t.statApproved}         value={relApproved.length}  icon={CheckCircle2}  color="text-green-600"  bg="bg-green-50"  />
-              <StatCard label={t.statReleasedCount}    value={relReleased.length}  icon={Send}          color="text-blue-600"   bg="bg-blue-50"   />
-              <StatCard label={t.statVoidIncomplete2}  value={voidRelReqs.length}  icon={AlertTriangle} color="text-orange-600" bg="bg-orange-50" />
+              <StatCard label={t.statPendingRequests}                     value={relPending.length}                              icon={ClockIcon}    color="text-yellow-600" bg="bg-yellow-50" />
+              <StatCard label={L(t, 'statInProgress', 'In progress')}    value={relApproved.length + relProcessing.length}      icon={Package}      color="text-indigo-600" bg="bg-indigo-50" />
+              <StatCard label={L(t, 'statWithBarangay', 'With barangay')} value={relDelivered.length}                            icon={Send}         color="text-blue-600"   bg="bg-blue-50"   />
+              <StatCard label={L(t, 'statClaimed', 'Claimed by seniors')} value={relDone.length}                                 icon={CheckCircle2} color="text-green-600"  bg="bg-green-50"  />
             </div>
           )}
+          {/* Stats — Barangay */}
           {isSubAdmin && (
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <StatCard label={t.statAwaitingPickup} value={notified.length}   icon={Bell}         color="text-purple-600" bg="bg-purple-50" />
-              <StatCard label={t.statCollected}       value={collected.length}  icon={CheckCircle2} color="text-green-600"  bg="bg-green-50"  />
-              <StatCard label={t.statTotalReleased}   value={myReleased.length} icon={Package}      color="text-blue-600"   bg="bg-blue-50"   />
+            <div className="grid grid-cols-4 gap-4 mb-6">
+              <StatCard label={L(t, 'statIncoming', 'Incoming from OSCA')}      value={incoming.length}   icon={Bell}         color="text-purple-600" bg="bg-purple-50" />
+              <StatCard label={L(t, 'statReadyPickup', 'Ready for pick-up')}    value={atBarangay.length} icon={Package}      color="text-teal-600"   bg="bg-teal-50"   />
+              <StatCard label={L(t, 'statClaimed', 'Claimed by seniors')}       value={collected.length}  icon={CheckCircle2} color="text-green-600"  bg="bg-green-50"  />
+              <StatCard label={t.statTotalReleased}                             value={myReleased.length} icon={Send}         color="text-blue-600"   bg="bg-blue-50"   />
             </div>
           )}
 
@@ -924,12 +1135,14 @@ export default function IDManagement() {
                                 <p className="font-semibold text-gray-900">{r.seniorName || r.fullName || t.unknownLabel}</p>
                                 {isVoid && <span className="text-[10px] font-bold bg-gray-400 text-white px-2 py-0.5 rounded-full">{t.voidBadge}</span>}
                                 {noBday && !isVoid && <span className="text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle size={8} /> {t.noBirthdayBadge}</span>}
+                                <FollowUpBadge record={r} />
                               </div>
                               <p className="text-xs text-gray-500 mt-0.5">
                                 {r.seniorId ? `${t.oscaIdPrefix}: ${r.seniorId}` : ''}
                                 {r.barangay ? ` · Brgy. ${r.barangay}` : ''}
                               </p>
                               {r.reason && <p className="text-xs text-gray-400 mt-0.5 italic">{t.reasonLabel}: {r.reason}</p>}
+                              <FollowUpNote record={r} />
                             </div>
                             <div className="flex items-center gap-2 ml-4 shrink-0">
                               <StatusBadge status={isVoid ? 'void' : 'pending'} />
@@ -965,35 +1178,52 @@ export default function IDManagement() {
                       </div>
                     </div>
                   )}
+                  {relCancelled.length > 0 && (
+                    <div className="mt-6">
+                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{L(t, 'cancelledSection', 'Cancelled')} ({relCancelled.length})</h2>
+                      <div className="space-y-2">
+                        {relCancelled.map(r => (
+                          <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between opacity-60">
+                            <div>
+                              <p className="font-medium text-gray-800">{r.seniorName || r.fullName || t.unknownLabel}</p>
+                              <p className="text-xs text-gray-400">
+                                {r.seniorId ? `${t.oscaIdPrefix}: ${r.seniorId}` : ''}
+                                {r.cancelReason ? ` · ${r.cancelReason}` : ''}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <StatusBadge status="cancelled" />
+                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* ─ Approved, ready to release (super admin) */}
+              {/* ─ Approved → start processing (super admin) */}
               {releaseTab === 'approved' && isSuperAdmin && (
                 <div>
                   {relApproved.length > 0 ? (
                     <>
                       <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 flex items-center gap-2">
                         <ShieldCheck size={13} className="text-blue-500" />
-                        {t.clickReleaseNote}
+                        {L(t, 'startProcessingNote', 'Press "Start processing" when OSCA begins preparing the physical ID.')}
                       </div>
                       <div className="space-y-3">
                         {relApproved.map(r => (
-                          <div key={r.id} className="bg-white border border-green-100 rounded-2xl p-5 flex items-center justify-between">
-                            <div>
-                              <p className="font-semibold text-gray-900">{r.seniorName || r.fullName || t.unknownLabel}</p>
-                              <p className="text-xs text-gray-500 mt-0.5">
-                                {r.seniorId ? `${t.oscaIdPrefix}: ${r.seniorId}` : ''}
-                                {r.barangay ? ` · Brgy. ${r.barangay}` : ''}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <StatusBadge status="approved" />
-                              <button onClick={() => setReleaseRecord(r)} className="flex items-center gap-1.5 bg-[#0f52ba] hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors">
-                                <Send size={13} /> {t.releaseLabel}
-                              </button>
-                            </div>
-                          </div>
+                          <RequestRow key={r.id} r={r} status="approved" tone="border-green-100"
+                            actions={
+                              <>
+                                <button disabled={processing} onClick={() => handleStartProcessing(r)}
+                                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors">
+                                  <Package size={13} /> {L(t, 'startProcessing', 'Start processing')}
+                                </button>
+                                <CancelBtn r={r} />
+                              </>
+                            } />
                         ))}
                       </div>
                     </>
@@ -1006,24 +1236,52 @@ export default function IDManagement() {
                 </div>
               )}
 
-              {/* ─ Released (super admin view) */}
-              {releaseTab === 'released' && isSuperAdmin && (
+              {/* ─ Processing → mark delivered (super admin) */}
+              {releaseTab === 'processing' && isSuperAdmin && (
                 <div>
-                  {relReleased.length > 0 ? (
-                    <div className="space-y-2">
-                      {relReleased.map(r => (
-                        <div key={r.id} className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center justify-between">
-                          <div>
-                            <p className="font-medium text-gray-800">{r.seniorName || r.fullName || t.unknownLabel}</p>
-                            <p className="text-xs text-gray-400">
-                              {r.seniorId ? `${t.oscaIdPrefix}: ${r.seniorId}` : ''}
-                              {r.barangay ? ` · Brgy. ${r.barangay}` : ''}
-                              {r.releasedAt && ` · ${t.releasedLabel} ${r.releasedAt?.toDate?.()?.toLocaleDateString?.() || '—'}`}
-                            </p>
-                          </div>
-                          <StatusBadge status="released" />
-                        </div>
-                      ))}
+                  {relProcessing.length > 0 ? (
+                    <>
+                      <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 flex items-center gap-2">
+                        <ShieldCheck size={13} className="text-blue-500" />
+                        {L(t, 'markDeliveredNote', 'Once the ID has been handed to the barangay, press "Mark delivered". The senior is notified that it is ready for pick-up.')}
+                      </div>
+                      <div className="space-y-3">
+                        {relProcessing.map(r => (
+                          <RequestRow key={r.id} r={r} status="processing" tone="border-indigo-100"
+                            sub={fmtDate(r.processedAt) ? `${L(t, 'processingSince', 'Processing since')} ${fmtDate(r.processedAt)}` : ''}
+                            actions={
+                              <>
+                                <button disabled={processing} onClick={() => setReleaseRecord(r)}
+                                  className="flex items-center gap-1.5 bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors">
+                                  <Send size={13} /> {L(t, 'markDelivered', 'Mark as delivered')}
+                                </button>
+                                <CancelBtn r={r} />
+                              </>
+                            } />
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-20 text-gray-400">
+                      <Package size={40} className="mx-auto mb-3 opacity-40" />
+                      <p className="font-medium">{L(t, 'noProcessingRequests', 'No IDs are being processed right now')}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ─ Delivered to barangay (super admin) — shows what the barangay has done */}
+              {releaseTab === 'delivered' && isSuperAdmin && (
+                <div>
+                  {relDelivered.length > 0 ? (
+                    <div className="space-y-3">
+                      {relDelivered.map(r => {
+                        const received = r.status === 'received';
+                        const sub = received
+                          ? `${L(t, 'receivedOn', 'Received by barangay')} ${fmtDate(r.receivedAt) || '—'}`
+                          : `${L(t, 'deliveredOn', 'Delivered')} ${fmtDate(r.deliveredAt) || fmtDate(r.releasedAt) || '—'} · ${L(t, 'awaitingBarangay', 'waiting for barangay to confirm')}`;
+                        return <RequestRow key={r.id} r={r} status={r.status} sub={sub} tone={received ? 'border-teal-100' : 'border-blue-100'} />;
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-20 text-gray-400">
@@ -1034,18 +1292,38 @@ export default function IDManagement() {
                 </div>
               )}
 
+              {/* ─ Claimed by the senior (super admin) */}
+              {releaseTab === 'done' && isSuperAdmin && (
+                <div>
+                  {relDone.length > 0 ? (
+                    <div className="space-y-3">
+                      {relDone.map(r => (
+                        <RequestRow key={r.id} r={r} status="done" tone="border-green-100"
+                          sub={`${L(t, 'claimedOn', 'Claimed')} ${fmtDate(r.claimedAt) || '—'}`} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-20 text-gray-400">
+                      <CheckCircle2 size={40} className="mx-auto mb-3 opacity-40" />
+                      <p className="font-medium">{L(t, 'noClaimedYet', 'No IDs have been claimed yet')}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* ─ Sub-admin: My released IDs */}
               {releaseTab === 'released' && isSubAdmin && (
                 <div>
-                  {notified.length > 0 && (
+                  {/* Incoming: OSCA says it delivered — barangay confirms receipt */}
+                  {incoming.length > 0 && (
                     <div className="mb-6">
                       <div className="flex items-center gap-2 mb-3 px-4 py-2.5 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-700 font-medium">
                         <Bell size={13} className="text-purple-500" />
-                        {t.readyForPickupPrefix} <strong>{notified.length}</strong> {t.readyForPickupSuffix}
+                        {L(t, 'incomingBanner', 'OSCA delivered these IDs to your barangay. Press "Mark received" once they arrive.')}
                       </div>
-                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.statAwaitingPickup} ({notified.length})</h2>
+                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{L(t, 'statIncoming', 'Incoming from OSCA')} ({incoming.length})</h2>
                       <div className="space-y-3">
-                        {notified.map(r => (
+                        {incoming.map(r => (
                           <div key={r.id} className="bg-white border border-purple-100 rounded-2xl p-5 flex items-center justify-between">
                             <div>
                               <p className="font-semibold text-gray-900">{r.seniorName || t.unknownLabel}</p>
@@ -1053,13 +1331,13 @@ export default function IDManagement() {
                                 {r.seniorId ? `${t.oscaIdPrefix}: ${r.seniorId}` : ''}
                                 {r.address ? ` · ${r.address}` : ''}
                               </p>
-                              {r.notifiedAt && <p className="text-xs text-purple-400 mt-0.5">{t.releasedLabel}: {r.notifiedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>}
+                              {r.notifiedAt && <p className="text-xs text-purple-400 mt-0.5">{L(t, 'deliveredOn', 'Delivered')}: {fmtDate(r.notifiedAt) || '—'}</p>}
                             </div>
                             <div className="flex items-center gap-2">
-                              <StatusBadge status="notified" />
-                              <button disabled={processing} onClick={() => handleCollected(r.id)}
-                                className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors">
-                                <CheckCircle2 size={12} /> {t.markCollected}
+                              <StatusBadge status="delivered" />
+                              <button disabled={processing} onClick={() => handleReceived(r)}
+                                className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors">
+                                <Package size={12} /> {L(t, 'markReceived', 'Mark received')}
                               </button>
                             </div>
                           </div>
@@ -1067,15 +1345,48 @@ export default function IDManagement() {
                       </div>
                     </div>
                   )}
+
+                  {/* Received: sitting at the barangay, waiting for the senior */}
+                  {atBarangay.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center gap-2 mb-3 px-4 py-2.5 bg-teal-50 border border-teal-200 rounded-xl text-xs text-teal-700 font-medium">
+                        <CheckCircle2 size={13} className="text-teal-500" />
+                        {L(t, 'readyBanner', 'These IDs are in your barangay. Press "Mark claimed" when the senior picks theirs up.')}
+                      </div>
+                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{L(t, 'statReadyPickup', 'Ready for pick-up')} ({atBarangay.length})</h2>
+                      <div className="space-y-3">
+                        {atBarangay.map(r => (
+                          <div key={r.id} className="bg-white border border-teal-100 rounded-2xl p-5 flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold text-gray-900">{r.seniorName || t.unknownLabel}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                {r.seniorId ? `${t.oscaIdPrefix}: ${r.seniorId}` : ''}
+                                {r.address ? ` · ${r.address}` : ''}
+                              </p>
+                              {r.receivedAt && <p className="text-xs text-teal-500 mt-0.5">{L(t, 'receivedOn', 'Received by barangay')}: {fmtDate(r.receivedAt) || '—'}</p>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <StatusBadge status="received" />
+                              <button disabled={processing} onClick={() => handleCollected(r)}
+                                className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors">
+                                <CheckCircle2 size={12} /> {L(t, 'markClaimed', 'Mark claimed')}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {collected.length > 0 && (
                     <div>
-                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.statCollected} ({collected.length})</h2>
+                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{L(t, 'statClaimed', 'Claimed by seniors')} ({collected.length})</h2>
                       <div className="space-y-2">
                         {collected.map(r => (
                           <div key={r.id} className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center justify-between opacity-70">
                             <div>
                               <p className="font-medium text-gray-700">{r.seniorName || t.unknownLabel}</p>
-                              <p className="text-xs text-gray-400">{t.statCollected}: {r.collectedAt?.toDate?.()?.toLocaleDateString?.() || '—'}</p>
+                              <p className="text-xs text-gray-400">{t.statCollected}: {fmtDate(r.collectedAt) || '—'}</p>
                             </div>
                             <StatusBadge status="collected" />
                           </div>

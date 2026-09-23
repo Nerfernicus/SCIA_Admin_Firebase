@@ -17,6 +17,8 @@ import IDManagement   from './pages/IDManagement';   // unified module
 import Analytics      from './pages/Analytics';
 import DigitalID      from './pages/DigitalID';
 import EventCheckIn from './pages/EventCheckIn';
+import AssistedSignup from './pages/AssistedSignup';
+
 
 function Layout() {
   return (
@@ -63,13 +65,13 @@ const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-      {
-        path: 'analytics',
-        element: (
-          <ProtectedRoute allowedRoles={['super_admin']}>
-            <Analytics />
+     {
+         path: 'analytics',
+         element: (
+           <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
+              <Analytics />
           </ProtectedRoute>
-        ),
+                  ),
       },
       {
         path: 'announcements',
@@ -100,6 +102,14 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
             <HealthCenters />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'assisted-signup',
+        element: (
+          <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
+            <AssistedSignup />
           </ProtectedRoute>
         ),
       },

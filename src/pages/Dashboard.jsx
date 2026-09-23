@@ -70,6 +70,7 @@ function AnnouncementBanner({ announcements }) {
 }
 
 function EditModal({ announcement, onClose, onSaved }) {
+  const { t } = useLang();
   const [title, setTitle] = useState(announcement.Title);
   const [body, setBody] = useState(announcement.Body);
   const [audience, setAudience] = useState(announcement.Audience);
@@ -142,7 +143,7 @@ function EditModal({ announcement, onClose, onSaved }) {
 
         <div className="flex gap-3 mt-6">
           <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors">
-            Cancel
+            {t.cancel}
           </button>
           <button
             onClick={handleSave}
@@ -159,6 +160,7 @@ function EditModal({ announcement, onClose, onSaved }) {
 }
 
 function DeleteModal({ announcement, onClose, onDeleted }) {
+  const { t } = useLang();
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
@@ -187,7 +189,7 @@ function DeleteModal({ announcement, onClose, onDeleted }) {
         </p>
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors">
-            Cancel
+            {t.cancel}
           </button>
           <button
             onClick={handleDelete}
@@ -195,7 +197,7 @@ function DeleteModal({ announcement, onClose, onDeleted }) {
             className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
           >
             {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-            Delete
+            {t.delete}
           </button>
         </div>
       </div>
@@ -300,12 +302,12 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-gray-200 pb-4 gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">System Overview</h1>
-            <p className="text-sm text-gray-500 mt-1">Real-time health platform metrics and urgent actions.</p>
+            <h1 className="text-2xl font-bold text-gray-900">{t.systemOverview}</h1>
+            <p className="text-sm text-gray-500 mt-1">{t.systemOverviewSubtitle}</p>
           </div>
           <div className="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold tracking-wide self-start sm:self-auto">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            SYSTEM LIVE
+            {t.systemLive}
           </div>
         </div>
 
@@ -319,13 +321,13 @@ export default function Dashboard() {
           <div
             className="bg-red-500 rounded-xl p-5 shadow-sm text-white flex flex-col justify-between cursor-pointer hover:bg-red-600 transition-colors"
             onClick={() => navigate('/sos')}
-            title="Go to Live SOS Map"
+            title={t.goToLiveSosMap}
           >
             <div className="flex justify-between items-center mb-4">
               <AlertTriangle size={18} className="text-red-200" />
-              <span className="bg-red-700 text-white px-2 py-0.5 rounded text-xs font-bold">IMMEDIATE</span>
+              <span className="bg-red-700 text-white px-2 py-0.5 rounded text-xs font-bold">{t.immediateBadge}</span>
             </div>
-            <div className="text-red-100 text-sm font-medium">Active SOS Alerts</div>
+            <div className="text-red-100 text-sm font-medium">{t.activeSosAlerts}</div>
             {sosLoading ? (
               <div className="text-4xl font-bold mt-1">
                 <Loader2 size={28} className="animate-spin text-white/70" />
@@ -336,11 +338,11 @@ export default function Dashboard() {
                 <div className="flex gap-3 mt-2">
                   <span className="text-[10px] text-red-200 font-semibold inline-flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
-                    {pendingSosCount} Pending
+                    {pendingSosCount} {t.statPending}
                   </span>
                   <span className="text-[10px] text-red-200 font-semibold inline-flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-orange-400 inline-block" />
-                    {dispatchedCount} Dispatched
+                    {dispatchedCount} {t.dispatchedLabel}
                   </span>
                 </div>
               </>
@@ -350,13 +352,13 @@ export default function Dashboard() {
           <div
             className="bg-yellow-100 rounded-xl p-5 shadow-sm flex flex-col justify-between border border-yellow-200 cursor-pointer hover:border-yellow-300 transition-colors"
             onClick={() => navigate('/users')}
-            title="Go to User Management"
+            title={t.userManagement}
           >
             <div className="flex justify-between items-center mb-4">
               <ShieldAlert size={18} className="text-yellow-700" />
-              <span className="bg-yellow-300 text-yellow-900 px-2 py-0.5 rounded text-xs font-bold">QUEUE</span>
+              <span className="bg-yellow-300 text-yellow-900 px-2 py-0.5 rounded text-xs font-bold">{t.queueBadge}</span>
             </div>
-            <div className="text-yellow-800 text-sm font-medium">Pending Verifications</div>
+            <div className="text-yellow-800 text-sm font-medium">{t.pendingVerifications}</div>
             {usersLoading ? (
               <div className="mt-1">
                 <Loader2 size={24} className="animate-spin text-yellow-600" />
@@ -364,7 +366,7 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="text-4xl font-bold text-gray-900 mt-1">{pendingUserCount.toLocaleString()}</div>
-                <div className="text-[10px] text-yellow-700 font-semibold mt-2">of {totalUserCount.toLocaleString()} total users</div>
+                <div className="text-[10px] text-yellow-700 font-semibold mt-2">{t.ofPrefix} {totalUserCount.toLocaleString()} {t.totalUsersSuffix}</div>
               </>
             )}
           </div>
@@ -372,17 +374,17 @@ export default function Dashboard() {
           <div
             className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between cursor-pointer hover:border-blue-200 transition-colors"
             onClick={() => navigate('/users')}
-            title="Go to User Management"
+            title={t.userManagement}
           >
             <div className="flex justify-between items-center mb-4">
               <Users size={18} className="text-gray-400" />
               {usersLoading ? (
                 <Loader2 size={14} className="animate-spin text-gray-400" />
               ) : (
-                <span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded">{activePercent}% Active</span>
+                <span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded">{activePercent}% {t.activeSuffix}</span>
               )}
             </div>
-            <div className="text-gray-500 text-sm font-medium">Live Users</div>
+            <div className="text-gray-500 text-sm font-medium">{t.liveUsers}</div>
             {usersLoading ? (
               <div className="mt-1">
                 <Loader2 size={24} className="animate-spin text-gray-400" />
@@ -390,7 +392,7 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="text-4xl font-bold text-gray-900 mt-1">{totalUserCount.toLocaleString()}</div>
-                <div className="text-[10px] text-gray-400 font-semibold mt-2">{activeUserCount.toLocaleString()} verified active</div>
+                <div className="text-[10px] text-gray-400 font-semibold mt-2">{activeUserCount.toLocaleString()} {t.verifiedActiveSuffix}</div>
               </>
             )}
           </div>
@@ -398,9 +400,9 @@ export default function Dashboard() {
           <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between">
             <div className="flex justify-between items-center mb-4">
               <Activity size={18} className="text-gray-400" />
-              <span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded">99.9% Up</span>
+              <span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded">99.9% {t.upSuffix}</span>
             </div>
-            <div className="text-gray-500 text-sm font-medium">System Load</div>
+            <div className="text-gray-500 text-sm font-medium">{t.systemLoad}</div>
             <div className="text-4xl font-bold text-gray-900 mt-1">
               14<span className="text-lg text-gray-500 ml-1">%</span>
             </div>
@@ -410,12 +412,12 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
             <div className="flex justify-between items-center mb-2">
-              <h2 className="text-lg font-bold text-gray-900">Recent Announcements</h2>
+              <h2 className="text-lg font-bold text-gray-900">{t.recentAnnouncements}</h2>
               <button
                 onClick={() => navigate('/announcements')}
                 className="text-blue-600 hover:text-blue-800 text-sm font-semibold transition-colors flex items-center gap-1"
               >
-                View All <ChevronRight size={14} />
+                {t.viewAll} <ChevronRight size={14} />
               </button>
             </div>
 
@@ -429,7 +431,7 @@ export default function Dashboard() {
 
             {!loading && announcements.length === 0 && (
               <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400 text-sm">
-                No published announcements yet.
+                {t.noPublishedAnnouncements}
               </div>
             )}
 
@@ -455,7 +457,13 @@ export default function Dashboard() {
                           <div className="flex gap-2">
                             <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{a.Audience}</span>
                             <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-                              {a.Expiration === 'Never' ? 'No expiry' : `Expires: ${a.Expiration}`}
+                              {/* NOTE: this reads a.Expiration (capital E), but the actual
+                                  field written by the Announcements page is `expiration`
+                                  (lowercase) — that mismatch is why this badge always
+                                  shows "No expiry" regardless of the real value. Flagging
+                                  this separately from the translation fix; let me know if
+                                  you'd like it corrected too. */}
+                              {a.Expiration === 'Never' ? t.noExpiry : `${t.expiresPrefix}: ${a.Expiration}`}
                             </span>
                           </div>
                           <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -463,13 +471,13 @@ export default function Dashboard() {
                               onClick={() => setEditTarget(a)}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold transition-colors"
                             >
-                              <Pencil size={12} /> Edit
+                              <Pencil size={12} /> {t.editProfile.split(' ')[0] /* "Edit" */}
                             </button>
                             <button
                               onClick={() => setDeleteTarget(a)}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold transition-colors"
                             >
-                              <Trash2 size={12} /> Delete
+                              <Trash2 size={12} /> {t.delete}
                             </button>
                           </div>
                         </div>
@@ -482,7 +490,7 @@ export default function Dashboard() {
           </div>
 
           <div className="space-y-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">Urgent Operations</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">{t.urgentOperations}</h2>
             {!isSuperAdmin && (
               <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 space-y-4">
                 <div className="h-32 rounded-lg overflow-hidden border border-blue-100">
@@ -490,34 +498,34 @@ export default function Dashboard() {
                 </div>
                 <div className="flex justify-between items-center">
                   <div>
-                    <div className="text-[10px] text-gray-400 font-bold tracking-wider uppercase mb-0.5">Active SOS Region</div>
+                    <div className="text-[10px] text-gray-400 font-bold tracking-wider uppercase mb-0.5">{t.activeSosRegion}</div>
                     <div className="text-sm font-bold text-gray-900 inline-flex items-center gap-1">
                       <MapPin size={14} className="text-gray-400 shrink-0" />
                       {sosLoading
                         ? '...'
                         : latestActiveAlert
-                          ? (latestActiveAlert.barangay ?? latestActiveAlert.address ?? 'Unknown location')
-                          : 'No active alerts'}
+                          ? (latestActiveAlert.barangay ?? latestActiveAlert.address ?? t.unknownLabel)
+                          : t.noActiveAlerts}
                     </div>
                   </div>
                   <span className="bg-red-100 text-red-700 px-2.5 py-1 rounded-md text-xs font-bold">
-                    {sosLoading ? '…' : `${pendingSosCount} Red Flag${pendingSosCount !== 1 ? 's' : ''}`}
+                    {sosLoading ? '…' : `${pendingSosCount} ${pendingSosCount !== 1 ? t.redFlags : t.redFlag}`}
                   </span>
                 </div>
                 <button
                   onClick={() => navigate('/sos')}
                   className="w-full py-2.5 border-2 border-red-500 text-red-600 font-bold text-sm rounded-lg hover:bg-red-50 transition-colors"
                 >
-                  Go to Live SOS Map
+                  {t.goToLiveSosMap}
                 </button>
               </div>
             )}
 
             <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 space-y-4">
               <div className="flex justify-between items-center mb-2">
-                <span className="font-bold text-gray-900">Verification Queue</span>
+                <span className="font-bold text-gray-900">{t.verificationQueue}</span>
                 <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-xs font-bold">
-                  {usersLoading ? '…' : `${pendingUserCount} PENDING`}
+                  {usersLoading ? '…' : `${pendingUserCount} ${t.pendingBadge}`}
                 </span>
               </div>
               <div className="space-y-3">
@@ -526,7 +534,7 @@ export default function Dashboard() {
                     <Loader2 size={20} className="animate-spin text-gray-400" />
                   </div>
                 ) : recentPendingUsers.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-4">No pending verifications.</p>
+                  <p className="text-sm text-gray-400 text-center py-4">{t.noPendingVerifications}</p>
                 ) : (
                   recentPendingUsers.map((u) => (
                     <div key={u.id} className="flex items-center gap-3 p-2 -mx-2 hover:bg-gray-50 rounded-lg transition-colors">
@@ -535,7 +543,7 @@ export default function Dashboard() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-gray-900 text-sm truncate">
-                          {[u.firstName, u.midName ? u.midName[0] + '.' : '', u.lastName].filter(Boolean).join(' ') || u.email || 'Unknown'}
+                          {[u.firstName, u.midName ? u.midName[0] + '.' : '', u.lastName].filter(Boolean).join(' ') || u.email || t.unknownLabel}
                         </div>
                         <div className="text-xs text-gray-500 truncate">{u.idNumber ? `ID: #${u.idNumber}` : u.id.slice(0, 6).toUpperCase()}</div>
                       </div>
@@ -543,7 +551,7 @@ export default function Dashboard() {
                         onClick={() => navigate('/users')}
                         className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-md transition-colors"
                       >
-                        REVIEW
+                        {t.reviewButton}
                       </button>
                     </div>
                   ))
@@ -553,7 +561,7 @@ export default function Dashboard() {
                 onClick={() => navigate('/users')}
                 className="w-full text-center block text-blue-600 hover:text-blue-800 text-sm font-semibold pt-2 mt-2 border-t border-gray-100 transition-colors"
               >
-                View Full User Directory
+                {t.viewFullUserDirectory}
               </button>
             </div>
           </div>

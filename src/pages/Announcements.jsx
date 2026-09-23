@@ -6,14 +6,15 @@ import {
 import { db } from '../lib/firebase';
 import { collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 
 const COLLECTION_ID = 'editorial_health';
 
-const FIELD_TYPES = [
-  { value: 'text', label: 'Short text' },
-  { value: 'number', label: 'Number' },
-  { value: 'textarea', label: 'Long text' },
-  { value: 'select', label: 'Multiple choice' },
+const FIELD_TYPES_KEYS = [
+  { value: 'text', labelKey: null, fallback: 'Short text' },
+  { value: 'number', labelKey: null, fallback: 'Number' },
+  { value: 'textarea', labelKey: null, fallback: 'Long text' },
+  { value: 'select', labelKey: null, fallback: 'Multiple choice' },
 ];
 
 const DISTRICT_1_BARANGAYS = [
@@ -71,7 +72,17 @@ function statusMeta(doc) {
 
 export default function Announcements() {
   const { adminData } = useAuth();
+  const { t } = useLang();
   const myBarangay = adminData?.barangay || null; // null for OSCA and the generic sub_admin
+
+  // Field-type dropdown options, translated where a key exists, falling
+  // back to the original English label for anything not yet in the dict.
+  const FIELD_TYPES = [
+    { value: 'text', label: t.fieldTypeShortText || 'Short text' },
+    { value: 'number', label: t.fieldTypeNumber || 'Number' },
+    { value: 'textarea', label: t.fieldTypeLongText || 'Long text' },
+    { value: 'select', label: t.fieldTypeMultipleChoice || 'Multiple choice' },
+  ];
 
   const [publishTime, setPublishTime] = useState('Immediately');
   const [expiration, setExpiration] = useState('Never');
@@ -151,20 +162,20 @@ export default function Announcements() {
 
   const saveDocument = async () => {
     if (!what || !eventDate || !startTime || !where || !description) {
-      showToast('Please fill all fields', 'error');
+      showToast(t.fillAllFields, 'error');
       return;
     }
     if (effectiveAudience === 'BARANGAY' && !effectiveBarangay) {
-      showToast('Please select a barangay', 'error');
+      showToast(t.selectABarangay, 'error');
       return;
     }
     if (isJoinable) {
       if (formFields.some((f) => !f.label.trim())) {
-        showToast('Every sign-up field needs a label', 'error');
+        showToast(t.everyFieldNeedsLabel, 'error');
         return;
       }
       if (formFields.some((f) => f.type === 'select' && f.options.length < 2)) {
-        showToast('Multiple-choice fields need at least 2 options', 'error');
+        showToast(t.multipleChoiceNeeds2, 'error');
         return;
       }
     }
@@ -193,11 +204,11 @@ export default function Announcements() {
             }))
           : [],
       });
-      showToast('Announcement published!');
+      showToast(t.announcementPublishedToast);
       resetForm();
     } catch (err) {
       console.error(err);
-      showToast('Failed to publish', 'error');
+      showToast(t.failedToPublish, 'error');
     } finally {
       setSaving(false);
     }
@@ -205,7 +216,7 @@ export default function Announcements() {
 
   const handleNewAnnouncement = () => {
     const hasData = what || eventDate || where || description;
-    if (hasData && !window.confirm('This will clear the current announcement. Continue?')) return;
+    if (hasData && !window.confirm(t.clearCurrentConfirm)) return;
     resetForm();
   };
 
@@ -219,11 +230,11 @@ export default function Announcements() {
 
       <div className="flex justify-between items-end mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Announcements</h1>
-          <p className="text-gray-500">Broadcast event updates to senior citizens.</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t.announcements}</h1>
+          <p className="text-gray-500">{t.announcementsPageSubtitle}</p>
         </div>
         <button onClick={handleNewAnnouncement} className="bg-[#0f52ba] hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-medium flex items-center gap-2 transition-colors shadow-sm">
-          <Plus size={18} /> New Announcement
+          <Plus size={18} /> {t.newAnnouncement}
         </button>
       </div>
 
@@ -231,25 +242,25 @@ export default function Announcements() {
         <div className="xl:col-span-2 space-y-6">
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center gap-2 mb-6 text-gray-800 font-bold text-lg">
-              <AlignLeft size={20} className="text-[#0f52ba]" /> Event Details
+              <AlignLeft size={20} className="text-[#0f52ba]" /> {t.eventDetails}
             </div>
 
             <div className="mb-5">
               <label className="flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                <FileText size={13} /> What
+                <FileText size={13} /> {t.whatLabel}
               </label>
               <input
                 type="text"
                 value={what}
                 onChange={(e) => setWhat(e.target.value)}
-                placeholder="e.g. Free blood pressure & blood sugar screening"
+                placeholder={t.whatPlaceholder}
                 className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none"
               />
             </div>
 
             <div className="mb-5">
               <label className="flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                <Calendar size={13} /> When
+                <Calendar size={13} /> {t.whenLabel}
               </label>
               <div className="grid grid-cols-3 gap-3">
                 <input
@@ -274,29 +285,29 @@ export default function Announcements() {
                   />
                 </div>
               </div>
-              {whenLabel && <p className="text-xs text-gray-400 mt-2">Shown to seniors as: {whenLabel}</p>}
+              {whenLabel && <p className="text-xs text-gray-400 mt-2">{t.shownToSeniorsAs} {whenLabel}</p>}
             </div>
 
             <div className="mb-5">
               <label className="flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                <MapPin size={13} /> Where
+                <MapPin size={13} /> {t.whereLabel}
               </label>
               <input
                 type="text"
                 value={where}
                 onChange={(e) => setWhere(e.target.value)}
-                placeholder="e.g. Barangay Hall, San Antonio"
+                placeholder={t.wherePlaceholder}
                 className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Event Description</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{t.eventDescription}</label>
               <textarea
                 rows={6}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Provide additional details about the event..."
+                placeholder={t.eventDescriptionPlaceholder}
                 className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none resize-none"
               />
             </div>
@@ -305,7 +316,7 @@ export default function Announcements() {
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2 text-gray-800 font-bold text-lg">
-                <QrCode size={20} className="text-[#0f52ba]" /> Joinable Event
+                <QrCode size={20} className="text-[#0f52ba]" /> {t.joinableEvent}
               </div>
               <button
                 type="button"
@@ -316,15 +327,14 @@ export default function Announcements() {
               </button>
             </div>
             <p className="text-xs text-gray-400 mb-4">
-              Seniors can tap "Join" on this event in the app and get QR-checked-in on arrival. Leave off for a plain announcement.
+              {t.joinableEventDesc}
             </p>
 
             {isJoinable && (
               <>
                 <div className="rounded-2xl bg-blue-50/60 border border-blue-100 p-4 mb-4">
                   <p className="text-xs text-blue-800 leading-relaxed">
-                    Add fields below only if you need info beyond the senior's existing profile (e.g. current medications, household size).
-                    No fields means one-tap join. On event day, scan each attendee's account QR on the <strong>Event Check-In</strong> page to mark them present.
+                    {t.joinableEventHint}
                   </p>
                 </div>
 
@@ -337,7 +347,7 @@ export default function Announcements() {
                           type="text"
                           value={field.label}
                           onChange={(e) => updateFormField(field.id, { label: e.target.value })}
-                          placeholder={`Field ${idx + 1} label (e.g. Household size)`}
+                          placeholder={`${t.fieldLabelPrefix} ${idx + 1} ${t.fieldLabelSuffix}`}
                           className="flex-1 bg-white rounded-lg py-2 px-3 text-sm border border-gray-200 focus:ring-2 focus:ring-blue-100 outline-none"
                         />
                         <select
@@ -345,8 +355,8 @@ export default function Announcements() {
                           onChange={(e) => updateFormField(field.id, { type: e.target.value, options: e.target.value === 'select' ? field.options : [] })}
                           className="bg-white rounded-lg py-2 px-2 text-sm border border-gray-200 outline-none"
                         >
-                          {FIELD_TYPES.map((t) => (
-                            <option key={t.value} value={t.value}>{t.label}</option>
+                          {FIELD_TYPES.map((ft) => (
+                            <option key={ft.value} value={ft.value}>{ft.label}</option>
                           ))}
                         </select>
                         <label className="flex items-center gap-1.5 text-xs text-gray-500 shrink-0 px-1">
@@ -355,7 +365,7 @@ export default function Announcements() {
                             checked={field.required}
                             onChange={(e) => updateFormField(field.id, { required: e.target.checked })}
                           />
-                          Required
+                          {t.requiredLabel}
                         </label>
                         <button type="button" onClick={() => removeFormField(field.id)} className="text-gray-300 hover:text-red-500 shrink-0">
                           <Trash2 size={16} />
@@ -367,7 +377,7 @@ export default function Announcements() {
                           rows={3}
                           value={field.options.join('\n')}
                           onChange={(e) => updateFieldOptions(field.id, e.target.value)}
-                          placeholder={'One option per line, e.g.\nFood\nMedicine\nFinancial'}
+                          placeholder={t.optionsPlaceholder}
                           className="w-full bg-white rounded-lg py-2 px-3 text-sm border border-gray-200 focus:ring-2 focus:ring-blue-100 outline-none resize-none"
                         />
                       )}
@@ -376,7 +386,7 @@ export default function Announcements() {
                 </div>
 
                 <button type="button" onClick={addFormField} className="flex items-center gap-2 text-sm font-semibold text-[#0f52ba] hover:underline">
-                  <ListPlus size={16} /> Add sign-up field
+                  <ListPlus size={16} /> {t.addSignupField}
                 </button>
               </>
             )}
@@ -384,12 +394,12 @@ export default function Announcements() {
 
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="font-bold text-gray-900 text-lg">Recent Activity</h3>
-              <button className="text-sm font-semibold text-[#0f52ba] hover:underline">View Archive</button>
+              <h3 className="font-bold text-gray-900 text-lg">{t.recentActivity}</h3>
+              <button className="text-sm font-semibold text-[#0f52ba] hover:underline">{t.viewArchive}</button>
             </div>
             <div className="space-y-4">
               {recentActivity.length === 0 && (
-                <p className="text-sm text-gray-400 text-center py-6">No announcements yet. Publish one above!</p>
+                <p className="text-sm text-gray-400 text-center py-6">{t.noAnnouncementsYet}</p>
               )}
               {recentActivity.map((doc) => {
                 const { icon: Icon, iconColor, iconBg, badgeClass } = statusStyle(doc.Status);
@@ -412,24 +422,24 @@ export default function Announcements() {
 
         <div className="space-y-6">
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-gray-900 mb-3">Audience</h3>
+            <h3 className="font-bold text-gray-900 mb-3">{t.audienceTitle}</h3>
             <div className="flex items-center gap-3 p-3.5 rounded-xl bg-blue-50 border-2 border-[#0f52ba]">
               <div className="w-8 h-8 rounded-full bg-[#0f52ba] flex items-center justify-center text-white text-sm">👴</div>
-              <span className="text-sm font-bold text-[#0f52ba]">Senior Citizens Only</span>
+              <span className="text-sm font-bold text-[#0f52ba]">{t.seniorCitizensOnly}</span>
             </div>
             <p className="text-xs text-gray-400 mt-3">
               {myBarangay
-                ? `Visible only to registered senior citizens in Brgy. ${myBarangay}.`
-                : 'All announcements are visible only to registered senior citizens.'}
+                ? `${t.audienceNoteBarangayPrefix} ${myBarangay}.`
+                : t.audienceNoteAll}
             </p>
           </div>
 
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-gray-900 mb-4">Scheduling</h3>
+            <h3 className="font-bold text-gray-900 mb-4">{t.schedulingTitle}</h3>
             <div className="space-y-4 mb-6">
               {myBarangay ? (
                 <div className="w-full bg-blue-50 border-2 border-[#0f52ba] rounded-xl py-2.5 px-3 text-sm font-bold text-[#0f52ba] flex items-center gap-2">
-                  <MapPin size={14} /> Posting to Brgy. {myBarangay} only
+                  <MapPin size={14} /> {t.postingToBarangayOnlyPrefix} {myBarangay} {t.onlySuffix}
                 </div>
               ) : (
                 <>
@@ -438,10 +448,10 @@ export default function Announcements() {
                     onChange={(e) => { setAudience(e.target.value); setBarangay(''); }}
                     className="w-full bg-gray-100 rounded-xl py-2 px-3"
                   >
-                    <option value="ALL">All</option>
-                    <option value="DISTRICT_1">Valenzuela District 1</option>
-                    <option value="DISTRICT_2">Valenzuela District 2</option>
-                    <option value="BARANGAY">Specific Barangay</option>
+                    <option value="ALL">{t.optAll}</option>
+                    <option value="DISTRICT_1">{t.optDistrict1}</option>
+                    <option value="DISTRICT_2">{t.optDistrict2}</option>
+                    <option value="BARANGAY">{t.optSpecificBarangay}</option>
                   </select>
 
                   {audience === 'BARANGAY' && (
@@ -450,11 +460,11 @@ export default function Announcements() {
                       onChange={(e) => setBarangay(e.target.value)}
                       className="w-full bg-gray-100 rounded-xl py-2 px-3 mt-2"
                     >
-                      <option value="">Select Barangay</option>
-                      <optgroup label="District 1">
+                      <option value="">{t.selectBarangay}</option>
+                      <optgroup label={t.district1}>
                         {DISTRICT_1_BARANGAYS.map((b) => (<option key={b} value={b}>{b}</option>))}
                       </optgroup>
-                      <optgroup label="District 2">
+                      <optgroup label={t.district2}>
                         {DISTRICT_2_BARANGAYS.map((b) => (<option key={b} value={b}>{b}</option>))}
                       </optgroup>
                     </select>
@@ -463,7 +473,7 @@ export default function Announcements() {
               )}
 
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Expiration</label>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{t.expirationLabel}</label>
                 <div className="relative">
                   <AlertCircle className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-700" size={16} />
                   <select
@@ -471,13 +481,17 @@ export default function Announcements() {
                     onChange={(e) => setExpiration(e.target.value)}
                     className="w-full bg-gray-100/80 border-none rounded-xl py-2.5 pl-10 pr-10 text-sm font-semibold text-gray-800 appearance-none focus:ring-2 focus:ring-blue-100 outline-none cursor-pointer"
                   >
-                    <option>Never</option>
-                    <option>1 Week</option>
-                    <option>2 Weeks</option>
-                    <option>3 Weeks</option>
-                    <option>1 Month</option>
-                    <option>2 Months</option>
-                    <option>3 Months</option>
+                    {/* NOTE: values stay the literal English strings ('Never',
+                        '1 Week', etc.) since computeExpirationDate() switches
+                        on these exact values — only the displayed label is
+                        translated. */}
+                    <option value="Never">{t.expNever}</option>
+                    <option value="1 Week">{t.exp1Week}</option>
+                    <option value="2 Weeks">{t.exp2Weeks}</option>
+                    <option value="3 Weeks">{t.exp3Weeks}</option>
+                    <option value="1 Month">{t.exp1Month}</option>
+                    <option value="2 Months">{t.exp2Months}</option>
+                    <option value="3 Months">{t.exp3Months}</option>
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                 </div>
@@ -490,7 +504,7 @@ export default function Announcements() {
               className="w-full bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-md shadow-blue-500/20"
             >
               {saving ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-              Publish Announcement
+              {t.publishAnnouncement}
             </button>
           </div>
         </div>

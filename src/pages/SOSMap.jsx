@@ -4,7 +4,7 @@ import {
   doc, updateDoc, deleteDoc, serverTimestamp,
 } from "firebase/firestore";
 import React, { useState, useEffect } from 'react';
-import { MapPin, Crosshair, CheckCircle2, AlertTriangle, Trash2, X, History } from 'lucide-react';
+import { MapPin, Crosshair, CheckCircle2, AlertTriangle, Trash2, X, History, ChevronUp } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -85,6 +85,154 @@ function DeleteConfirmModal({ alert, onClose, onConfirm }) {
   );
 }
 
+// Shared by the desktop panel and the mobile bottom sheet
+function AlertsList({
+  alerts, activeCount, resolvedCount, repeatKeys, isRepeat,
+  showHistory, setShowHistory, showHeader,
+  onDispatch, onResolve, onDelete,
+}) {
+  return (
+    <>
+      {showHeader && (
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Live Alerts</h2>
+            <p className="text-sm text-gray-500 font-medium mt-0.5">
+              {activeCount} active, {resolvedCount} resolved
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {repeatKeys.size > 0 && (
+              <span className="bg-orange-100 text-orange-600 px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 border border-orange-200">
+                <AlertTriangle size={11} /> {repeatKeys.size} Repeat
+              </span>
+            )}
+            <div className="bg-red-50 text-red-600 px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border border-red-100 shadow-sm">
+              <div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse"></div>LIVE
+            </div>
+          </div>
+        </div>
+      )}
+
+      {repeatKeys.size > 0 && (
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-medium">
+          <AlertTriangle size={12} className="text-orange-500 shrink-0" />
+          <span>Some users have sent <strong>multiple SOS alerts</strong>, highlighted below.</span>
+        </div>
+      )}
+
+      {resolvedCount > 0 && (
+        <button
+          onClick={() => setShowHistory(h => !h)}
+          className={`w-full flex items-center justify-center gap-2 mb-4 py-2.5 sm:py-2 rounded-xl text-xs font-semibold border transition-colors ${
+            showHistory
+              ? 'bg-gray-100 border-gray-200 text-gray-700'
+              : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+          }`}
+        >
+          <History size={13} />
+          {showHistory ? 'Hide Resolved History' : `Show Resolved History (${resolvedCount})`}
+        </button>
+      )}
+
+      <div className="space-y-3">
+        {alerts.length === 0 && (
+          <p className="text-sm text-gray-400 text-center py-8">No alerts.</p>
+        )}
+
+        {alerts.map((alert) => {
+          const repeat     = isRepeat(alert);
+          const isResolved = alert.status === 'resolved';
+
+          return (
+            <div
+              key={alert.id}
+              className={`rounded-2xl p-3 sm:p-4 shadow-sm border relative ${
+                isResolved
+                  ? repeat
+                    ? 'bg-orange-50/60 border-orange-200 opacity-80'
+                    : 'bg-gray-50 border-gray-200 opacity-70'
+                  : alert.status === 'pending'
+                    ? repeat
+                      ? 'bg-[#b91c1c] text-white shadow-red-500/20 border-orange-400 ring-2 ring-orange-400/50'
+                      : 'bg-[#b91c1c] text-white shadow-red-500/20 border-transparent'
+                    : repeat
+                      ? 'bg-orange-50 border-orange-300 ring-1 ring-orange-200'
+                      : 'bg-yellow-50 border-yellow-200'
+              }`}
+            >
+              <button
+                onClick={() => onDelete(alert)}
+                title="Delete alert"
+                className={`absolute top-2 right-2 sm:top-3 sm:right-3 p-2 sm:p-1.5 rounded-lg transition-colors ${
+                  alert.status === 'pending'
+                    ? 'text-red-200 hover:text-white hover:bg-red-700'
+                    : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                }`}
+              >
+                <Trash2 size={13} />
+              </button>
+
+              <div className="flex justify-between items-start mb-2 pr-9 sm:pr-7">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-base break-words">{alert.name}</h3>
+                    {repeat && (
+                      <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                        alert.status === 'pending' ? 'bg-orange-400 text-white' : 'bg-orange-500 text-white'
+                      }`}>
+                        <AlertTriangle size={9} /> REPEAT
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-xs font-medium ${alert.status === "pending" ? "text-red-200" : "text-gray-500"}`}>
+                    {alert.emergencyType}
+                  </p>
+                </div>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ml-2 shrink-0 ${
+                  alert.status === "pending"      ? "bg-white text-red-700"
+                  : alert.status === "dispatched" ? "bg-yellow-200 text-yellow-800"
+                  : "bg-gray-200 text-gray-600"
+                }`}>{alert.status}</span>
+              </div>
+
+              <div className={`text-sm mb-3 break-words ${alert.status === "pending" ? "text-red-100" : "text-gray-600"}`}>
+                <p>{alert.barangay}, {alert.address}</p>
+                {isResolved && alert.resolvedAt && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Resolved {alert.resolvedAt?.toDate?.()?.toLocaleString?.() || 'N/A'}
+                  </p>
+                )}
+              </div>
+
+              {alert.status === "pending" && (
+                <div className="flex gap-2">
+                  <button onClick={() => onDispatch(alert.id, alert._source)}
+                    className="flex-1 bg-white hover:bg-gray-50 text-red-700 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors">
+                    Dispatch Responder
+                  </button>
+                  <a href={`https://maps.google.com/?q=${alert.latitude},${alert.longitude}`}
+                    target="_blank" rel="noreferrer"
+                    className="bg-red-800 hover:bg-red-900 w-12 flex items-center justify-center rounded-xl transition-colors">
+                    <MapPin size={18} className="text-white" />
+                  </a>
+                </div>
+              )}
+
+              {alert.status === "dispatched" && (
+                <button onClick={() => onResolve(alert.id, alert._source)}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors">
+                  Mark Resolved
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 export default function SOSMap() {
   const { adminData } = useAuth();
   const myBarangay = adminData?.barangay || null; // null for OSCA + the generic sub_admin
@@ -96,6 +244,7 @@ export default function SOSMap() {
   const [showHistory, setShowHistory]   = useState(false);
   const [toast, setToast]               = useState('');
   const [toastType, setToastType]       = useState('success');
+  const [sheetOpen, setSheetOpen]       = useState(false); // mobile bottom sheet
   const mapCenter = [14.7080, 120.9860];
 
   useEffect(() => {
@@ -188,13 +337,24 @@ export default function SOSMap() {
   const latestPendingAlert = activeAlerts.find(a => a.status === 'pending' && a.latitude && a.longitude);
   const mapFocusTarget = myLocation ?? (latestPendingAlert ? [latestPendingAlert.latitude, latestPendingAlert.longitude] : null);
 
-  const panelAlerts = showHistory ? liveAlerts : activeAlerts;
+  const panelAlerts  = showHistory ? liveAlerts : activeAlerts;
+  const pendingCount = activeAlerts.filter(a => a.status === 'pending').length;
+
+  const listProps = {
+    alerts: panelAlerts,
+    activeCount: activeAlerts.length,
+    resolvedCount: resolvedAlerts.length,
+    repeatKeys, isRepeat, showHistory, setShowHistory,
+    onDispatch: handleDispatch,
+    onResolve: handleResolve,
+    onDelete: setDeleteTarget,
+  };
 
   return (
-    <div className="flex-1 flex flex-col h-screen overflow-hidden font-sans bg-white">
+    <div className="flex-1 flex flex-col h-dvh overflow-hidden font-sans bg-white">
 
       {toast && (
-        <div className={`fixed top-6 right-6 z-[9999] text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 ${
+        <div className={`fixed top-4 inset-x-4 sm:inset-x-auto sm:top-6 sm:right-6 z-[9999] text-white text-sm font-medium px-4 sm:px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 ${
           toastType === 'error' ? 'bg-red-600' : 'bg-gray-900'
         }`}>
           {toastType === 'error'
@@ -214,9 +374,9 @@ export default function SOSMap() {
         />
       )}
 
-      <div className="bg-white border-b border-gray-100 px-6 py-4 flex-none z-[2000]">
-        <h1 className="text-2xl font-bold text-gray-900">SOS Map</h1>
-        <p className="text-sm text-gray-500">
+      <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3 sm:py-4 flex-none z-[2000]">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">SOS Map</h1>
+        <p className="text-xs sm:text-sm text-gray-500">
           {myBarangay
             ? `Real-time emergency alerts in Brgy. ${myBarangay}`
             : "Real-time emergency alerts in Valenzuela City"}
@@ -237,7 +397,7 @@ export default function SOSMap() {
               .map(alert => (
                 <Marker key={alert.id} position={[alert.latitude, alert.longitude]}
                   icon={alert.status === 'pending' ? criticalIcon : dispatchedIcon}>
-                  <Popup className="font-sans" minWidth={200}>
+                  <Popup className="font-sans" minWidth={200} maxWidth={260}>
                     <div className="space-y-1">
                       <p className="font-bold text-base">{alert.name}</p>
                       <p className="text-red-600 font-semibold text-sm">{alert.emergencyType}</p>
@@ -265,7 +425,7 @@ export default function SOSMap() {
           </MapContainer>
         </div>
 
-        <div className="absolute bottom-8 left-6 flex flex-col gap-3 z-[1000]">
+        <div className={`absolute bottom-24 left-4 sm:bottom-8 sm:left-6 flex flex-col gap-3 z-[1000] ${sheetOpen ? 'max-sm:hidden' : ''}`}>
           <button onClick={handleLocateMe} disabled={isLocating}
             className={`bg-white/90 backdrop-blur p-3 rounded-2xl shadow-lg border border-gray-100 transition-colors ${
               isLocating ? 'text-gray-400 cursor-not-allowed' : 'text-[#0f52ba] hover:bg-gray-50'
@@ -274,142 +434,48 @@ export default function SOSMap() {
           </button>
         </div>
 
+        {/* Desktop: floating panel */}
         <div className="absolute top-6 right-6 w-100 max-h-[calc(100vh-200px)] overflow-y-auto bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border border-white p-5 z-[1000] hidden sm:block hide-scrollbar">
+          <AlertsList {...listProps} showHeader />
+        </div>
 
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Live Alerts</h2>
-              <p className="text-sm text-gray-500 font-medium mt-0.5">
-                {activeAlerts.length} active, {resolvedAlerts.length} resolved
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              {repeatKeys.size > 0 && (
-                <span className="bg-orange-100 text-orange-600 px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 border border-orange-200">
-                  <AlertTriangle size={11} /> {repeatKeys.size} Repeat
+        {/* Mobile: bottom sheet with the same actions */}
+        <div className="sm:hidden absolute inset-x-0 bottom-0 z-[1000] bg-white rounded-t-3xl shadow-[0_-8px_30px_rgba(0,0,0,0.15)] border-t border-gray-100">
+          <button
+            onClick={() => setSheetOpen(o => !o)}
+            aria-expanded={sheetOpen}
+            className="w-full px-4 pt-2 pb-3 flex flex-col items-center"
+          >
+            <span className="w-10 h-1 rounded-full bg-gray-300 mb-2" />
+            <div className="w-full flex items-center justify-between gap-2">
+              <div className="text-left min-w-0">
+                <span className="block text-base font-bold text-gray-900">Live Alerts</span>
+                <span className="block text-xs text-gray-500">
+                  {activeAlerts.length} active, {resolvedAlerts.length} resolved
                 </span>
-              )}
-              <div className="bg-red-50 text-red-600 px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border border-red-100 shadow-sm">
-                <div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse"></div>LIVE
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {pendingCount > 0 && (
+                  <span className="bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
+                    {pendingCount} pending
+                  </span>
+                )}
+                {repeatKeys.size > 0 && (
+                  <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 border border-orange-200">
+                    <AlertTriangle size={11} /> {repeatKeys.size}
+                  </span>
+                )}
+                <ChevronUp size={20} className={`text-gray-400 transition-transform ${sheetOpen ? 'rotate-180' : ''}`} />
               </div>
             </div>
-          </div>
+          </button>
 
-          {repeatKeys.size > 0 && (
-            <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-medium">
-              <AlertTriangle size={12} className="text-orange-500 shrink-0" />
-              Some users have sent <strong className="mx-0.5">multiple SOS alerts</strong>, highlighted below.
+          {sheetOpen && (
+            <div className="max-h-[55dvh] overflow-y-auto px-4 pb-4 hide-scrollbar">
+              <AlertsList {...listProps} />
             </div>
           )}
-
-          {resolvedAlerts.length > 0 && (
-            <button
-              onClick={() => setShowHistory(h => !h)}
-              className={`w-full flex items-center justify-center gap-2 mb-4 py-2 rounded-xl text-xs font-semibold border transition-colors ${
-                showHistory
-                  ? 'bg-gray-100 border-gray-200 text-gray-700'
-                  : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              <History size={13} />
-              {showHistory ? 'Hide Resolved History' : `Show Resolved History (${resolvedAlerts.length})`}
-            </button>
-          )}
-
-          <div className="space-y-3">
-            {panelAlerts.length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-8">No alerts.</p>
-            )}
-
-            {panelAlerts.map((alert) => {
-              const repeat     = isRepeat(alert);
-              const isResolved = alert.status === 'resolved';
-
-              return (
-                <div
-                  key={alert.id}
-                  className={`rounded-2xl p-4 shadow-sm border relative ${
-                    isResolved
-                      ? repeat
-                        ? 'bg-orange-50/60 border-orange-200 opacity-80'
-                        : 'bg-gray-50 border-gray-200 opacity-70'
-                      : alert.status === 'pending'
-                        ? repeat
-                          ? 'bg-[#b91c1c] text-white shadow-red-500/20 border-orange-400 ring-2 ring-orange-400/50'
-                          : 'bg-[#b91c1c] text-white shadow-red-500/20 border-transparent'
-                        : repeat
-                          ? 'bg-orange-50 border-orange-300 ring-1 ring-orange-200'
-                          : 'bg-yellow-50 border-yellow-200'
-                  }`}
-                >
-                  <button
-                    onClick={() => setDeleteTarget(alert)}
-                    title="Delete alert"
-                    className={`absolute top-3 right-3 p-1.5 rounded-lg transition-colors ${
-                      alert.status === 'pending'
-                        ? 'text-red-200 hover:text-white hover:bg-red-700'
-                        : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
-                    }`}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-
-                  <div className="flex justify-between items-start mb-2 pr-7">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-bold text-base">{alert.name}</h3>
-                        {repeat && (
-                          <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                            alert.status === 'pending' ? 'bg-orange-400 text-white' : 'bg-orange-500 text-white'
-                          }`}>
-                            <AlertTriangle size={9} /> REPEAT
-                          </span>
-                        )}
-                      </div>
-                      <p className={`text-xs font-medium ${alert.status === "pending" ? "text-red-200" : "text-gray-500"}`}>
-                        {alert.emergencyType}
-                      </p>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ml-2 shrink-0 ${
-                      alert.status === "pending"      ? "bg-white text-red-700"
-                      : alert.status === "dispatched" ? "bg-yellow-200 text-yellow-800"
-                      : "bg-gray-200 text-gray-600"
-                    }`}>{alert.status}</span>
-                  </div>
-
-                  <div className={`text-sm mb-3 ${alert.status === "pending" ? "text-red-100" : "text-gray-600"}`}>
-                    <p>{alert.barangay}, {alert.address}</p>
-                    {isResolved && alert.resolvedAt && (
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        Resolved {alert.resolvedAt?.toDate?.()?.toLocaleString?.() || 'N/A'}
-                      </p>
-                    )}
-                  </div>
-
-                  {alert.status === "pending" && (
-                    <div className="flex gap-2">
-                      <button onClick={() => handleDispatch(alert.id, alert._source)}
-                        className="flex-1 bg-white hover:bg-gray-50 text-red-700 py-2.5 rounded-xl text-sm font-bold transition-colors">
-                        Dispatch Responder
-                      </button>
-                      <a href={`https://maps.google.com/?q=${alert.latitude},${alert.longitude}`}
-                        target="_blank" rel="noreferrer"
-                        className="bg-red-800 hover:bg-red-900 w-12 flex items-center justify-center rounded-xl transition-colors">
-                        <MapPin size={18} className="text-white" />
-                      </a>
-                    </div>
-                  )}
-
-                  {alert.status === "dispatched" && (
-                    <button onClick={() => handleResolve(alert.id, alert._source)}
-                      className="w-full bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-xl text-sm font-bold transition-colors">
-                      Mark Resolved
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
         </div>
       </div>
 
@@ -420,6 +486,10 @@ export default function SOSMap() {
         .leaflet-control-zoom a { color: #4b5563 !important; border-radius: 8px !important; border: none !important; }
         .leaflet-bar { border: none !important; box-shadow: none !important; display: flex; flex-direction: column; gap: 8px; }
         .leaflet-popup-content { margin: 12px 16px; }
+        @media (max-width: 639px) {
+          .leaflet-control-zoom { display: none; } /* pinch-zoom on touch */
+          .leaflet-popup-content { margin: 10px 12px; }
+        }
       `}} />
     </div>
   );

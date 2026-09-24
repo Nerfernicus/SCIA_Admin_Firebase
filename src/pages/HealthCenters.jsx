@@ -11,10 +11,8 @@ import {
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 
-// "3S Centers" (Serbisyo sa Senior Sitizen) are barangay-based senior services
-// centers in Valenzuela City. These are fixed, not dynamic. Each carries a
-// `barangay` field matching the barangay list used across the app (Sidebar /
-// Announcements) so a barangay-scoped sub-admin only manages their own center.
+// "3S Centers" (Serbisyo sa Senior Sitizen) — fixed, barangay-based senior service
+// centers; `barangay` matches the app-wide list so scoped sub-admins see only their own
 const GEN_T_CENTERS = [
     {
         id: 'gen-t-1',
@@ -46,8 +44,7 @@ const GEN_T_CENTERS = [
         phone: '(02) 8292-0002',
         hours: 'Mon–Fri, 8:00 AM – 5:00 PM',
         services: ['Medical Consultation', 'Blood Pressure Monitoring', 'Blood Sugar Check', 'Senior Wellness Program'],
-        // Same accent color as every other 3S Center card — one template, not
-        // a per-barangay theme. Only the photo, name, and staff differ.
+        // Same template color for every card, not per-barangay
         staffColor: 'bg-blue-500',
         staffCount: '12',
         imgUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9b/Valenzuela_City_Hall.jpg/640px-Valenzuela_City_Hall.jpg',
@@ -357,7 +354,7 @@ function CenterDetail({ center, onClose }) {
                     </div>
                 </div>
 
-                <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 grid grid-cols-3 gap-3 shrink-0">
+                <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Head Official</p>
                         <p className="text-sm font-semibold text-gray-800 mt-0.5">{center.headOfficial}</p>

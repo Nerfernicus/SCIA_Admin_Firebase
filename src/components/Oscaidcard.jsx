@@ -106,13 +106,7 @@ const OSCAIdCard = ({
               <div className="sig-label">Signature / Thumbmark</div>
             </div>
 
-            {/* Holographic security seal — the centerpiece of Valenzuela's
-                actual May 2025 ID redesign (see valenzuela.gov.ph and
-                tribune.net.ph coverage): a tamper-resistant hologram
-                carrying a unique verification number, checkable against
-                valid.valenzuela.gov.ph. Rendered here as a CSS conic-
-                gradient sheen since a real embossed hologram obviously
-                can't be reproduced on screen. */}
+            {/* Fakes Valenzuela's tamper-resistant hologram seal with a CSS conic-gradient */}
             <div className="holo-seal" title="Holographic security seal — verify at valid.valenzuela.gov.ph">
               <div className="holo-seal-inner">
                 <ShieldCheck size={14} />

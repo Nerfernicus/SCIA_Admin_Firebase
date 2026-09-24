@@ -29,8 +29,7 @@ function PeriodToggle({ value, onChange }) {
   );
 }
 
-// Gradient tile in the app's existing per-metric colors. Clickable when
-// onClick is passed — opens the DetailModal for that metric.
+// Gradient metric tile; clickable when onClick is passed, opening DetailModal for that metric
 function GradientStatCard({ icon: Icon, label, value, sub, gradient, onClick }) {
   const Wrapper = onClick ? 'button' : 'div';
   return (
@@ -179,8 +178,7 @@ function TrendChart({ title, points, color = '#0f52ba' }) {
   );
 }
 
-// Compact trend chart used inside DetailModal (no card wrapper, since it's
-// already inside one).
+// Compact trend chart for inside DetailModal (no card wrapper, already inside one)
 function MiniTrend({ points, color }) {
   const max = Math.max(...points.map((p) => p.value), 1);
   return (
@@ -198,8 +196,7 @@ function MiniTrend({ points, color }) {
   );
 }
 
-// What each clickable stat tile drills into: its Firestore collection, and
-// the icon/color to reuse for a consistent look with the tile itself.
+// What each clickable stat tile drills into: its Firestore collection plus matching icon/color
 const DETAIL_META = {
   announcements: { label: 'Announcements', collectionName: 'editorial_health', icon: Megaphone, iconBg: 'bg-[#eaf1fb]', iconColor: 'text-[#3d74c9]', color: '#5b8fdb' },
   sos: { label: 'SOS Events', collectionName: 'emergencies', icon: Map, iconBg: 'bg-red-50', iconColor: 'text-red-500', color: '#ef4444' },
@@ -207,10 +204,8 @@ const DETAIL_META = {
   users: { label: 'Active Users', collectionName: 'users', icon: Users, iconBg: 'bg-amber-50', iconColor: 'text-amber-500', color: '#f59e0b' },
 };
 
-// Detail popup for a clicked stat tile. Barangay admins only ever see their
-// own barangay's records (the collection query itself is scoped), so no
-// per-barangay breakdown is shown for them — OSCA (super admin) sees every
-// barangay and gets a citywide breakdown bar for comparison.
+// Barangay admins' queries are pre-scoped to their own barangay, so no per-barangay
+// breakdown shows for them; OSCA (super admin) gets the citywide comparison bar
 function DetailModal({ type, onClose, isSuperAdmin, myBarangay, period, periodMeta }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
@@ -350,8 +345,7 @@ function countDocs(collectionName, ...conditions) {
   return getCountFromServer(q).then((snap) => snap.data().count);
 }
 
-// Builds the bucket windows for a period type: 14 days, 8 weeks, 6 months,
-// or 5 years, each with a start/end Date range and a display label.
+// Builds bucket windows for a period (14 days / 8 weeks / 6 months / 5 years), each with a range + label
 function getPeriodBuckets(periodType) {
   const now = new Date();
   const buckets = [];
@@ -399,9 +393,7 @@ function getPeriodBuckets(periodType) {
   return buckets;
 }
 
-// Fetches every doc in a collection and buckets counts into the given
-// period's windows by whichever timestamp field it finds first. Adjust the
-// field list below if your documents use a different timestamp field name.
+// Buckets doc counts into the period's windows by whichever timestamp field it finds first
 async function fetchTrend(collectionName, periodType, barangayFilter) {
   const ref = collection(db, collectionName);
   const conditions = barangayFilter ? [where('barangay', '==', barangayFilter)] : [];
@@ -473,8 +465,7 @@ export default function Analytics() {
     }
 
     loadStats();
-    // Re-poll the lightweight count queries every 60s so the numbers on this
-    // page stay live without a manual refresh or a full-page reload flicker.
+    // Re-poll every 60s so counts stay live without a manual refresh
     const interval = setInterval(loadStats, 60000);
     return () => {
       cancelled = true;

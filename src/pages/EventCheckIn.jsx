@@ -96,8 +96,7 @@ export default function EventCheckIn() {
       (snap) => {
         const list = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
-          // A barangay-scoped admin only checks in attendees for events
-          // targeted at their own barangay (or ALL/district-wide events)
+          // Barangay admins only see events for their own barangay, or ALL/district-wide events
           .filter((e) => !myBarangay || e.Audience !== "BARANGAY" || e.barangay === myBarangay);
         setEvents(list);
         setSelectedEventId((prev) => prev || (list[0] && list[0].id) || "");
@@ -130,9 +129,7 @@ export default function EventCheckIn() {
     return () => unsub();
   }, [selectedEventId]);
 
-  // Check a resolved uid into the currently selected event.
-  // Wraps the Firestore call with a hard timeout so a stalled request
-  // surfaces as a visible, logged failure instead of an infinite spinner.
+  // Wraps a Firestore call with a hard timeout so a stall fails visibly instead of spinning forever
   const withTimeout = (promise, ms, label) =>
     Promise.race([
       promise.then((v) => { console.log(`[check-in] ${label} resolved`); return v; }),
@@ -232,9 +229,7 @@ export default function EventCheckIn() {
         // Preferred: rear/environment camera (phones, tablets)
         await instance.start({ facingMode: "environment" }, config, onDecoded, onDecodeMiss);
       } catch (envErr) {
-        // Most laptops/desktops have no rear camera, so the constraint above
-        // fails immediately, fall back to whatever camera the browser has
-        // (front-facing webcam, external USB cam, etc.)
+        // Desktops have no rear camera; fall back to whatever camera is available
         console.warn("Rear camera unavailable, falling back to any camera:", envErr);
         const cameras = await Html5Qrcode.getCameras();
         if (!cameras || cameras.length === 0) throw envErr;

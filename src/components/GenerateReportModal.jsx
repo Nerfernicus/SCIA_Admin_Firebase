@@ -19,8 +19,7 @@ const SUB_ADMIN_REPORTS = [
   { id: 'announcements', label: 'Announcements',       description: 'Published announcements and reach' },
 ];
 
-// PDF removed: the previous implementation never produced a real PDF, just a
-// text file wearing a .pdf extension, which is why it errored on open.
+// PDF removed: old version just wrote a .pdf-named text file, which errored on open
 const FORMATS = ['CSV', 'Excel'];
 
 const GenerateReportModal = ({ isOpen, onClose, isSuperAdmin }) => {
@@ -48,9 +47,7 @@ const GenerateReportModal = ({ isOpen, onClose, isSuperAdmin }) => {
     setError('');
 
     try {
-      // Sub-admins are scoped to their own barangay; the report modal only
-      // ever offers them collections that carry a 'barangay' field, so this
-      // filter is safe for every SUB_ADMIN_REPORTS entry.
+      // Safe: SUB_ADMIN_REPORTS only lists collections with a 'barangay' field
       const rows = await fetchReportRows(
         selectedType,
         dateFrom,

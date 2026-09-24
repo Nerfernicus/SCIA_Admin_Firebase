@@ -1,34 +1,18 @@
-/* ── OSCAIdCard.css — flip card, same-size front & back ──────── */
+/* OSCAIdCard.css — flip card, same-size front & back */
 
-/* Wrapper: fixed card dimensions, perspective for 3D flip */
 .osca-id-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 8px 0;
-
-  /* Perspective container */
   perspective: 1200px;
 }
 
-/* ── Flip container ──
-   Both faces are absolutely positioned with inset:0 inside this box, so
-   they were ALWAYS the same outer box size — the visible size mismatch
-   came from the back face's content (9 benefit lines + notice + two
-   signature blocks + footer) not fitting in the old 340px height. That
-   triggered `overflow-y: auto`, which added an internal scrollbar that ate
-   into the back face's usable width — making it read as a different size
-   from the front. Raised the height so everything fits with room to
-   spare, and switched to a flex layout + `overflow: hidden` below so a
-   scrollbar can never appear on either face again. */
+/* Faces are absolutely positioned inset:0, so both stay the same size;
+   overflow:hidden below keeps back content from ever forcing a scrollbar. */
 .osca-flip-container {
   width: 540px;
-  height: 340px;       /* ID-1 card ratio (85.6×54mm, ~1.586:1) — same
-                           ratio as a real ID/credit card. The back
-                           content was tightened (see .benefits-list,
-                           .back-signers, .back-footer below) to fit
-                           inside this comfortably instead of growing the
-                           card to fit the content. */
+  height: 340px; /* ID-1 card ratio, ~1.586:1 */
   position: relative;
   transform-style: preserve-3d;
   transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
@@ -39,11 +23,8 @@
   transform: rotateY(180deg);
 }
 
-/* Both faces: same absolute position, same size, backface hidden.
-   display:flex + flex-direction:column makes each face's internal
-   flex:1 section (front-body / back-body) actually fill the remaining
-   space and pins the bottom bar to the bottom — and overflow:hidden
-   means content is clipped rather than ever showing a scrollbar. */
+/* flex column so each face's flex:1 body fills remaining space and
+   pins the bottom bar down; overflow:hidden clips instead of scrolling */
 .osca-card {
   position: absolute;
   inset: 0;
@@ -146,9 +127,7 @@
 
 .front-body {
   display: flex;
-  align-items: center;   /* center the (shorter) front content within the
-                             taller card instead of leaving empty space
-                             below it */
+  align-items: center; /* keep content centered in the taller card */
   gap: 14px;
   padding: 10px 14px;
   background: #ffffff;
@@ -286,10 +265,7 @@
   margin-top: 2px;
 }
 
-/* Holographic security seal — see comment in Oscaidcard.jsx. A real
-   hologram shifts color/pattern with viewing angle; this fakes that
-   impression with a conic-gradient rainbow sheen under a translucent
-   white disc, which is the closest a static screen render gets. */
+/* Fakes a holographic seal with a conic-gradient sheen (see Oscaidcard.jsx) */
 .holo-seal {
   width: 34px;
   height: 34px;
@@ -357,10 +333,8 @@
 }
 
 .back-body {
-  flex: 1;              /* fill the space between the title bar and the
-                            footer — this is what pins the footer to the
-                            bottom, same as front-body does on the front */
-  overflow: hidden;      /* never show a scrollbar; clip instead */
+  flex: 1; /* pins the footer to the bottom, like front-body does */
+  overflow: hidden;
   padding: 7px 14px 0 14px;
   background: #ffffff;
 }
@@ -481,4 +455,20 @@
   font-size: 7px;
   font-family: Arial, sans-serif;
   margin-top: 2px;
+}
+
+/* Card is a fixed 540×340px block; scale it down as one unit below that
+   width instead of reflowing internals, so text/photo proportions hold.
+   Wrapper width/height are set to the scaled footprint (540/340 × factor)
+   so the layout doesn't reserve the original, unscaled box size. */
+@media (max-width: 560px) {
+  .osca-id-wrapper { width: 443px; height: 279px; overflow: hidden; }
+  .osca-flip-container { transform: scale(0.82); transform-origin: top left; }
+  .osca-flip-container.flipped { transform: scale(0.82) rotateY(180deg); }
+}
+
+@media (max-width: 460px) {
+  .osca-id-wrapper { width: 351px; height: 221px; }
+  .osca-flip-container { transform: scale(0.65); }
+  .osca-flip-container.flipped { transform: scale(0.65) rotateY(180deg); }
 }

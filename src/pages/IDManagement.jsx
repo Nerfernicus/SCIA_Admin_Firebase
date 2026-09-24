@@ -24,8 +24,7 @@ const fmtDate = ts => ts?.toDate?.()?.toLocaleDateString?.() || null;
 // New labels fall back to English until you add keys to LangContext.
 const L = (t, key, fallback) => (t && t[key]) || fallback;
 
-// A released_ids entry is linked to an id_requests doc unless it came from an
-// OSCA-ID verification (those have no physical request behind them).
+// Linked to id_requests unless it came from OSCA-ID verification (no physical request behind those)
 const isLinkedRelease = r => !!r.requestId && r.sourceType !== 'id_verification';
 
 // Requests where the senior followed up float to the top of a list.
@@ -547,9 +546,8 @@ export default function IDManagement() {
     return onSnapshot(q, snap => { setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoadingVerif(false); });
   }, []);
   useEffect(() => {
-    // Single listener for id_requests — feeds both Verification (physicalReqs) and Release (idRequests) panels.
-    // A barangay sub-admin may only read their own barangay's requests (see firestore.rules),
-    // so their query must be filtered by barangay.
+    // Single listener for id_requests, feeding both Verification and Release panels.
+    // Barangay sub-admins may only read their own barangay's requests (see firestore.rules).
     let q;
     if (isSubAdmin && adminData?.barangay) {
       q = query(collection(db, 'id_requests'), where('barangay', '==', adminData.barangay), orderBy('createdAt', 'desc'));
@@ -603,9 +601,7 @@ export default function IDManagement() {
           if (uid) {
             try { await updateDoc(doc(db, 'users', uid), { isVerified: true, status: 'VERIFIED', verifiedAt: serverTimestamp() }); } catch (e) {}
           }
-          // Digital ID creation is a separate, explicit step now: once verified
-          // here, the senior shows up on the Digital ID page with a "Release
-          // Digital ID" button that builds it from this same record's data.
+          // Digital ID creation is now a separate step, done from the Digital ID page
 
           const controlNumber = record.idNumber || record.seniorId || id.slice(-6).toUpperCase();
           try {
@@ -622,8 +618,7 @@ export default function IDManagement() {
           } catch (e) {}
         }
 
-        // NOTE: approving a physical ID request (id_requests) no longer auto-releases it.
-        // It now lands in Release → Approved, then goes Processing → Delivered → Received → Claimed.
+        // NOTE: approving a physical request no longer auto-releases it — it now goes Approved → Processing → Delivered → Received → Claimed
       }
 
       setSelected(null);
@@ -894,14 +889,14 @@ export default function IDManagement() {
         <>
           {/* Stats */}
           {verifTab === 'submissions' ? (
-            <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <StatCard label={t.statPendingReview} value={submissions.filter(r => !r.status || r.status === 'pending').length} icon={ClockIcon}    color="text-yellow-600" bg="bg-yellow-50" />
               <StatCard label={t.statApproved}       value={submissions.filter(r => r.status === 'approved').length}             icon={CheckCircle2} color="text-green-600"  bg="bg-green-50"  />
               <StatCard label={t.statRejected}       value={submissions.filter(r => r.status === 'rejected').length}             icon={XCircle}      color="text-red-600"    bg="bg-red-50"    />
               <StatCard label={t.statTotalSubmitted} value={submissions.length}                                                  icon={FileImage}    color="text-blue-600"   bg="bg-blue-50"   />
             </div>
           ) : (
-            <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <StatCard label={t.statPending}         value={physicalReqs.filter(r => !r.status || r.status === 'pending').length} icon={ClockIcon}     color="text-yellow-600" bg="bg-yellow-50" />
               <StatCard label={t.statApproved}        value={physicalReqs.filter(r => r.status === 'approved').length}             icon={CheckCircle2}  color="text-green-600"  bg="bg-green-50"  />
               <StatCard label={t.statRejected}        value={physicalReqs.filter(r => r.status === 'rejected').length}             icon={XCircle}       color="text-red-600"    bg="bg-red-50"    />
@@ -1072,7 +1067,7 @@ export default function IDManagement() {
         <>
           {/* Stats — OSCA */}
           {isSuperAdmin && (
-            <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <StatCard label={t.statPendingRequests}                     value={relPending.length}                              icon={ClockIcon}    color="text-yellow-600" bg="bg-yellow-50" />
               <StatCard label={L(t, 'statInProgress', 'In progress')}    value={relApproved.length + relProcessing.length}      icon={Package}      color="text-indigo-600" bg="bg-indigo-50" />
               <StatCard label={L(t, 'statWithBarangay', 'With barangay')} value={relDelivered.length}                            icon={Send}         color="text-blue-600"   bg="bg-blue-50"   />
@@ -1081,7 +1076,7 @@ export default function IDManagement() {
           )}
           {/* Stats — Barangay */}
           {isSubAdmin && (
-            <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <StatCard label={L(t, 'statIncoming', 'Incoming from OSCA')}      value={incoming.length}   icon={Bell}         color="text-purple-600" bg="bg-purple-50" />
               <StatCard label={L(t, 'statReadyPickup', 'Ready for pick-up')}    value={atBarangay.length} icon={Package}      color="text-teal-600"   bg="bg-teal-50"   />
               <StatCard label={L(t, 'statClaimed', 'Claimed by seniors')}       value={collected.length}  icon={CheckCircle2} color="text-green-600"  bg="bg-green-50"  />

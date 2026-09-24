@@ -149,8 +149,7 @@ export default function DigitalID() {
   const [invalidating, setInvalidating] = useState(null);
   const [toast, setToast]           = useState('');
 
-  // Seniors OSCA has already approved in ID Verification, but who don't have
-  // a digital ID yet — these get a "Release Digital ID" button below.
+  // Seniors OSCA approved in ID Verification but with no digital ID yet get a "Release" button below
   const [verifiedPending, setVerifiedPending] = useState([]);
   const [releasing, setReleasing] = useState(null);
 
@@ -175,8 +174,7 @@ export default function DigitalID() {
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 3500); }
 
-  // Builds the digital ID straight from the senior's own verified record and
-  // writes it using the same OSCAIdCard template every digital ID uses.
+  // Builds the digital ID from the senior's verified record using the same OSCAIdCard template
   async function releaseDigitalId(record) {
     const uid = record.uid;
     if (!uid) { showToast(t.digitalIdNoLinkedAccount); return; }
@@ -282,7 +280,7 @@ export default function DigitalID() {
       <IDTemplatePreview />
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         {[
           { label: t.statActiveIds,   value: active.length,      color: 'text-green-600', bg: 'bg-green-50', icon: Shield },
           { label: t.statInvalidated, value: invalidated.length, color: 'text-red-600',   bg: 'bg-red-50',   icon: XCircle },

@@ -1,8 +1,4 @@
-// src/lib/idRequestStatus.js
-//
-// One place for the physical-ID-request lifecycle so the OSCA page, the
-// barangay page, and (copy of) the mobile app all agree on the same strings.
-//
+// Physical-ID-request lifecycle, shared by the OSCA page, barangay page, and mobile app
 // pending → processing → delivered → received → done
 //                └───────────┴──→ cancelled
 
@@ -33,9 +29,7 @@ export const STATUS_LABEL = {
   cancelled: "Cancelled",
 };
 
-// What OSCA (super_admin) can move a request to, from each status.
-// `approved` is only here in case your existing requests already use it —
-// delete that line if you don't.
+// What OSCA can move a request to from each status ('approved' kept for legacy requests)
 export const OSCA_NEXT = {
   pending: ["processing", "cancelled"],
   approved: ["processing", "cancelled"],
@@ -127,23 +121,6 @@ export async function sendFollowUp(db, requestId, note = "") {
   });
 }
 
-// ── Example queries ───────────────────────────────────────────────────────
-//
-// BARANGAY page (only what's on its way to / sitting in that barangay):
-//   query(
-//     collection(db, "id_requests"),
-//     where("barangay", "==", myBarangay),
-//     where("status", "in", ["delivered", "received"]),
-//     orderBy("deliveredAt", "desc")
-//   )
-//
-// OSCA page: query the whole collection, show STATUS_LABEL[status] as a badge,
-// show claimedAt when status === "done", and show a follow-up badge when
-// followUpCount > 0 (sort by lastFollowUpAt to surface people who are waiting).
-//
-// SENIOR app notifications:
-//   query(
-//     collection(db, "notifications"),
-//     where("uid", "==", auth.currentUser.uid),
-//     orderBy("createdAt", "desc")
-//   )
+// Example queries: BARANGAY page filters where("barangay","==",myBarangay) +
+// where("status","in",["delivered","received"]); OSCA page queries the whole
+// collection and badges by STATUS_LABEL[status]; SENIOR app filters by uid.

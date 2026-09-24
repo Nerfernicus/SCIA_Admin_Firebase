@@ -17,10 +17,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// experimentalAutoDetectLongPolling: some networks/firewalls/antivirus web-shields
-// block or corrupt Firestore's QUIC-based WebChannel connection (symptoms: requests
-// that hang forever, QUIC_PROTOCOL_ERROR / transport errored in the console). This
-// makes the SDK detect that case and transparently fall back to plain long-polling.
+// Falls back to long-polling when a network blocks Firestore's QUIC WebChannel connection
 export const db = initializeFirestore(app, {
   experimentalAutoDetectLongPolling: true,
 });
@@ -49,8 +46,6 @@ export const COLLECTIONS = {
 };
 
 export default app;
-// ── Event join/check-in subcollection ────────────────────────────────────────
-// Path: editorial_health/{eventId}/attendees/{uid}
-// Written by the mobile app on Join (formResponses, checkedIn: false).
-// Flipped to checkedIn: true by the admin scanner in EventCheckIn.jsx.
+// Event join/check-in subcollection: editorial_health/{eventId}/attendees/{uid}
+// Written by the mobile app on Join; flipped to checkedIn: true by EventCheckIn.jsx
 export const EVENT_ATTENDEES_SUBCOLLECTION = "attendees";

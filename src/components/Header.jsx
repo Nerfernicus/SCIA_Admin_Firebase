@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Bell, Settings, X, Check, AlertTriangle, Megaphone,
   ShieldCheck, Save, Loader2, Camera, Globe, Volume2,
-  Moon, Mail
+  Moon, Mail, Menu
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLang, LANGUAGES } from '../context/LangContext';
@@ -20,13 +20,10 @@ function NotificationsPanel({ onClose, myBarangay }) {
   useEffect(() => {
     let mounted = true;
 
-    // Use getDocs (one-time fetch) instead of onSnapshot to avoid
-    // Firestore internal assertion errors from concurrent listeners
+    // getDocs, not onSnapshot — avoids Firestore assertion errors from concurrent listeners
     const fetchNotifs = async () => {
       try {
-        // A barangay-scoped sub-admin MUST filter released_ids server-side (via
-        // where()) — the security rule denies the whole query if it could return
-        // another barangay's doc, so we can't just filter client-side here.
+        // Security rule requires server-side where() filtering for barangay-scoped admins
         const releasedIdsQuery = myBarangay
           ? query(collection(db, 'released_ids'), where('barangay', '==', myBarangay), orderBy('releasedAt', 'desc'), limit(5))
           : query(collection(db, 'released_ids'), orderBy('releasedAt', 'desc'), limit(10));
@@ -62,10 +59,7 @@ function NotificationsPanel({ onClose, myBarangay }) {
             time: d.createdAt?.toDate?.() || new Date(),
           }));
 
-        // OSCA releases a physical/digital ID → the matching barangay sub-admin gets
-        // notified so they know a senior from THEIR barangay was cleared for pickup.
-        // A barangay-scoped admin only sees releases for their own barangay; the
-        // generic sub-admin (no barangay assigned — oversees every barangay) sees all.
+        // Notifies the barangay sub-admin when OSCA releases an ID for their area
         const idReleases = idSnap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(d => !myBarangay || d.barangay === myBarangay)
@@ -105,7 +99,7 @@ function NotificationsPanel({ onClose, myBarangay }) {
   const { dark } = useTheme();
 
   return (
-    <div className={(dark ? 'bg-[#202124] border-white/10' : 'bg-white border-gray-100') + ' absolute right-0 top-12 w-80 rounded-2xl shadow-2xl border z-50 overflow-hidden'}>
+    <div className={(dark ? 'bg-[#202124] border-white/10' : 'bg-white border-gray-100') + ' absolute right-0 top-12 w-80 max-w-[calc(100vw-24px)] rounded-2xl shadow-2xl border z-50 overflow-hidden'}>
       <div className={(dark ? 'border-white/10' : 'border-gray-100') + ' flex items-center justify-between px-4 py-3 border-b'}>
         <span className={(dark ? 'text-[#f0efec]' : 'text-gray-900') + ' font-bold text-sm'}>{t.notifications}</span>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -155,9 +149,7 @@ function NotificationsPanel({ onClose, myBarangay }) {
 }
 
 function SettingsToggle({ label, icon: Icon, storageKey, defaultOn = true, checked, onChange }) {
-  // Controlled mode (checked/onChange supplied, e.g. dark mode driven by
-  // ThemeContext) takes over from the plain localStorage-backed toggle used
-  // for settings that don't need to affect anything outside this panel.
+  // Controlled mode (checked/onChange passed in) overrides the localStorage toggle
   const isControlled = checked !== undefined;
 
   const [internalOn, setInternalOn] = useState(() => {
@@ -214,7 +206,7 @@ function SettingsPanel({ onClose }) {
   const { dark, toggleDark } = useTheme();
 
   return (
-    <div className={(dark ? 'bg-[#202124] border-white/10' : 'bg-white border-gray-100') + ' absolute right-0 top-12 w-72 rounded-2xl shadow-2xl border z-50 overflow-hidden'}>
+    <div className={(dark ? 'bg-[#202124] border-white/10' : 'bg-white border-gray-100') + ' absolute right-0 top-12 w-72 max-w-[calc(100vw-24px)] rounded-2xl shadow-2xl border z-50 overflow-hidden'}>
       <div className={(dark ? 'border-white/10' : 'border-gray-100') + ' flex items-center justify-between px-4 py-3 border-b'}>
         <span className={(dark ? 'text-[#f0efec]' : 'text-gray-900') + ' font-bold text-sm'}>{t.settings}</span>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -401,7 +393,7 @@ function AdminProfileModal({ onClose }) {
   );
 }
 
-export default function Header() {
+export default function Header({ onMenuClick }) {
   const { user, adminData } = useAuth();
   const { t } = useLang();
   const { dark } = useTheme();
@@ -438,17 +430,26 @@ export default function Header() {
 
   return (
     <>
-      <header className={(dark ? 'bg-[#202124] border-white/10' : 'bg-white border-gray-100') + ' sticky top-0 z-30 border-b px-6 py-3 flex items-center justify-between font-sans'}>
-        <div>
-          <p className={(dark ? 'text-[#7a7970]' : 'text-gray-400') + ' text-xs font-medium'}>
-            {new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </p>
-          <h2 className={(dark ? 'text-[#ddd9d2]' : 'text-gray-800') + ' text-sm font-bold leading-tight'}>
-            {t.welcomeBack}, {adminData?.name?.split(' ')[0] || 'Admin'} 👋
-          </h2>
+      <header className={(dark ? 'bg-[#202124] border-white/10' : 'bg-white border-gray-100') + ' sticky top-0 z-30 border-b px-3 sm:px-6 py-3 flex items-center justify-between gap-2 font-sans'}>
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            onClick={onMenuClick}
+            className={(dark ? 'text-[#96958d] hover:bg-white/5' : 'text-gray-500 hover:bg-gray-100') + ' md:hidden w-9 h-9 flex items-center justify-center rounded-xl shrink-0'}
+            title="Menu"
+          >
+            <Menu size={18} />
+          </button>
+          <div className="min-w-0">
+            <p className={(dark ? 'text-[#7a7970]' : 'text-gray-400') + ' text-xs font-medium hidden sm:block'}>
+              {new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+            <h2 className={(dark ? 'text-[#ddd9d2]' : 'text-gray-800') + ' text-sm font-bold leading-tight truncate'}>
+              {t.welcomeBack}, {adminData?.name?.split(' ')[0] || 'Admin'} 👋
+            </h2>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <div className="relative" ref={notifsRef}>
             <button
               onClick={() => { setShowNotifs(v => !v); setShowSettings(false); }}

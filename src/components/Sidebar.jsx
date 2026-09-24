@@ -17,12 +17,11 @@ export default function Sidebar({ children }) {
   const location = useLocation();
   const { adminData, logout, isSuperAdmin } = useAuth();
   const { t } = useLang();
-  // Read the theme directly from context instead of leaning on the .dark
-  // ancestor class + CSS overrides. This guarantees the sidebar flips the
-  // instant the toggle is clicked, regardless of CSS build/cache state.
+  // Read theme from context directly so the sidebar flips instantly on toggle
   const { dark } = useTheme();
   const [expanded, setExpanded] = useState(true);
   const [reportOpen, setReportOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const superAdminItems = [
     { key: 'dashboard',      icon: LayoutDashboard, path: '/' },
@@ -59,13 +58,21 @@ export default function Sidebar({ children }) {
 
   return (
     <div className={dark ? 'flex min-h-screen bg-[#17181b]' : 'flex min-h-screen bg-gray-50'}>
+      {mobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/40 z-30"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
       <aside
         style={{ width: expanded ? '256px' : '68px', transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}
         className={
           (dark
-            ? 'h-screen sticky top-0 bg-[#202124] border-r border-white/10'
-            : 'h-screen sticky top-0 bg-white border-r border-gray-100'
-          ) + ' flex flex-col py-6 font-sans overflow-hidden shrink-0'
+            ? 'bg-[#202124] border-white/10'
+            : 'bg-white border-gray-100'
+          ) + ` fixed md:sticky top-0 h-screen z-40 border-r flex flex-col py-6 font-sans overflow-hidden shrink-0 transition-transform duration-300 md:translate-x-0 ${
+            mobileOpen ? 'translate-x-0' : '-translate-x-full'
+          }`
         }
       >
         <div
@@ -127,6 +134,7 @@ export default function Sidebar({ children }) {
               <Link
                 key={item.key}
                 to={item.path}
+                onClick={() => setMobileOpen(false)}
                 title={!expanded ? t[item.key] : undefined}
                 style={{
                   padding: expanded ? '10px 16px' : '10px',
@@ -184,8 +192,8 @@ export default function Sidebar({ children }) {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto flex flex-col">
-        <Header />
+      <main className="flex-1 overflow-y-auto flex flex-col min-w-0">
+        <Header onMenuClick={() => setMobileOpen(true)} />
         <div className="flex-1">{children}</div>
       </main>
 

@@ -75,8 +75,7 @@ export default function Announcements() {
   const { t } = useLang();
   const myBarangay = adminData?.barangay || null; // null for OSCA and the generic sub_admin
 
-  // Field-type dropdown options, translated where a key exists, falling
-  // back to the original English label for anything not yet in the dict.
+  // Field-type dropdown options, translated where available, else the English label
   const FIELD_TYPES = [
     { value: 'text', label: t.fieldTypeShortText || 'Short text' },
     { value: 'number', label: t.fieldTypeNumber || 'Number' },
@@ -262,7 +261,7 @@ export default function Announcements() {
               <label className="flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                 <Calendar size={13} /> {t.whenLabel}
               </label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <input
                   type="date"
                   value={eventDate}

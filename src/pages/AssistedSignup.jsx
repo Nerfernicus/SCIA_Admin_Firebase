@@ -57,7 +57,7 @@ export default function AssistedSignup() {
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto font-sans">
+    <div className="p-4 sm:p-8 max-w-3xl mx-auto font-sans">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <UserPlus size={22} className="text-[#0f52ba]" /> Assisted Senior Sign-Up
@@ -115,7 +115,7 @@ export default function AssistedSignup() {
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">First Name</label>
               <input value={form.firstName} onChange={update('firstName')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
@@ -135,7 +135,7 @@ export default function AssistedSignup() {
             <input value={form.address} onChange={update('address')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Contact Number</label>
               <input value={form.conNumber} onChange={update('conNumber')} placeholder="09XXXXXXXXX" className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />

@@ -14,11 +14,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // TEMP DIAGNOSTIC: decode the raw ID token JWT to see exactly what
-        // the server receives — especially `aud` (the Firebase project this
-        // token was issued for) and `user_id`/`sub`. This bypasses every
-        // client-side convenience wrapper. Remove once the permissions
-        // issue is confirmed fixed.
+        // TEMP DIAGNOSTIC: decodes the raw ID token to check aud/user_id — remove once fixed
         try {
           const rawToken = await firebaseUser.getIdToken(/* forceRefresh */ true);
           const payloadB64 = rawToken.split('.')[1];
@@ -51,9 +47,7 @@ export function AuthProvider({ children }) {
           const adminSnap = await getDoc(adminRef);
           if (adminSnap.exists()) {
             const data = adminSnap.data();
-            // TEMP DIAGNOSTIC: reveals hidden whitespace/characters in role
-            // that wouldn't be visible in the Firestore console. Remove once
-            // the permissions issue is confirmed fixed.
+            // TEMP DIAGNOSTIC: reveals hidden whitespace in role — remove once fixed
             console.log('[auth-debug] admin doc for uid', firebaseUser.uid, {
               rawRole: JSON.stringify(data.role),
               roleLength: data.role ? data.role.length : null,

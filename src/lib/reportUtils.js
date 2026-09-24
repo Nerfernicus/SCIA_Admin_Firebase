@@ -1,11 +1,8 @@
 import { db } from '../lib/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 
-// Maps a report "type" id (from GenerateReportModal) to its Firestore collection.
-// These follow the same collection names Analytics.jsx already queries against —
-// double check 'health' and 'announcements' if your schema has since changed,
-// since the naming in the original Analytics.jsx looked swapped
-// (the "announcements" stat count actually reads from 'editorial_health').
+// Maps a report type to its Firestore collection. Double-check 'health' and
+// 'announcements' — the "announcements" stat actually reads from 'editorial_health'.
 export const REPORT_COLLECTION_MAP = {
   sos: 'emergencies',
   users: 'users',
@@ -17,12 +14,10 @@ export const REPORT_COLLECTION_MAP = {
 // Firestore Timestamp fields we'll look for on a doc, in priority order.
 const DATE_FIELD_CANDIDATES = ['createdAt', 'timestamp', 'date', 'created_at'];
 
-// Fields we never show an admin, regardless of report type — pure technical
-// identifiers with no meaning to a non-developer reader.
+// Fields never shown to an admin — technical identifiers with no reader-facing meaning
 const HIDDEN_FIELDS = ['uid', 'latitude', 'longitude'];
 
-// Human-readable labels for fields we know about. Anything not listed here
-// falls back to an auto Title-Cased version of its camelCase key.
+// Labels for known fields; anything else falls back to an auto Title-Cased key
 const FIELD_LABELS = {
   name: 'Name',
   barangay: 'Barangay',
@@ -45,10 +40,8 @@ const FIELD_LABELS = {
   facilityName: 'Facility Name',
 };
 
-// The columns worth showing an admin, per report type, in display order.
-// Confirmed against real data for 'sos'; the others are best-guess field
-// names — if a collection's real fields don't match, buildFriendlyRow()
-// falls back to showing every non-hidden field so nothing goes missing.
+// Columns shown per report type, in order. Confirmed for 'sos'; others are best-guess —
+// buildFriendlyRow() falls back to every non-hidden field if a collection's fields differ.
 const COLUMN_ORDER = {
   sos: ['name', 'barangay', 'address', 'status', 'createdAt', 'dispatchedAt', 'resolvedAt'],
   users: ['name', 'email', 'phone', 'phoneNumber', 'barangay', 'status', 'createdAt'],
@@ -87,9 +80,7 @@ function serializeValue(key, value) {
   return value;
 }
 
-// Builds one admin-friendly row: known important fields first with plain
-// labels, id/uid always excluded. Falls back to showing every remaining
-// field if none of the expected ones were found on this doc.
+// Builds one admin-friendly row: known fields first with plain labels, else every remaining field
 function buildFriendlyRow(reportType, data) {
   const order = COLUMN_ORDER[reportType] || [];
   const row = {};

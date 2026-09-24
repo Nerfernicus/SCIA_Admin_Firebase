@@ -8,17 +8,14 @@ export function ThemeProvider({ children }) {
   const [dark, setDarkState] = useState(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      // Only ever trust an explicit saved choice. No OS/browser
-      // prefers-color-scheme fallback — the app always starts in light
-      // mode until the user turns dark mode on themselves.
+      // No OS prefers-color-scheme fallback — app starts in light mode until the user opts in
       return stored === 'true';
     } catch {
       return false;
     }
   });
 
-  // Reflect the current mode on <html> so every `dark:` Tailwind utility,
-  // and the global overrides in index.css, pick it up immediately.
+  // Reflects the mode on <html> so `dark:` Tailwind utilities pick it up immediately
   useEffect(() => {
     const root = document.documentElement;
     if (dark) root.classList.add('dark');
@@ -32,11 +29,7 @@ export function ThemeProvider({ children }) {
 
   const toggleDark = () => setDark(!dark);
 
-  // Keep every open tab/window of the app in sync. Without this, toggling
-  // the theme only updates the tab you're in — other tabs (and the
-  // sidebar in them) keep whatever mode they mounted with, since
-  // localStorage writes don't trigger a React re-render in other tabs
-  // unless you're listening for the 'storage' event.
+  // Syncs other open tabs — localStorage writes alone don't trigger a re-render elsewhere
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === STORAGE_KEY) {

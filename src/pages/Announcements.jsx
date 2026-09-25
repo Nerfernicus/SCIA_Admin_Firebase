@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Plus, AlignLeft, ChevronDown, Send, CheckCircle2, Edit3, AlertCircle,
-  Loader2, MapPin, Calendar, FileText, QrCode, ListPlus, Trash2, GripVertical
+  Loader2, MapPin, Calendar, FileText, QrCode, ListPlus, Trash2, GripVertical, X
 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp } from 'firebase/firestore';
@@ -122,9 +122,50 @@ export default function Announcements() {
     setFormFields((prev) => prev.filter((f) => f.id !== id));
   };
 
-  const updateFieldOptions = (id, rawText) => {
-    const options = rawText.split('\n').map((o) => o.trim()).filter(Boolean);
-    updateFormField(id, { options });
+  // Google-Forms-style option editing helpers -------------------------------
+  const setFieldOptionAt = (fieldId, optIdx, value) => {
+    setFormFields((prev) => prev.map((f) => {
+      if (f.id !== fieldId) return f;
+      const options = [...f.options];
+      options[optIdx] = value;
+      return { ...f, options };
+    }));
+  };
+
+  const insertFieldOptionAfter = (fieldId, optIdx) => {
+    setFormFields((prev) => prev.map((f) => {
+      if (f.id !== fieldId) return f;
+      const options = [...f.options];
+      options.splice(optIdx + 1, 0, '');
+      return { ...f, options };
+    }));
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-field-id="${fieldId}"][data-opt-idx="${optIdx + 1}"]`)?.focus();
+    });
+  };
+
+  const removeFieldOptionAt = (fieldId, optIdx, focusPrev = false) => {
+    setFormFields((prev) => prev.map((f) => {
+      if (f.id !== fieldId) return f;
+      if (f.options.length <= 1) return f; // always keep at least one row
+      const options = f.options.filter((_, i) => i !== optIdx);
+      return { ...f, options };
+    }));
+    if (focusPrev) {
+      requestAnimationFrame(() => {
+        document.querySelector(`[data-field-id="${fieldId}"][data-opt-idx="${optIdx - 1}"]`)?.focus();
+      });
+    }
+  };
+
+  const addFieldOption = (fieldId) => {
+    setFormFields((prev) => prev.map((f) => (f.id === fieldId ? { ...f, options: [...f.options, ''] } : f)));
+    // Reads the DOM after the append instead of the (possibly stale) formFields
+    // closure, so this always focuses the row that was actually just added.
+    requestAnimationFrame(() => {
+      const rows = document.querySelectorAll(`[data-field-id="${fieldId}"]`);
+      rows[rows.length - 1]?.focus();
+    });
   };
 
   useEffect(() => {
@@ -173,7 +214,7 @@ export default function Announcements() {
         showToast(t.everyFieldNeedsLabel, 'error');
         return;
       }
-      if (formFields.some((f) => f.type === 'select' && f.options.length < 2)) {
+      if (formFields.some((f) => f.type === 'select' && f.options.filter((o) => o.trim()).length < 2)) {
         showToast(t.multipleChoiceNeeds2, 'error');
         return;
       }
@@ -199,7 +240,7 @@ export default function Announcements() {
         formFields: isJoinable
           ? formFields.map(({ id, label, type, required, options }) => ({
               id, label: label.trim(), type, required,
-              ...(type === 'select' ? { options } : {}),
+              ...(type === 'select' ? { options: options.map((o) => o.trim()).filter(Boolean) } : {}),
             }))
           : [],
       });
@@ -351,7 +392,15 @@ export default function Announcements() {
                         />
                         <select
                           value={field.type}
-                          onChange={(e) => updateFormField(field.id, { type: e.target.value, options: e.target.value === 'select' ? field.options : [] })}
+                          onChange={(e) => {
+                            const nextType = e.target.value;
+                            updateFormField(field.id, {
+                              type: nextType,
+                              options: nextType === 'select'
+                                ? (field.options && field.options.length ? field.options : ['', ''])
+                                : [],
+                            });
+                          }}
                           className="bg-white rounded-lg py-2 px-2 text-sm border border-gray-200 outline-none"
                         >
                           {FIELD_TYPES.map((ft) => (
@@ -372,13 +421,47 @@ export default function Announcements() {
                       </div>
 
                       {field.type === 'select' && (
-                        <textarea
-                          rows={3}
-                          value={field.options.join('\n')}
-                          onChange={(e) => updateFieldOptions(field.id, e.target.value)}
-                          placeholder={t.optionsPlaceholder}
-                          className="w-full bg-white rounded-lg py-2 px-3 text-sm border border-gray-200 focus:ring-2 focus:ring-blue-100 outline-none resize-none"
-                        />
+                        <div className="space-y-2 mt-1 pl-6">
+                          {field.options.map((opt, optIdx) => (
+                            <div key={optIdx} className="flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full border-2 border-gray-400 shrink-0" />
+                              <input
+                                type="text"
+                                value={opt}
+                                data-field-id={field.id}
+                                data-opt-idx={optIdx}
+                                onChange={(e) => setFieldOptionAt(field.id, optIdx, e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    insertFieldOptionAfter(field.id, optIdx);
+                                  } else if (e.key === 'Backspace' && opt === '' && field.options.length > 1) {
+                                    e.preventDefault();
+                                    removeFieldOptionAt(field.id, optIdx, true);
+                                  }
+                                }}
+                                placeholder={`${t.fieldOptionPrefix || 'Option'} ${optIdx + 1}`}
+                                className="flex-1 bg-white rounded-lg py-2 px-3 text-sm border border-gray-200 focus:ring-2 focus:ring-blue-100 outline-none"
+                              />
+                              {field.options.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeFieldOptionAt(field.id, optIdx)}
+                                  className="text-gray-300 hover:text-red-500 shrink-0"
+                                >
+                                  <X size={15} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => addFieldOption(field.id)}
+                            className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline pt-1"
+                          >
+                            <Plus size={13} /> {t.addOption || 'Add option'}
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))}

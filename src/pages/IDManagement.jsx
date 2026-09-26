@@ -31,6 +31,38 @@ const isLinkedRelease = r => !!r.requestId && r.sourceType !== 'id_verification'
 const followUpsFirst = list =>
   [...list].sort((a, b) => ((b.followUpCount || 0) > 0) - ((a.followUpCount || 0) > 0));
 
+/* Joins id_requests/id_verifications records against users/{uid} for any
+   identity fields the request doc is missing (barangay, dob, etc.), so the
+   admin is always reviewing the real profile — not whatever happened to
+   get copied onto the request at submission time. Read-only: never writes
+   back to Firestore. */
+async function enrichFromUsers(records) {
+  const missing = records.filter(r => r.uid && (!hasBirthday(r) || !r.barangay));
+  if (missing.length === 0) return records;
+
+  const uniqueUids = [...new Set(missing.map(r => r.uid))];
+  const userDocs = await Promise.all(
+    uniqueUids.map(uid => getDoc(doc(db, 'users', uid)).catch(() => null))
+  );
+  const usersByUid = {};
+  userDocs.forEach((snap, i) => { if (snap?.exists()) usersByUid[uniqueUids[i]] = snap.data(); });
+
+  return records.map(r => {
+    const u = r.uid ? usersByUid[r.uid] : null;
+    if (!u) return r;
+    return {
+      ...r,
+      dob: r.dob || r.dateOfBirth || u.dob || '',
+      barangay: r.barangay || u.barangay || '',
+      address: r.address || u.address || '',
+      sex: r.sex || u.gender || '',
+      seniorName: r.seniorName || r.fullName || [u.firstName, u.midName, u.lastName].filter(Boolean).join(' '),
+      contactNumber: r.contactNumber || u.conNumber || '',
+      seniorId: r.seniorId || r.idNumber || u.idNumber || '',
+    };
+  });
+}
+
 /* ─── Status Badge ───────────────────────────────────────────────────────────── */
 const StatusBadge = ({ status }) => {
   const { t } = useLang();
@@ -543,7 +575,12 @@ export default function IDManagement() {
   /* ── Listeners ── */
   useEffect(() => {
     const q = query(collection(db, 'id_verifications'), orderBy('submittedAt', 'desc'));
-    return onSnapshot(q, snap => { setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoadingVerif(false); });
+    return onSnapshot(q, async snap => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const enriched = await enrichFromUsers(data);
+      setSubmissions(enriched);
+      setLoadingVerif(false);
+    });
   }, []);
   useEffect(() => {
     // Single listener for id_requests, feeding both Verification and Release panels.
@@ -556,10 +593,15 @@ export default function IDManagement() {
     }
     return onSnapshot(
       q,
-      snap => {
+      async snap => {
         const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setPhysicalReqs(data);
-        setIdRequests(data);
+        // Pull real barangay/DOB (and other identity fields) from users/{uid}
+        // for any request that's missing them, so approval is always based
+        // on the real profile instead of whatever the request doc happened
+        // to have saved on it.
+        const enriched = await enrichFromUsers(data);
+        setPhysicalReqs(enriched);
+        setIdRequests(enriched);
         setLoadingRel(false);
       },
       err => {

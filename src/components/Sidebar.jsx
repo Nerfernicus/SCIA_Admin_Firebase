@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Map, Megaphone, Users,
   Building2, LogOut, Crown, User2, CreditCard,
   PanelLeftClose, PanelLeftOpen, FileText, Contact,
-  QrCode,
+  QrCode, UserPlus,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -26,6 +26,7 @@ export default function Sidebar({ children }) {
   const superAdminItems = [
     { key: 'dashboard',      icon: LayoutDashboard, path: '/' },
     { key: 'idManagement',   icon: CreditCard,      path: '/id-management' },
+    { key: 'assistedSignup', icon: UserPlus,        path: '/assisted-signup' },
     { key: 'digitalId',      icon: Contact,         path: '/digital-id' },
     { key: 'userManagement', icon: Users,           path: '/users' },
     { key: 'analytics',      icon: LayoutDashboard, path: '/analytics' },
@@ -36,6 +37,7 @@ export default function Sidebar({ children }) {
   const subAdminItems = [
    { key: 'dashboard',     icon: LayoutDashboard, path: '/' },
    { key: 'idManagement',  icon: CreditCard,      path: '/id-management' },
+   { key: 'assistedSignup',icon: UserPlus,        path: '/assisted-signup' },
    { key: 'digitalId',     icon: Contact,         path: '/digital-id' },
    { key: 'analytics',     icon: LayoutDashboard, path: '/analytics' },
    { key: 'announcements', icon: Megaphone,       path: '/announcements' },
@@ -135,7 +137,7 @@ export default function Sidebar({ children }) {
                 key={item.key}
                 to={item.path}
                 onClick={() => setMobileOpen(false)}
-                title={!expanded ? t[item.key] : undefined}
+                title={!expanded ? (t[item.key] || item.key) : undefined}
                 style={{
                   padding: expanded ? '10px 16px' : '10px',
                   justifyContent: expanded ? 'flex-start' : 'center',

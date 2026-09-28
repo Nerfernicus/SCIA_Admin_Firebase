@@ -8,7 +8,7 @@ import {
 import { db } from '../lib/firebase';
 import {
   collection, onSnapshot, query, orderBy, where,
-  doc, updateDoc, deleteDoc, serverTimestamp,
+  doc, updateDoc, deleteDoc, serverTimestamp, Timestamp,
   getDocs, addDoc, getDoc, writeBatch,
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
@@ -338,9 +338,11 @@ function OSCAIDCard({ record }) {
     if (isoM)        dobFormatted = `${isoM[2]}-${isoM[3]}-${isoM[1].slice(2)}`;
     else if (slashM) dobFormatted = `${slashM[1].padStart(2,'0')}-${slashM[2].padStart(2,'0')}-${slashM[3].slice(2)}`;
   }
-  const dateIssued = record.releasedAt?.toDate?.()
-    ? record.releasedAt.toDate().toLocaleDateString('en-PH', { month: '2-digit', day: '2-digit', year: 'numeric' })
-    : new Date().toLocaleDateString('en-PH', { month: '2-digit', day: '2-digit', year: 'numeric' });
+
+  // Date issued: what OSCA typed (dateIssued) > when it was released > today
+  const toDate = v => v?.toDate?.() || (v instanceof Date ? v : null);
+  const issued = toDate(record.dateIssued) || toDate(record.releasedAt) || new Date();
+  const dateIssued = issued.toLocaleDateString('en-PH', { month: '2-digit', day: '2-digit', year: 'numeric' });
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -364,21 +366,46 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
   const [verified, setVerified] = useState(false);
   const missingBirthday = !hasBirthday(record);
 
+  // OSCA types the real OSCA ID number and the actual date issued.
+  const [controlNo, setControlNo] = useState(
+    record.controlNumber || record.seniorId || record.idNumber || ''
+  );
+  const [issuedStr, setIssuedStr] = useState(() => {
+    const d = record.dateIssued?.toDate?.() || new Date();
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  });
+
+  const cleanControlNo = controlNo.trim();
+  // Noon local time so the date never shifts a day because of timezone
+  const issuedDate = issuedStr ? new Date(`${issuedStr}T12:00:00`) : null;
+  const hasControlNo = !!cleanControlNo;
+  const hasIssuedDate = !!issuedDate && !Number.isNaN(issuedDate.getTime());
+
   const hasAllInfo = !!(
     (record.seniorName || record.fullName) &&
     record.address &&
-    (record.seniorId || record.controlNumber || record.idNumber) &&
+    hasControlNo &&
+    hasIssuedDate &&
     (record.barangay || record.sub_admin_barangay) &&
-    !missingBirthday   // birthday is now a required field for release
+    !missingBirthday
   );
 
   const checks = [
-    { label: t.fullName,               ok: !!(record.seniorName || record.fullName) },
-    { label: t.dateOfBirthCheck,       ok: !missingBirthday },
-    { label: t.addressCheck,           ok: !!record.address },
-    { label: t.oscaIdControlNoCheck,   ok: !!(record.seniorId || record.controlNumber || record.idNumber) },
-    { label: t.barangayAssignmentCheck,ok: !!(record.barangay || record.sub_admin_barangay) },
+    { label: t.fullName,                ok: !!(record.seniorName || record.fullName) },
+    { label: t.dateOfBirthCheck,        ok: !missingBirthday },
+    { label: t.addressCheck,            ok: !!record.address },
+    { label: t.oscaIdControlNoCheck,    ok: hasControlNo },
+    { label: L(t, 'dateIssuedCheck', 'Date issued'), ok: hasIssuedDate },
+    { label: t.barangayAssignmentCheck, ok: !!(record.barangay || record.sub_admin_barangay) },
   ];
+
+  // Card preview follows what OSCA is typing
+  const previewRecord = {
+    ...record,
+    controlNumber: cleanControlNo || '——————',
+    dateIssued: hasIssuedDate ? issuedDate : null,
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -395,7 +422,36 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
 
         <div className="mb-5">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">{t.idCardPreview}</p>
-          <OSCAIDCard record={record} />
+          <OSCAIDCard record={previewRecord} />
+        </div>
+
+        {/* OSCA-entered fields */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+          <div>
+            <label htmlFor="osca-id-no" className="block text-xs font-semibold text-gray-600 mb-1">
+              {L(t, 'oscaIdNumberLabel', 'OSCA ID number')}
+            </label>
+            <input
+              id="osca-id-no"
+              type="text"
+              value={controlNo}
+              onChange={e => setControlNo(e.target.value)}
+              placeholder={L(t, 'oscaIdNumberPlaceholder', 'Enter official OSCA ID no.')}
+              className="w-full rounded-xl border border-gray-200 text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+            />
+          </div>
+          <div>
+            <label htmlFor="osca-date-issued" className="block text-xs font-semibold text-gray-600 mb-1">
+              {L(t, 'dateIssuedLabel', 'Date issued')}
+            </label>
+            <input
+              id="osca-date-issued"
+              type="date"
+              value={issuedStr}
+              onChange={e => setIssuedStr(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+            />
+          </div>
         </div>
 
         {/* Information check */}
@@ -440,7 +496,7 @@ function ReleaseModal({ record, onClose, onRelease, processing }) {
           <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50">{t.cancel}</button>
           <button
             disabled={processing || !hasAllInfo || !verified}
-            onClick={() => onRelease(record)}
+            onClick={() => onRelease(record, { controlNumber: cleanControlNo, dateIssued: issuedDate })}
             className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 text-white font-semibold text-sm disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
           >
             {processing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
@@ -724,21 +780,40 @@ export default function IDManagement() {
   }
 
   /* OSCA: processing → delivered to the barangay.
+     Uses the OSCA ID number and date issued that OSCA typed in the modal.
      Creates the barangay's worklist entry (released_ids) AND flips the request
      status in one atomic batch. The Cloud Function then tells the senior their ID
      is ready for pick-up. */
-  async function handleRelease(record) {
+  async function handleRelease(record, { controlNumber, dateIssued }) {
     setProcessing(true);
     try {
+      // Same OSCA ID number must not be given to two different seniors
+      const dup = await getDocs(
+        query(collection(db, 'released_ids'), where('controlNumber', '==', controlNumber))
+      );
+      const usedByOther = dup.docs.some(d => {
+        const x = d.data();
+        const sameRequest = x.requestId === record.id;
+        const sameSenior  = record.uid && x.uid === record.uid;
+        return !sameRequest && !sameSenior;
+      });
+      if (usedByOther) {
+        showToast(L(t, 'toastOscaIdInUse', 'That OSCA ID number is already assigned to another senior.'), 'error');
+        return;
+      }
+
       const bgy = record.barangay || record.sub_admin_barangay || '';
+      const issuedTs = Timestamp.fromDate(dateIssued);
       const batch = writeBatch(db);
 
       batch.set(doc(collection(db, 'released_ids')), {
         requestId: record.id, uid: record.uid || null, sourceType: 'id_request',
         seniorName: record.seniorName || record.fullName || '',
-        seniorId: record.seniorId || record.idNumber || '', address: record.address || '',
+        seniorId: controlNumber,            // barangay list shows this as the OSCA ID
+        address: record.address || '',
         dob: record.dob || record.dateOfBirth || '', sex: record.sex || '',
-        controlNumber: record.controlNumber || record.seniorId || record.id.slice(-6).toUpperCase(),
+        controlNumber,                      // OSCA-entered, replaces the temp ID
+        dateIssued: issuedTs,               // OSCA-entered, what was actually issued
         barangay: bgy,
         status: 'notified', releasedAt: serverTimestamp(), releasedBy: 'super_admin', notifiedAt: serverTimestamp(),
       });
@@ -746,7 +821,12 @@ export default function IDManagement() {
       // `barangay` is written onto the request too so the barangay admin is allowed to read/update it
       batch.update(
         doc(db, 'id_requests', record.id),
-        buildStatusPayload(ID_STATUS.DELIVERED, getActor(), { barangay: bgy, releasedAt: serverTimestamp() })
+        buildStatusPayload(ID_STATUS.DELIVERED, getActor(), {
+          barangay: bgy,
+          releasedAt: serverTimestamp(),
+          controlNumber,
+          dateIssued: issuedTs,
+        })
       );
 
       await batch.commit();

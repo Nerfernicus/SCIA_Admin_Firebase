@@ -3,257 +3,167 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // HELPER FUNCTIONS
-    // ─────────────────────────────────────────────────────────────────────────
-
-    // Returns true if the caller has ANY admin document in /admins
+    // ── Helpers ──────────────────────────────────────────────────────────
     function isAdmin() {
       return request.auth != null
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
-    // Returns the admin role string, or '' if not an admin
     function adminRole() {
       return isAdmin()
         ? get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role
         : '';
     }
 
-    // Super admin only
     function isSuperAdmin() {
       return adminRole() == 'super_admin';
     }
 
-    // Sub admin OR super admin
     function isSubOrSuperAdmin() {
       return adminRole() in ['sub_admin', 'super_admin'];
     }
 
-    // The barangay assigned to the caller's admin doc, or null if not set
-    // (null = generic sub-admin / oversees every barangay, or not an admin)
+    function isOwner() {
+      return request.auth != null
+        && resource.data.uid == request.auth.uid;
+    }
+
     function myBarangay() {
       return isAdmin()
         ? get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.get('barangay', null)
         : null;
     }
 
-    // Can the caller see a document belonging to `bgy`?
-    //  • super_admin — always
-    //  • sub_admin with no barangay assigned — always (oversees every barangay)
-    //  • sub_admin with a barangay — only their own barangay's documents
     function canSeeBarangay(bgy) {
       return isSuperAdmin()
-        || (adminRole() == 'sub_admin' && (myBarangay() == null || myBarangay() == bgy));
+        || (adminRole() == 'sub_admin' && (bgy == null || myBarangay() == null || myBarangay() == bgy));
     }
 
-    // Senior citizen (mobile app user) — has a document in /users
-    function isSenior() {
-      return request.auth != null
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-
-    // The caller owns this document (uid field matches)
-    function isOwner() {
-      return request.auth != null
-        && resource.data.uid == request.auth.uid;
-    }
-
-    // ── id_requests helpers ────────────────────────────────────────────────
-
-    // BARANGAY (sub_admin) may only:
-    //   delivered (or legacy 'released') → received   (barangay got the ID from OSCA)
-    //   received  → done       (the senior claimed it)
-    // and may only touch the tracking fields listed below.
-    function barangayCanAdvanceIdRequest() {
-      let d = request.resource.data.diff(resource.data);
-      return adminRole() == 'sub_admin'
-        && canSeeBarangay(resource.data.get('barangay', null))
-        && d.affectedKeys().hasOnly([
-             'status', 'receivedAt', 'receivedBy',
-             'claimedAt', 'claimedBy',
-             'statusHistory', 'updatedAt'
-           ])
-        && (
-             (resource.data.status in ['delivered', 'released'] && request.resource.data.status == 'received')
-          || (resource.data.status == 'received'  && request.resource.data.status == 'done')
-        );
-    }
-
-    // SENIOR may "follow up" on their own request:
-    //   • only the 3 follow-up fields may change
-    //   • only while the request is still in progress
-    //   • counter goes up by exactly 1, timestamp must be server time
-    //   • max one follow-up per 24 hours
-    function seniorCanFollowUpIdRequest() {
-      let d = request.resource.data.diff(resource.data);
-      return request.auth != null
-        && resource.data.uid == request.auth.uid
-        && d.affectedKeys().hasOnly(['followUpCount', 'lastFollowUpAt', 'lastFollowUpNote'])
-        && resource.data.status in ['pending', 'approved', 'processing', 'delivered', 'released']
-        && request.resource.data.followUpCount == resource.data.get('followUpCount', 0) + 1
-        && request.resource.data.lastFollowUpAt == request.time
-        && (
-             resource.data.get('lastFollowUpAt', null) == null
-          || request.time > resource.data.lastFollowUpAt + duration.value(1, 'd')
-        )
-        && (
-             !('lastFollowUpNote' in request.resource.data)
-          || request.resource.data.lastFollowUpNote.size() <= 200
-        );
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // /admins — Admin accounts
-    // ─────────────────────────────────────────────────────────────────────────
-
+    // ── /admins ──────────────────────────────────────────────────────────
     match /admins/{uid} {
-      // Each admin can only read their own document (to load role on login)
       allow read: if request.auth != null && request.auth.uid == uid;
-
-      // Never allow client writes — use Firebase Console or Admin SDK only
       allow write: if false;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // /users — Senior citizen profiles
-    //   • Mobile app creates + reads its own document
-    //   • super_admin can read, update, delete all (User Management page)
-    //   • NOTE: the app also stores `fcmToken` here (senior updates own doc)
-    // ─────────────────────────────────────────────────────────────────────────
-
+    // ── /users ───────────────────────────────────────────────────────────
     match /users/{userId} {
-      // Senior reads their own profile; any admin reads all (Dashboard user stats)
       allow read: if request.auth != null
-                  && (request.auth.uid == userId || isSubOrSuperAdmin());
+        && (request.auth.uid == userId || isSubOrSuperAdmin());
 
-      // Mobile app creates the document on registration
       allow create: if request.auth != null
-                    && request.auth.uid == userId;
+        && request.auth.uid == userId;
 
-      // Senior updates their own profile; super admin updates any (approve/suspend)
       allow update: if request.auth != null
-                    && (request.auth.uid == userId || isSuperAdmin());
+        && (request.auth.uid == userId || isSuperAdmin());
 
-      // Only super admin can delete (disapprove)
       allow delete: if isSuperAdmin();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // /editorial_health — Announcements published by admin, read by mobile app
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── /users/{userId}/joinedEvents ────────────────────────────────────
+    match /users/{userId}/joinedEvents/{eventId} {
+      allow read, create, delete: if request.auth != null
+        && request.auth.uid == userId;
+      allow update: if false;
+    }
 
+    // ── /editorial_health ────────────────────────────────────────────────
     match /editorial_health/{docId} {
       allow read: if request.auth != null;
-      allow create: if isSubOrSuperAdmin();
-      allow update: if isSubOrSuperAdmin();
-      allow delete: if isSubOrSuperAdmin();
+
+      allow create: if isSubOrSuperAdmin() &&
+        (myBarangay() == null ||
+         (request.resource.data.Audience == 'BARANGAY' &&
+          request.resource.data.barangay == myBarangay()));
+
+      allow update: if isSubOrSuperAdmin() &&
+        canSeeBarangay(resource.data.get('barangay', null));
+
+      allow delete: if isSubOrSuperAdmin() &&
+        canSeeBarangay(resource.data.get('barangay', null));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // /emergencies — SOS alerts sent from mobile app, shown on admin SOS Map
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── /editorial_health/{eventId}/attendees ───────────────────────────
+    match /editorial_health/{eventId}/attendees/{uid} {
+      allow read: if request.auth != null
+        && (request.auth.uid == uid || isSubOrSuperAdmin());
 
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.checkedIn == false;
+
+      allow update: if isSubOrSuperAdmin() &&
+        canSeeBarangay(get(/databases/$(database)/documents/editorial_health/$(eventId)).data.get('barangay', null));
+
+      allow delete: if isSuperAdmin();
+    }
+
+    // ── /emergencies ─────────────────────────────────────────────────────
     match /emergencies/{docId} {
       allow create: if request.auth != null;
-      allow read: if request.auth != null
-                  && (isOwner() || isSubOrSuperAdmin());
 
-      // Only admin can update status (dispatched / resolved)
-      allow update: if isSubOrSuperAdmin();
+      allow read: if request.auth != null
+        && (isOwner() || isSubOrSuperAdmin());
+
+      allow update: if isSubOrSuperAdmin() && canSeeBarangay(resource.data.get('barangay', null));
+
       allow delete: if isSuperAdmin();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // /appointments — Booked by mobile app, managed by admin Health Centers
-    // ─────────────────────────────────────────────────────────────────────────
-
+    // ── /appointments ────────────────────────────────────────────────────
     match /appointments/{docId} {
       allow create: if request.auth != null;
-      allow read: if request.auth != null
-                  && (isOwner() || isSubOrSuperAdmin());
 
-      // Admin confirms / completes / cancels
+      allow read: if request.auth != null
+        && (isOwner() || isSubOrSuperAdmin());
+
       allow update: if isSubOrSuperAdmin();
+
       allow delete: if isSuperAdmin();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // /medications — Created by admin Health Centers, read by mobile app
-    // ─────────────────────────────────────────────────────────────────────────
-
+    // ── /medications ─────────────────────────────────────────────────────
     match /medications/{docId} {
       allow read: if request.auth != null
-                  && (isOwner() || isSubOrSuperAdmin());
+        && (isOwner() || isSubOrSuperAdmin());
+
       allow create: if isSubOrSuperAdmin();
       allow update: if isSubOrSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // /id_verifications — ID image submissions reviewed by super admin
-    // ─────────────────────────────────────────────────────────────────────────
-
+    // ── /id_verifications ────────────────────────────────────────────────
     match /id_verifications/{docId} {
       allow create: if request.auth != null;
-      allow read: if request.auth != null
-                  && (isOwner() || isSuperAdmin());
 
-      // Super admin approves or rejects
+      allow read: if request.auth != null
+        && (isOwner() || isSuperAdmin());
+
       allow update: if isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // /id_requests — Physical ID card requests (full lifecycle)
-    //
-    //   status:  pending → approved → processing → delivered → received → done
-    //                       └──────────┴──→ cancelled
-    //
-    //   • Senior creates the request and can read it (and follow up on it)
-    //   • OSCA (super_admin) reads/updates everything
-    //       (processing, delivered, cancelled)
-    //   • Barangay (sub_admin) reads its OWN barangay's requests and can only
-    //       mark delivered → received, then received → done (claimed)
-    //
-    //   The request MUST carry a `barangay` field, otherwise barangay admins
-    //   cannot see it (canSeeBarangay compares against this field).
-    // ─────────────────────────────────────────────────────────────────────────
-
+    // ── /id_requests ─────────────────────────────────────────────────────
+    // Sub-admins now need read+update here too: IDManagement.jsx's barangay-
+    // scoped listener (where barangay == myBarangay) requires every matched
+    // doc to pass the read rule, and handleReceived/handleCollected update
+    // this doc via syncRequestStatus() when a barangay marks an ID
+    // received/claimed.
     match /id_requests/{docId} {
       allow create: if request.auth != null;
 
       allow read: if request.auth != null
-                  && (isOwner() || canSeeBarangay(resource.data.get('barangay', null)));
+        && (isOwner()
+            || isSuperAdmin()
+            || (adminRole() == 'sub_admin' && canSeeBarangay(resource.data.get('barangay', null))));
 
       allow update: if isSuperAdmin()
-                    || barangayCanAdvanceIdRequest()
-                    || seniorCanFollowUpIdRequest();
+        || (adminRole() == 'sub_admin' && canSeeBarangay(resource.data.get('barangay', null)));
 
       allow delete: if isSuperAdmin();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // /notifications — In-app notifications for seniors
-    //   • Created ONLY by the Cloud Function (Admin SDK bypasses rules)
-    //   • Senior reads their own and may only flip `read`
-    // ─────────────────────────────────────────────────────────────────────────
-
-    match /notifications/{nid} {
-      allow read: if request.auth != null
-                  && resource.data.uid == request.auth.uid;
-
-      allow update: if request.auth != null
-                    && resource.data.uid == request.auth.uid
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
-
-      allow create, delete: if false;
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // /health_centers — Managed by admin, read by mobile app
-    // ─────────────────────────────────────────────────────────────────────────
-
+    // ── /health_centers ──────────────────────────────────────────────────
     match /health_centers/{docId} {
       allow read: if request.auth != null;
       allow create: if isSubOrSuperAdmin();
@@ -261,13 +171,27 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // /released_ids — Physical/digital IDs OSCA has released for a barangay
-    //   • super_admin creates (the release action) + reads all
-    //   • sub_admin reads only their own barangay's releases
-    //   • sub_admin can update status to 'collected' once distributed
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── /announcements ───────────────────────────────────────────────────
+    match /announcements/{docId} {
+      allow read: if request.auth != null;
+      allow create: if isSubOrSuperAdmin() &&
+        (myBarangay() == null ||
+         (request.resource.data.Audience == 'BARANGAY' &&
+          request.resource.data.barangay == myBarangay()));
+      allow update: if isSubOrSuperAdmin() &&
+        canSeeBarangay(resource.data.get('barangay', null));
+      allow delete: if isSubOrSuperAdmin() &&
+        canSeeBarangay(resource.data.get('barangay', null));
+    }
 
+    // ── /user_lookup ─────────────────────────────────────────────────────
+    match /user_lookup/{lookupKey} {
+      allow read: if true;
+      allow create, update: if request.auth != null;
+      allow delete: if isSuperAdmin();
+    }
+
+    // ── /released_ids ────────────────────────────────────────────────────
     match /released_ids/{docId} {
       allow read: if request.auth != null && canSeeBarangay(resource.data.get('barangay', null));
       allow create: if isSuperAdmin();
@@ -275,10 +199,7 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // /digital_ids — Digital ID records, doc ID == senior's uid
-    // ─────────────────────────────────────────────────────────────────────────
-
+    // ── /digital_ids ─────────────────────────────────────────────────────
     match /digital_ids/{uid} {
       allow read: if request.auth != null && (request.auth.uid == uid || isSuperAdmin());
       allow create: if isSuperAdmin();
@@ -286,16 +207,28 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // /sos_events — Legacy collection; same rules as /emergencies
-    // ─────────────────────────────────────────────────────────────────────────
-
+    // ── /sos_events (legacy) ─────────────────────────────────────────────
     match /sos_events/{docId} {
       allow create: if request.auth != null;
       allow read: if request.auth != null
-                  && (isOwner() || isSubOrSuperAdmin());
-      allow update: if isSubOrSuperAdmin();
+        && (isOwner() || isSubOrSuperAdmin());
+      allow update: if isSubOrSuperAdmin() && canSeeBarangay(resource.data.get('barangay', null));
       allow delete: if isSuperAdmin();
+    }
+
+    // ── /ai_usage ────────────────────────────────────────────────────────
+    match /ai_usage/{uid} {
+      allow read: if request.auth != null
+        && (request.auth.uid == uid || isSuperAdmin());
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.spentUsd is number
+        && request.resource.data.spentUsd >= 0
+        && request.resource.data.spentUsd <= 0.02;
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.spentUsd is number
+        && request.resource.data.spentUsd >= resource.data.spentUsd
+        && request.resource.data.spentUsd - resource.data.spentUsd <= 0.02;
+      allow delete: if false;
     }
   }
 }

@@ -39,6 +39,15 @@ export default function AssistedSignup() {
       return;
     }
 
+    if (ncscAnswer === null) {
+      setError('Please answer whether the senior is already registered.');
+      return;
+    }
+    if (ncscAnswer === 'registered' && !form.idNumber.trim()) {
+      setError('OSCA ID Number is required for a senior who is already registered.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const ncscStatus = ['started', 'cancelled', 'completed_claimed'].includes(ncscAnswer)
@@ -124,55 +133,9 @@ export default function AssistedSignup() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">First Name</label>
-              <input value={form.firstName} onChange={update('firstName')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Middle Name</label>
-              <input value={form.midName} onChange={update('midName')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Last Name</label>
-              <input value={form.lastName} onChange={update('lastName')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Address</label>
-            <input value={form.address} onChange={update('address')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Contact Number</label>
-              <input value={form.conNumber} onChange={update('conNumber')} placeholder="09XXXXXXXXX" className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Gender</label>
-              <select value={form.gender} onChange={update('gender')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none">
-                <option value="">Select</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Date of Birth</label>
-              <input type="date" value={form.dob} onChange={update('dob')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-              OSCA ID Number <span className="normal-case font-normal text-gray-400">(leave blank if they don't have one yet — a temporary ID will be assigned)</span>
-            </label>
-            <input value={form.idNumber} onChange={update('idNumber')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
-          </div>
-
           <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-3">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-              Is the senior already registered with NCSC?
+              Is the senior already registered as a Senior Citizen? *
             </p>
 
             {ncscAnswer === null && (
@@ -189,26 +152,34 @@ export default function AssistedSignup() {
                   onClick={() => setNcscAnswer('none')}
                   className="flex-1 py-2.5 rounded-xl border-2 border-[#0f52ba] text-sm font-bold text-[#0f52ba] hover:bg-blue-50 transition-colors"
                 >
-                  No, not yet
+                  Not yet
                 </button>
               </div>
             )}
 
             {ncscAnswer === 'registered' && (
-              <p className="text-sm text-gray-600">Noted. No NCSC registration needed.</p>
+              <p className="text-sm text-gray-600">
+                Enter the senior's OSCA ID Number below. It is required.
+              </p>
             )}
 
             {(ncscAnswer === 'none' || ncscAnswer === 'cancelled') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setNcscAnswer('started');
-                  window.open(NCSC_FORM_URL, '_blank', 'noopener,noreferrer');
-                }}
-                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
-              >
-                <ExternalLink size={16} /> Register at NCSC
-              </button>
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  The senior can register at NCSC now, or you can skip this and just create the
+                  account. Registering is optional.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNcscAnswer('started');
+                    window.open(NCSC_FORM_URL, '_blank', 'noopener,noreferrer');
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+                >
+                  <ExternalLink size={16} /> Register at NCSC
+                </button>
+              </div>
             )}
 
             {ncscAnswer === 'started' && (
@@ -255,6 +226,57 @@ export default function AssistedSignup() {
                 Change answer
               </button>
             )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">First Name</label>
+              <input value={form.firstName} onChange={update('firstName')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Middle Name</label>
+              <input value={form.midName} onChange={update('midName')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Last Name</label>
+              <input value={form.lastName} onChange={update('lastName')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Address</label>
+            <input value={form.address} onChange={update('address')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Contact Number</label>
+              <input value={form.conNumber} onChange={update('conNumber')} placeholder="09XXXXXXXXX" className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Gender</label>
+              <select value={form.gender} onChange={update('gender')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none">
+                <option value="">Select</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Date of Birth</label>
+              <input type="date" value={form.dob} onChange={update('dob')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+              OSCA ID Number{ncscAnswer === 'registered' ? ' *' : ''}{' '}
+              <span className="normal-case font-normal text-gray-400">
+                {ncscAnswer === 'registered'
+                  ? '(required)'
+                  : "(leave blank if they don't have one yet — a temporary ID will be assigned)"}
+              </span>
+            </label>
+            <input value={form.idNumber} onChange={update('idNumber')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
           </div>
 
           <button

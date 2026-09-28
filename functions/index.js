@@ -194,7 +194,7 @@ exports.createAssistedSeniorAccount = onCall(
     // ── 3. Validate the submitted form data ──────────────────────────
     const {
       firstName, midName = "", lastName, address, conNumber, gender, dob,
-      idNumber, barangay: submittedBarangay,
+      idNumber, barangay: submittedBarangay, ncscStatus,
     } = data || {};
 
     if (!firstName || !lastName || !address || !conNumber || !gender || !dob) {
@@ -272,6 +272,27 @@ exports.createAssistedSeniorAccount = onCall(
         db.collection("user_lookup").doc(key).set({ idNumber: effectiveIdNumber, uid })
       )
     );
+
+    // ── 6b. Record the NCSC registration progress the admin captured on
+    // the form. Written with the Admin SDK because Firestore rules only let
+    // a senior create their own doc. Only these three values are accepted;
+    // verified / rejected are reserved for the NCSC Registrations review. ──
+    const NCSC_ALLOWED = ["started", "cancelled", "completed_claimed"];
+    if (NCSC_ALLOWED.includes(ncscStatus)) {
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      await db.collection("ncsc_registrations").doc(uid).set({
+        uid,
+        status: ncscStatus,
+        barangay: effectiveBarangay,
+        fullName: `${firstName} ${midName} ${lastName}`.replace(/\s+/g, " ").trim(),
+        source: "assisted_signup",
+        createdByAdminUid: callerAuth.uid,
+        startedAt: now,
+        updatedAt: now,
+        ...(ncscStatus === "cancelled" ? { cancelledAt: now } : {}),
+        ...(ncscStatus === "completed_claimed" ? { claimedAt: now } : {}),
+      });
+    }
 
     // ── 7. Hand back the credentials so the admin can write/print them
     // for the senior — this is the ONLY time the temp password is ever

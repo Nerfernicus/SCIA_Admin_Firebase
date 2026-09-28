@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
-import { UserPlus, Loader2, CheckCircle2, Copy, AlertCircle } from 'lucide-react';
+import { UserPlus, Loader2, CheckCircle2, Copy, AlertCircle, ExternalLink } from 'lucide-react';
 import { functions } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 
 const createAssistedSeniorAccount = httpsCallable(functions, 'createAssistedSeniorAccount');
+
+const NCSC_FORM_URL = 'https://www.ncsc.gov.ph/seniorcitizensdataform';
 
 const EMPTY_FORM = {
   firstName: '', midName: '', lastName: '', address: '', conNumber: '',
@@ -22,6 +24,9 @@ export default function AssistedSignup() {
   const [error, setError] = useState('');
   const [result, setResult] = useState(null); // { uid, idNumber, tempPassword }
   const [copied, setCopied] = useState(false);
+  // null = not asked yet, 'registered' = already registered with NCSC,
+  // otherwise the progress of registering them now: started | cancelled | completed_claimed
+  const [ncscAnswer, setNcscAnswer] = useState(null);
 
   const update = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
 
@@ -36,9 +41,13 @@ export default function AssistedSignup() {
 
     setSubmitting(true);
     try {
-      const res = await createAssistedSeniorAccount(form);
+      const ncscStatus = ['started', 'cancelled', 'completed_claimed'].includes(ncscAnswer)
+        ? ncscAnswer
+        : null;
+      const res = await createAssistedSeniorAccount({ ...form, ncscStatus });
       setResult(res.data);
       setForm(EMPTY_FORM);
+      setNcscAnswer(null);
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to create the account. Please try again.');
@@ -159,6 +168,93 @@ export default function AssistedSignup() {
               OSCA ID Number <span className="normal-case font-normal text-gray-400">(leave blank if they don't have one yet — a temporary ID will be assigned)</span>
             </label>
             <input value={form.idNumber} onChange={update('idNumber')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
+          </div>
+
+          <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-3">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+              Is the senior already registered with NCSC?
+            </p>
+
+            {ncscAnswer === null && (
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setNcscAnswer('registered')}
+                  className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-white transition-colors"
+                >
+                  Yes, registered
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNcscAnswer('none')}
+                  className="flex-1 py-2.5 rounded-xl border-2 border-[#0f52ba] text-sm font-bold text-[#0f52ba] hover:bg-blue-50 transition-colors"
+                >
+                  No, not yet
+                </button>
+              </div>
+            )}
+
+            {ncscAnswer === 'registered' && (
+              <p className="text-sm text-gray-600">Noted. No NCSC registration needed.</p>
+            )}
+
+            {(ncscAnswer === 'none' || ncscAnswer === 'cancelled') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setNcscAnswer('started');
+                  window.open(NCSC_FORM_URL, '_blank', 'noopener,noreferrer');
+                }}
+                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+              >
+                <ExternalLink size={16} /> Register at NCSC
+              </button>
+            )}
+
+            {ncscAnswer === 'started' && (
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">Did the senior finish the NCSC registration?</p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setNcscAnswer('completed_claimed')}
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-colors"
+                  >
+                    Yes, finished
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNcscAnswer('cancelled')}
+                    className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-white transition-colors"
+                  >
+                    Cancelled
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.open(NCSC_FORM_URL, '_blank', 'noopener,noreferrer')}
+                  className="text-xs text-[#0f52ba] underline"
+                >
+                  Open the form again
+                </button>
+              </div>
+            )}
+
+            {ncscAnswer === 'completed_claimed' && (
+              <p className="text-sm text-emerald-700">
+                Marked as finished. It will show up in NCSC Registrations for verification.
+              </p>
+            )}
+
+            {ncscAnswer !== null && (
+              <button
+                type="button"
+                onClick={() => setNcscAnswer(null)}
+                className="text-xs text-gray-500 underline"
+              >
+                Change answer
+              </button>
+            )}
           </div>
 
           <button

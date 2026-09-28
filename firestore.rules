@@ -216,6 +216,36 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    // ── /ncsc_registrations ──────────────────────────────────────────────
+    // One doc per user (doc id = uid). The app records that the senior opened
+    // the NCSC registration form, then whether they finished or cancelled.
+    // Admins verify or reject after checking.
+    match /ncsc_registrations/{uid} {
+      allow read: if request.auth != null
+        && (request.auth.uid == uid
+            || isSuperAdmin()
+            || (adminRole() == 'sub_admin' && canSeeBarangay(resource.data.get('barangay', null))));
+
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.status == 'started';
+
+      // The senior can only move between started / cancelled / completed_claimed
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && resource.data.status in ['started', 'cancelled', 'completed_claimed']
+        && request.resource.data.status in ['started', 'cancelled', 'completed_claimed'];
+
+      // Admins can only verify or reject
+      allow update: if (isSuperAdmin()
+            || (adminRole() == 'sub_admin' && canSeeBarangay(resource.data.get('barangay', null))))
+        && request.resource.data.status in ['verified', 'rejected'];
+
+      allow delete: if isSuperAdmin();
+    }
+
     // ── /ai_usage ────────────────────────────────────────────────────────
     match /ai_usage/{uid} {
       allow read: if request.auth != null

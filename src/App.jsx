@@ -18,6 +18,7 @@ import Analytics      from './pages/Analytics';
 import DigitalID      from './pages/DigitalID';
 import EventCheckIn from './pages/EventCheckIn';
 import AssistedSignup from './pages/AssistedSignup';
+import NcscRegistrations from './pages/NcscRegistrations';
 
 
 function Layout() {
@@ -110,6 +111,14 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
             <AssistedSignup />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'ncsc-registrations',
+        element: (
+          <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
+            <NcscRegistrations />
           </ProtectedRoute>
         ),
       },

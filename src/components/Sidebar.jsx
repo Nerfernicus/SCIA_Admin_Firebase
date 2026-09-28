@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Map, Megaphone, Users,
   Building2, LogOut, Crown, User2, CreditCard,
   PanelLeftClose, PanelLeftOpen, FileText, Contact,
-  QrCode, UserPlus,
+  QrCode, UserPlus, ClipboardCheck,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -27,6 +27,7 @@ export default function Sidebar({ children }) {
     { key: 'dashboard',      icon: LayoutDashboard, path: '/' },
     { key: 'idManagement',   icon: CreditCard,      path: '/id-management' },
     { key: 'assistedSignup', icon: UserPlus,        path: '/assisted-signup' },
+    { key: 'ncscRegistrations', icon: ClipboardCheck, path: '/ncsc-registrations' },
     { key: 'digitalId',      icon: Contact,         path: '/digital-id' },
     { key: 'userManagement', icon: Users,           path: '/users' },
     { key: 'analytics',      icon: LayoutDashboard, path: '/analytics' },
@@ -38,6 +39,7 @@ export default function Sidebar({ children }) {
    { key: 'dashboard',     icon: LayoutDashboard, path: '/' },
    { key: 'idManagement',  icon: CreditCard,      path: '/id-management' },
    { key: 'assistedSignup',icon: UserPlus,        path: '/assisted-signup' },
+   { key: 'ncscRegistrations', icon: ClipboardCheck, path: '/ncsc-registrations' },
    { key: 'digitalId',     icon: Contact,         path: '/digital-id' },
    { key: 'analytics',     icon: LayoutDashboard, path: '/analytics' },
    { key: 'announcements', icon: Megaphone,       path: '/announcements' },

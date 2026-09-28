@@ -34,7 +34,7 @@ export default function AssistedSignup() {
     e.preventDefault();
     setError('');
 
-    if (!form.firstName || !form.lastName || !form.address || !form.conNumber || !form.gender || !form.dob) {
+    if (!form.firstName.trim() || !form.midName.trim() || !form.lastName.trim() || !form.address || !form.conNumber || !form.gender || !form.dob) {
       setError(t.fillAllFields);
       return;
     }
@@ -234,7 +234,7 @@ export default function AssistedSignup() {
               <input value={form.firstName} onChange={update('firstName')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Middle Name</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Middle Name *</label>
               <input value={form.midName} onChange={update('midName')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
             </div>
             <div>

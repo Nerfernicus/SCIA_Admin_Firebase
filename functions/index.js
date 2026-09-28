@@ -197,7 +197,7 @@ exports.createAssistedSeniorAccount = onCall(
       idNumber, barangay: submittedBarangay, ncscStatus,
     } = data || {};
 
-    if (!firstName || !lastName || !address || !conNumber || !gender || !dob) {
+    if (!firstName || !midName || !String(midName).trim() || !lastName || !address || !conNumber || !gender || !dob) {
       throw new HttpsError("invalid-argument", "Please fill in all required fields.");
     }
 

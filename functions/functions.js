@@ -15,6 +15,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 const fetch = require("node-fetch");
 const cheerio = require("cheerio");
+const { resolveBarangay } = require("./barangays");
 const admin = require("firebase-admin");
 
 setGlobalOptions({ maxInstances: 10 });
@@ -149,6 +150,12 @@ function generateTempPassword() {
   return Math.random().toString(36).slice(-4).toUpperCase() + Math.floor(1000 + Math.random() * 9000);
 }
 
+// NCSC progress the admin can record on the sign-up form. "registered" means
+// the senior already holds an OSCA ID (the admin typed its number); it is
+// stored as "completed_claimed" so it shows up under "Needs review" on the
+// NCSC Registrations page. verified / rejected stay reserved for that review.
+const NCSC_ALLOWED = ["started", "cancelled", "completed_claimed", "registered"];
+
 exports.createAssistedSeniorAccount = onCall(
   { region: "asia-southeast1" },
   async (request) => {
@@ -164,19 +171,45 @@ exports.createAssistedSeniorAccount = onCall(
       throw new HttpsError("permission-denied", "Your admin role cannot create accounts.");
     }
 
-    const { firstName, midName = "", lastName, address, conNumber, gender, dob, idNumber, barangay: submittedBarangay } = data || {};
-    if (!firstName || !lastName || !address || !conNumber || !gender || !dob) {
+    const {
+      firstName, midName, lastName, street, conNumber, gender, dob, idNumber,
+      barangay: submittedBarangay, ncscStatus,
+    } = data || {};
+    const clean = (v) => String(v || "").trim().replace(/\s+/g, " ");
+    const first = clean(firstName);
+    const mid = clean(midName);
+    const last = clean(lastName);
+    const streetClean = clean(street);
+    const phone = clean(conNumber);
+
+    if (!first || !mid || !last || !streetClean || !phone || !gender || !dob) {
       throw new HttpsError("invalid-argument", "Please fill in all required fields.");
     }
 
-    const effectiveBarangay = callerRole === "sub_admin" ? callerBarangay : (submittedBarangay || null);
-    const effectiveIdNumber = idNumber && idNumber.trim().length > 0 ? idNumber.trim() : `TEMP${Math.floor(100000 + Math.random() * 900000)}`;
+    // A barangay-scoped sub_admin can only register seniors in THEIR OWN
+    // barangay — the client can never pick another one for them. Everyone
+    // else (super admin, or a sub_admin with no barangay) must pick a real one.
+    const forcedBarangay = callerRole === "sub_admin" && callerBarangay ? callerBarangay : null;
+    const resolved = resolveBarangay(forcedBarangay || submittedBarangay);
+    if (!resolved && !forcedBarangay) {
+      throw new HttpsError("invalid-argument", "Please choose the senior's district and barangay.");
+    }
+    const effectiveBarangay = forcedBarangay || resolved.name;
+    const district = resolved ? resolved.district : null;
+    const address = `${streetClean}, Brgy. ${effectiveBarangay}, Valenzuela City`;
+
+    const effectiveIdNumber = idNumber && String(idNumber).trim().length > 0
+      ? String(idNumber).trim()
+      : `TEMP${Math.floor(100000 + Math.random() * 900000)}`;
+    if (ncscStatus === "registered" && effectiveIdNumber.startsWith("TEMP")) {
+      throw new HttpsError("invalid-argument", "An OSCA ID number is required for a senior who is already registered.");
+    }
     const email = idToEmail(effectiveIdNumber);
     const tempPassword = generateTempPassword();
 
     let userRecord;
     try {
-      userRecord = await auth.createUser({ email, password: tempPassword, displayName: `${firstName} ${lastName}` });
+      userRecord = await auth.createUser({ email, password: tempPassword, displayName: `${first} ${last}` });
     } catch (err) {
       if (err.code === "auth/email-already-exists") throw new HttpsError("already-exists", "An account with that ID number already exists.");
       logger.error("createAssistedSeniorAccount auth error:", err.message);
@@ -184,20 +217,55 @@ exports.createAssistedSeniorAccount = onCall(
     }
 
     const uid = userRecord.uid;
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+    // Same users/{uid} shape the mobile app's registerUser() writes
+    // (district / barangay / street / address), plus an assisted-signup audit trail.
     await db.collection("users").doc(uid).set({
-      firstName, midName, lastName, address, conNumber, gender, dob,
-      idNumber: effectiveIdNumber, status: "PENDING", isVerified: false,
-      role: "SENIOR_CITIZEN", uid, barangay: effectiveBarangay,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      firstName: first, midName: mid, lastName: last,
+      district, barangay: effectiveBarangay, street: streetClean, address,
+      conNumber: phone, gender, dob,
+      idNumber: effectiveIdNumber, hasTempId: effectiveIdNumber.startsWith("TEMP"),
+      status: "PENDING", isVerified: false,
+      role: "SENIOR_CITIZEN", uid,
+      createdAt: now,
       createdByAdmin: true, createdByAdminUid: callerAuth.uid, createdInBarangay: callerBarangay,
     });
 
-    const fullName = `${firstName} ${midName} ${lastName}`.trim().toLowerCase().replace(/\s+/g, "_");
-    const firstLast = `${firstName} ${lastName}`.trim().toLowerCase().replace(/\s+/g, "_");
-    const lookupKeys = [...new Set([effectiveIdNumber.toLowerCase(), conNumber.trim(), fullName, firstLast])];
+    const fullName = `${first} ${mid} ${last}`.toLowerCase().replace(/\s+/g, "_");
+    const firstLast = `${first} ${last}`.toLowerCase().replace(/\s+/g, "_");
+    const lookupKeys = [...new Set([effectiveIdNumber.toLowerCase(), phone, fullName, firstLast])];
     await Promise.all(lookupKeys.map((key) => db.collection("user_lookup").doc(key).set({ idNumber: effectiveIdNumber, uid })));
 
-    return { uid, idNumber: effectiveIdNumber, tempPassword };
+    // Record the NCSC progress captured on the form. Done here with the Admin
+    // SDK because Firestore rules only let a senior create their own doc. The
+    // account already exists at this point, so a failure is reported back
+    // (ncscRecorded: false) instead of failing the whole sign-up.
+    let ncscRecorded = null;
+    if (NCSC_ALLOWED.includes(ncscStatus)) {
+      const alreadyRegistered = ncscStatus === "registered";
+      const status = alreadyRegistered ? "completed_claimed" : ncscStatus;
+      try {
+        await db.collection("ncsc_registrations").doc(uid).set({
+          uid, status,
+          barangay: effectiveBarangay,
+          fullName: `${first} ${mid} ${last}`,
+          source: "assisted_signup",
+          createdByAdminUid: callerAuth.uid,
+          startedAt: now, updatedAt: now,
+          ...(alreadyRegistered ? { alreadyRegistered: true, idNumber: effectiveIdNumber } : {}),
+          ...(status === "cancelled" ? { cancelledAt: now } : {}),
+          ...(status === "completed_claimed" ? { claimedAt: now } : {}),
+        });
+        ncscRecorded = true;
+      } catch (err) {
+        logger.error("createAssistedSeniorAccount ncsc write failed:", err.message);
+        ncscRecorded = false;
+      }
+    }
+
+    // The ONLY time the temp password is ever visible — it is never stored.
+    return { uid, idNumber: effectiveIdNumber, tempPassword, ncscRecorded };
   }
 );
 

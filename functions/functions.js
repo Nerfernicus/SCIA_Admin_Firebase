@@ -201,6 +201,175 @@ exports.createAssistedSeniorAccount = onCall(
   }
 );
 
+// ── approveIdVerification ─────────────────────────────────────────────────
+// One atomic "Verify" for a senior's uploaded physical ID (super_admin only).
+// Replaces the old client-side approve, which also wrote a phantom
+// released_ids doc. In a single call it:
+//   1. marks id_verifications/{id} approved (keeps the first reviewedAt on re-runs)
+//   2. counts the senior in ncsc_registrations/{uid} as verified, with the
+//      time the senior submitted the ID and the time it was approved
+//   3. replaces a temporary OSCA ID (TEMP######) with the real one from the card,
+//      and moves the login email + user_lookup keys over so they can still sign in
+//   4. issues/refreshes digital_ids/{uid} from the uploaded ID image
+// Safe to run again on an already-approved record (used to back-fill older ones).
+function normalizeIdNumber(v) {
+  return String(v || "").trim().replace(/\s+/g, " ");
+}
+
+exports.approveIdVerification = onCall(
+  { region: "asia-southeast1" },
+  async (request) => {
+    const { auth: callerAuth, data } = request;
+    if (!callerAuth) throw new HttpsError("unauthenticated", "Sign in as an admin first.");
+
+    const adminSnap = await db.collection("admins").doc(callerAuth.uid).get();
+    if (!adminSnap.exists || adminSnap.data().role !== "super_admin") {
+      throw new HttpsError("permission-denied", "Only OSCA (super admin) can verify IDs.");
+    }
+
+    const verificationId = data && data.verificationId;
+    if (!verificationId) throw new HttpsError("invalid-argument", "Missing verificationId.");
+
+    const vRef = db.collection("id_verifications").doc(verificationId);
+    const vSnap = await vRef.get();
+    if (!vSnap.exists) throw new HttpsError("not-found", "That ID submission no longer exists.");
+    const v = vSnap.data();
+    if (v.status === "rejected") {
+      throw new HttpsError("failed-precondition", "This submission was rejected. Ask the senior to submit again.");
+    }
+
+    const uid = v.uid;
+    if (!uid) throw new HttpsError("failed-precondition", "This submission is not linked to a senior account.");
+
+    const cardId = normalizeIdNumber(v.idNumber || v.seniorId);
+    if (!cardId) throw new HttpsError("invalid-argument", "The submission has no OSCA ID number.");
+
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) throw new HttpsError("failed-precondition", "The senior's account was not found.");
+    const u = userSnap.data();
+
+    // The same OSCA ID number must not belong to two seniors
+    const dup = await db.collection("users").where("idNumber", "==", cardId).limit(3).get();
+    if (dup.docs.some((d) => d.id !== uid)) {
+      throw new HttpsError("already-exists", `OSCA ID ${cardId} is already used by another senior.`);
+    }
+
+    const oldId = normalizeIdNumber(u.idNumber);
+    const idChanged = oldId !== cardId;
+    const wasTemporary = /^TEMP/i.test(oldId);
+
+    // Login email is derived from the ID number, so move it first (rolled back on failure)
+    let oldEmail = null;
+    if (idChanged) {
+      try {
+        const rec = await auth.getUser(uid);
+        oldEmail = rec.email || null;
+        await auth.updateUser(uid, { email: idToEmail(cardId) });
+      } catch (err) {
+        if (err.code === "auth/email-already-exists") {
+          throw new HttpsError("already-exists", `OSCA ID ${cardId} is already used by another account.`);
+        }
+        logger.error("approveIdVerification auth error:", err.message);
+        throw new HttpsError("internal", "Could not update the senior's login. Nothing was changed.");
+      }
+    }
+
+    try {
+      const FV = admin.firestore.FieldValue;
+      const [ncscSnap, digitalSnap, lookupSnap] = await Promise.all([
+        db.collection("ncsc_registrations").doc(uid).get(),
+        db.collection("digital_ids").doc(uid).get(),
+        db.collection("user_lookup").where("uid", "==", uid).get(),
+      ]);
+      const ncsc = ncscSnap.exists ? ncscSnap.data() : {};
+      const digital = digitalSnap.exists ? digitalSnap.data() : {};
+
+      const fullName = v.fullName || v.seniorName ||
+        [u.firstName, u.midName, u.lastName].filter(Boolean).join(" ");
+      const barangay = v.barangay || u.barangay || "";
+
+      const batch = db.batch();
+
+      // 1. the submission itself
+      batch.update(vRef, {
+        status: "approved",
+        reviewedAt: v.status === "approved" && v.reviewedAt ? v.reviewedAt : FV.serverTimestamp(),
+        reviewedBy: v.reviewedBy || callerAuth.uid,
+        appliedIdNumber: cardId,
+      });
+
+      // 2. the senior's account: real OSCA ID replaces the temporary one
+      const userUpdate = {
+        isVerified: true,
+        status: "VERIFIED",
+        verifiedAt: u.verifiedAt || FV.serverTimestamp(),
+        idNumber: cardId,
+        hasTempId: false,
+      };
+      if (idChanged && oldId) userUpdate.previousIdNumber = oldId;
+      if (idChanged && wasTemporary) userUpdate.tempIdReplacedAt = FV.serverTimestamp();
+      batch.update(userRef, userUpdate);
+
+      // 3. NCSC registration count: when the senior sent it, and when it was approved
+      batch.set(db.collection("ncsc_registrations").doc(uid), {
+        uid, fullName, barangay,
+        status: "verified",
+        source: ncsc.source || "id_verification",
+        verifiedVia: "osca_id_upload",
+        idVerificationId: verificationId,
+        idNumber: cardId,
+        submittedAt: v.submittedAt || ncsc.submittedAt || null,
+        startedAt: ncsc.startedAt || v.submittedAt || FV.serverTimestamp(),
+        verifiedAt: ncsc.verifiedAt || FV.serverTimestamp(),
+        reviewedBy: callerAuth.uid,
+        reviewedAt: ncsc.verifiedAt || FV.serverTimestamp(),
+        updatedAt: FV.serverTimestamp(),
+      }, { merge: true });
+
+      // 4. digital ID built from the verified upload
+      const digitalDoc = {
+        uid, fullName,
+        firstName: v.firstName || u.firstName || "",
+        middleName: v.middleName || u.midName || "",
+        lastName: v.lastName || v.surname || u.lastName || "",
+        dob: v.dob || v.dateOfBirth || u.dob || "",
+        sex: v.sex || u.gender || "",
+        address: v.address || u.address || "",
+        barangay,
+        email: v.email || u.email || "",
+        idNumber: cardId, controlNumber: cardId,
+        idImageUrl: v.idImageUrl || "",
+        status: "active", isVerified: true,
+        releasedAt: digital.releasedAt || FV.serverTimestamp(),
+        createdAt: digital.createdAt || FV.serverTimestamp(),
+        sourceDocId: verificationId,
+        verifiedBy: callerAuth.uid,
+      };
+      if (u.photoURL) digitalDoc.photoURL = u.photoURL;
+      // base64 uploads are copied only if they fit comfortably under Firestore's 1 MB doc limit
+      if (!v.idImageUrl && v.imageBase64 && v.imageBase64.length < 600000) {
+        digitalDoc.idImageBase64 = v.imageBase64;
+      }
+      batch.set(db.collection("digital_ids").doc(uid), digitalDoc, { merge: true });
+
+      // 5. every lookup key (old temp ID, phone, name) now resolves to the real ID
+      lookupSnap.docs.forEach((d) => batch.update(d.ref, { idNumber: cardId }));
+      batch.set(db.collection("user_lookup").doc(cardId.toLowerCase()), { idNumber: cardId, uid });
+
+      await batch.commit();
+    } catch (err) {
+      logger.error("approveIdVerification write failed:", err.message);
+      if (idChanged && oldEmail) {
+        try { await auth.updateUser(uid, { email: oldEmail }); } catch (e) { logger.error("email rollback failed:", e.message); }
+      }
+      throw new HttpsError("internal", "Could not finish verifying. Nothing was changed, please try again.");
+    }
+
+    return { ok: true, uid, idNumber: cardId, replacedTempId: idChanged && wasTemporary };
+  }
+);
+
 // ── onIdRequestStatusChange — was defined in idRequestNotifications.js but
 // never required from here (its own comment said to wire it up — this is
 // that wiring). ──

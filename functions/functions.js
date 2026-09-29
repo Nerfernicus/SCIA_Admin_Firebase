@@ -438,6 +438,95 @@ exports.approveIdVerification = onCall(
   }
 );
 
+// ── assignOscaIdNumber ────────────────────────────────────────────────────
+// Called by the OSCA page when it hands a physical ID to the barangay (the step
+// where OSCA types the real OSCA ID number). Puts that number on the senior's
+// account in place of the temporary TEMP###### one, and moves the login email +
+// user_lookup keys with it so the senior can still sign in (with the new number).
+// Also keeps digital_ids / ncsc_registrations in step if they exist.
+// Safe to run again with the same number (nothing changes the second time).
+exports.assignOscaIdNumber = onCall(
+  { region: "asia-southeast1" },
+  async (request) => {
+    const { auth: callerAuth, data } = request;
+    if (!callerAuth) throw new HttpsError("unauthenticated", "Sign in as an admin first.");
+
+    const adminSnap = await db.collection("admins").doc(callerAuth.uid).get();
+    if (!adminSnap.exists || adminSnap.data().role !== "super_admin") {
+      throw new HttpsError("permission-denied", "Only OSCA (super admin) can assign OSCA ID numbers.");
+    }
+
+    const uid = data && data.uid;
+    const newId = normalizeIdNumber(data && data.idNumber);
+    if (!uid) throw new HttpsError("invalid-argument", "This request is not linked to a senior account.");
+    if (!newId) throw new HttpsError("invalid-argument", "Please enter the OSCA ID number.");
+    if (/^TEMP/i.test(newId)) throw new HttpsError("invalid-argument", "That is a temporary ID, not a real OSCA ID number.");
+
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) throw new HttpsError("failed-precondition", "The senior's account was not found.");
+    const u = userSnap.data();
+
+    const dup = await db.collection("users").where("idNumber", "==", newId).limit(3).get();
+    if (dup.docs.some((d) => d.id !== uid)) {
+      throw new HttpsError("already-exists", `OSCA ID ${newId} is already used by another senior.`);
+    }
+
+    const oldId = normalizeIdNumber(u.idNumber);
+    const idChanged = oldId !== newId;
+    const wasTemporary = /^TEMP/i.test(oldId);
+    if (!idChanged && u.hasTempId !== true) {
+      return { ok: true, uid, idNumber: newId, changed: false, replacedTempId: false };
+    }
+
+    // Login email comes from the ID number, so move it first (rolled back on failure).
+    let oldEmail = null;
+    if (idChanged) {
+      try {
+        const rec = await auth.getUser(uid);
+        oldEmail = rec.email || null;
+        await auth.updateUser(uid, { email: idToEmail(newId) });
+      } catch (err) {
+        if (err.code === "auth/email-already-exists") {
+          throw new HttpsError("already-exists", `OSCA ID ${newId} is already used by another account.`);
+        }
+        logger.error("assignOscaIdNumber auth error:", err.message);
+        throw new HttpsError("internal", "Could not update the senior's login. Nothing was changed.");
+      }
+    }
+
+    try {
+      const FV = admin.firestore.FieldValue;
+      const [lookupSnap, digitalSnap, ncscSnap] = await Promise.all([
+        db.collection("user_lookup").where("uid", "==", uid).get(),
+        db.collection("digital_ids").doc(uid).get(),
+        db.collection("ncsc_registrations").doc(uid).get(),
+      ]);
+
+      const batch = db.batch();
+      const userUpdate = { idNumber: newId, hasTempId: false };
+      if (idChanged && oldId) userUpdate.previousIdNumber = oldId;
+      if (idChanged && wasTemporary) userUpdate.tempIdReplacedAt = FV.serverTimestamp();
+      batch.update(userRef, userUpdate);
+
+      lookupSnap.docs.forEach((d) => batch.update(d.ref, { idNumber: newId }));
+      batch.set(db.collection("user_lookup").doc(newId.toLowerCase()), { idNumber: newId, uid });
+      if (digitalSnap.exists) batch.update(digitalSnap.ref, { idNumber: newId, controlNumber: newId });
+      if (ncscSnap.exists) batch.update(ncscSnap.ref, { idNumber: newId, updatedAt: FV.serverTimestamp() });
+
+      await batch.commit();
+    } catch (err) {
+      logger.error("assignOscaIdNumber write failed:", err.message);
+      if (idChanged && oldEmail) {
+        try { await auth.updateUser(uid, { email: oldEmail }); } catch (e) { logger.error("email rollback failed:", e.message); }
+      }
+      throw new HttpsError("internal", "Could not update the OSCA ID. Nothing was changed, please try again.");
+    }
+
+    return { ok: true, uid, idNumber: newId, changed: idChanged, replacedTempId: idChanged && wasTemporary };
+  }
+);
+
 // ── onIdRequestStatusChange — was defined in idRequestNotifications.js but
 // never required from here (its own comment said to wire it up — this is
 // that wiring). ──

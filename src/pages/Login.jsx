@@ -36,7 +36,7 @@ export default function Login() {
         return;
       }
 
-      navigate('/', { replace: true });
+      // Navigation is handled by the useEffect above once AuthContext sees the admin
     } catch (err) {
       console.error(err);
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {

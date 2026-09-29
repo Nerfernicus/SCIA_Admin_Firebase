@@ -14,48 +14,14 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // TEMP DIAGNOSTIC: decodes the raw ID token to check aud/user_id — remove once fixed
-        try {
-          const rawToken = await firebaseUser.getIdToken(/* forceRefresh */ true);
-          const payloadB64 = rawToken.split('.')[1];
-          const payloadJson = JSON.parse(
-            decodeURIComponent(
-              atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/'))
-                .split('')
-                .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
-                .join('')
-            )
-          );
-          console.log('[token-debug] decoded ID token claims', {
-            aud_projectId: payloadJson.aud,
-            iss: payloadJson.iss,
-            user_id: payloadJson.user_id,
-            sub: payloadJson.sub,
-            auth_time: payloadJson.auth_time,
-            exp: new Date(payloadJson.exp * 1000).toISOString(),
-            iat: new Date(payloadJson.iat * 1000).toISOString(),
-            firebaseUserUid: firebaseUser.uid,
-            uidMatchesToken: payloadJson.user_id === firebaseUser.uid,
-          });
-        } catch (tokenErr) {
-          console.error('[token-debug] failed to decode ID token:', tokenErr);
-        }
-
         // Fetch the admin document from Firestore to get their role
         try {
           const adminRef = doc(db, 'admins', firebaseUser.uid);
           const adminSnap = await getDoc(adminRef);
           if (adminSnap.exists()) {
             const data = adminSnap.data();
-            // TEMP DIAGNOSTIC: reveals hidden whitespace in role — remove once fixed
-            console.log('[auth-debug] admin doc for uid', firebaseUser.uid, {
-              rawRole: JSON.stringify(data.role),
-              roleLength: data.role ? data.role.length : null,
-              rawBarangay: JSON.stringify(data.barangay ?? null),
-              allFields: JSON.stringify(data),
-            });
             setUser(firebaseUser);
-            setRole(data.role); // 'super_admin' or 'sub_admin'
+            setRole(typeof data.role === 'string' ? data.role.trim() : data.role); // 'super_admin' or 'sub_admin'
             setAdminData(data);
           } else {
             // User exists in Firebase Auth but has no admin record, sign them out

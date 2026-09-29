@@ -4,10 +4,11 @@ import {
   ShieldCheck, User2, Search, X, XCircle,
   Shield, RotateCcw,
 } from 'lucide-react';
-import { db } from '../lib/firebase';
+import { db, functions } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import {
   collection, onSnapshot, query, orderBy, doc,
-  updateDoc, setDoc, serverTimestamp, where,
+  updateDoc, serverTimestamp, where,
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
@@ -50,7 +51,9 @@ function seniorToCardProps(senior) {
     sex: (senior.sex || '—').toUpperCase(),
     dateIssued: fmt(senior.releasedAt),
     controlNo: senior.controlNumber || senior.id?.slice(-6).toUpperCase() || '——————',
-    photoUrl: senior.photoURL || null,
+    // Falls back to the ID photo the senior submitted and OSCA verified
+    photoUrl: senior.photoURL || senior.idImageUrl
+      || (senior.idImageBase64 ? `data:image/jpeg;base64,${senior.idImageBase64}` : null),
   };
 }
 
@@ -174,27 +177,17 @@ export default function DigitalID() {
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 3500); }
 
-  // Builds the digital ID from the senior's verified record using the same OSCAIdCard template
+  // New verifications issue the digital ID automatically. This button only back-fills
+  // older approved records, by re-running the same server-side verification.
   async function releaseDigitalId(record) {
-    const uid = record.uid;
-    if (!uid) { showToast(t.digitalIdNoLinkedAccount); return; }
+    if (!record.uid) { showToast(t.digitalIdNoLinkedAccount); return; }
     setReleasing(record.id);
     try {
-      const controlNumber = record.idNumber || record.seniorId || uid.slice(-6).toUpperCase();
-      await setDoc(doc(db, 'digital_ids', uid), {
-        uid, fullName: record.fullName || record.seniorName || '',
-        firstName: record.firstName || '', lastName: record.lastName || record.surname || '',
-        middleName: record.middleName || '', dob: record.dob || record.dateOfBirth || '',
-        sex: record.sex || '', address: record.address || '', barangay: record.barangay || '',
-        email: record.email || '', idNumber: record.idNumber || record.seniorId || '',
-        idImageUrl: record.idImageUrl || '', controlNumber,
-        status: 'active', isVerified: true,
-        createdAt: serverTimestamp(), releasedAt: serverTimestamp(), sourceDocId: record.id,
-      }, { merge: true });
+      await httpsCallable(functions, 'approveIdVerification')({ verificationId: record.id });
       showToast(`${t.digitalIdReleasedFor} ${record.fullName || record.seniorName}.`);
     } catch (err) {
       console.error(err);
-      showToast(t.digitalIdReleaseFailed);
+      showToast(err?.message || t.digitalIdReleaseFailed);
     } finally {
       setReleasing(null);
     }

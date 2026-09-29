@@ -150,6 +150,11 @@ export default function NcscRegistrations() {
                 <td className="px-4 py-3">
                   <div className="font-semibold text-gray-900">{r.fullName || 'Unknown'}</div>
                   <div className="text-xs text-gray-400 font-mono">{r.id}</div>
+                  {r.alreadyRegistered && (
+                    <div className="text-xs text-emerald-700 mt-0.5">
+                      Already registered{r.idNumber ? ` · OSCA ID ${r.idNumber}` : ''}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3">{r.barangay || '-'}</td>
                 <td className="px-4 py-3">

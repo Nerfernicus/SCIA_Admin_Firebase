@@ -6,10 +6,16 @@ import {
     Loader2, AlertCircle
 } from 'lucide-react';
 import {
-    collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, serverTimestamp
+    collection, onSnapshot, query, orderBy, where, doc, updateDoc, addDoc, serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
+import { sameBarangay, barangayVariants, displayBarangay } from '../lib/barangay';
+
+// Oldest-last sort that tolerates a just-written doc whose server timestamp
+// hasn't resolved yet (treated as newest).
+const createdMillis = (a) => (a.createdAt?.toMillis ? a.createdAt.toMillis() : Number.MAX_SAFE_INTEGER);
+const newestFirst = (a, b) => createdMillis(b) - createdMillis(a);
 
 // "3S Centers" (Serbisyo sa Senior Sitizen) — fixed, barangay-based senior service
 // centers; `barangay` matches the app-wide list so scoped sub-admins see only their own
@@ -91,6 +97,11 @@ function AppointmentRow({ appt, onUpdate }) {
                     </p>
                     {appt.notes && <p className="text-xs text-gray-400 mt-0.5 italic">{appt.notes}</p>}
                     {appt.seniorId && <p className="text-xs text-gray-400 mt-0.5">ID: {appt.seniorId}</p>}
+                    {appt.barangay && (
+                        <span className="inline-block mt-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-[#0f52ba]/10 text-[#0f52ba]">
+                            Brgy. {displayBarangay(appt.barangay)}
+                        </span>
+                    )}
                 </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -169,7 +180,7 @@ function MedicationRow({ med, onUpdate }) {
 }
 
 // Add Appointment Modal
-function AddAppointmentModal({ centerId, centerName, onClose }) {
+function AddAppointmentModal({ centerId, centerName, barangay, onClose }) {
     const [patientName, setPatientName] = useState('');
     const [date, setDate]               = useState('');
     const [time, setTime]               = useState('');
@@ -183,7 +194,7 @@ function AddAppointmentModal({ centerId, centerName, onClose }) {
         setSaving(true);
         try {
             await addDoc(collection(db, 'appointments'), {
-                centerId, centerName, patientName, date, time, reason, notes,
+                centerId, centerName, barangay: displayBarangay(barangay), patientName, date, time, reason, notes,
                 status: 'pending', createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
             });
             onClose();
@@ -299,15 +310,16 @@ function CenterDetail({ center, onClose }) {
     const [showAddMed,  setShowAddMed]    = useState(false);
 
     useEffect(() => {
+        // Only this center's barangay. The `where` also keeps a barangay
+        // sub-admin's query inside what the Firestore rules allow them to read.
         const qA = query(
             collection(db, 'appointments'),
-            orderBy('createdAt', 'desc')
+            where('barangay', 'in', barangayVariants(center.barangay))
         );
         const unsubA = onSnapshot(qA, snap => {
             setAppointments(snap.docs
                 .map(d => ({ id: d.id, ...d.data() }))
-                // Show if centerId matches OR no centerId set (mobile-submitted)
-                .filter(a => a.centerId === center.id || (!a.centerId && center.id === 'gen-t-1')));
+                .sort(newestFirst));
             setLoadingAppt(false);
         }, () => setLoadingAppt(false));
 
@@ -323,7 +335,7 @@ function CenterDetail({ center, onClose }) {
         }, () => setLoadingMeds(false));
 
         return () => { unsubA(); unsubM(); };
-    }, [center.id]);
+    }, [center.id, center.barangay]);
 
     const pendingCount    = appointments.filter(a => a.status === 'pending').length;
     const activeMedsCount = medications.filter(m => m.status === 'active').length;
@@ -457,7 +469,7 @@ function CenterDetail({ center, onClose }) {
             </div>
 
             {showAddAppt && (
-                <AddAppointmentModal centerId={center.id} centerName={center.name} onClose={() => setShowAddAppt(false)} />
+                <AddAppointmentModal centerId={center.id} centerName={center.name} barangay={center.barangay} onClose={() => setShowAddAppt(false)} />
             )}
             {showAddMed && (
                 <AddMedicationModal centerId={center.id} centerName={center.name} onClose={() => setShowAddMed(false)} />
@@ -475,19 +487,21 @@ export default function HealthCenters() {
     const visibleCenters = GEN_T_CENTERS.filter(c => !myBarangay || c.barangay === myBarangay);
 
     const [selectedCenter, setSelectedCenter] = useState(null);
-    const [apptCounts, setApptCounts]         = useState({});
+    const [allAppts,  setAllAppts]           = useState([]);
     const [medCounts,  setMedCounts]          = useState({});
+    const [filterBgy, setFilterBgy]           = useState('all');
+    const [filterStatus, setFilterStatus]     = useState('pending');
 
-    // Live count badges on cards
+    // Appointments this admin may handle, routed automatically by the barangay
+    // the senior filled in at sign-up:
+    //   barangay sub-admin  → only their barangay
+    //   master admin / sub-admin without a barangay → every barangay
     useEffect(() => {
-        const qA = query(collection(db, 'appointments'), orderBy('createdAt', 'desc'));
+        const qA = myBarangay
+            ? query(collection(db, 'appointments'), where('barangay', 'in', barangayVariants(myBarangay)))
+            : query(collection(db, 'appointments'), orderBy('createdAt', 'desc'));
         const unsubA = onSnapshot(qA, snap => {
-            const counts = {};
-            snap.docs.forEach(d => {
-                const a = d.data();
-                if (a.status === 'pending') counts[a.centerId] = (counts[a.centerId] || 0) + 1;
-            });
-            setApptCounts(counts);
+            setAllAppts(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(newestFirst));
         }, () => {});
 
         const qM = query(collection(db, 'medications'), orderBy('createdAt', 'desc'));
@@ -501,7 +515,20 @@ export default function HealthCenters() {
         }, () => {});
 
         return () => { unsubA(); unsubM(); };
-    }, []);
+    }, [myBarangay]);
+
+    const pendingTotal = allAppts.filter(a => a.status === 'pending').length;
+    const apptCounts = {};
+    visibleCenters.forEach(c => {
+        apptCounts[c.id] = allAppts.filter(a => a.status === 'pending' && sameBarangay(a.barangay, c.barangay)).length;
+    });
+
+    // Barangays present in the list, for the master admin's filter
+    const barangayOptions = [...new Set(allAppts.map(a => (a.barangay ? displayBarangay(a.barangay) : '')))].sort();
+    const shownAppts = allAppts.filter(a =>
+        (filterStatus === 'all' || a.status === filterStatus) &&
+        (filterBgy === 'all' || (filterBgy === '' ? !a.barangay : sameBarangay(a.barangay, filterBgy)))
+    );
 
     return (
         <div className="flex-1 bg-[#f8f9fa] min-h-screen p-8 font-sans">
@@ -529,7 +556,7 @@ export default function HealthCenters() {
                         <span className="text-xs font-bold text-yellow-900/70 uppercase tracking-wider">Pending Appts</span>
                     </div>
                     <div className="flex items-baseline gap-2">
-                        <h2 className="text-4xl font-bold">{Object.values(apptCounts).reduce((a, b) => a + b, 0)}</h2>
+                        <h2 className="text-4xl font-bold">{pendingTotal}</h2>
                         <span className="text-sm font-medium text-yellow-900/80">Awaiting Confirmation</span>
                     </div>
                 </div>
@@ -543,6 +570,46 @@ export default function HealthCenters() {
                         <span className="text-sm font-medium text-blue-100">Current Records</span>
                     </div>
                 </div>
+            </div>
+
+            {/* Appointment requests — routed by the senior's sign-up barangay */}
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-50 mb-8">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div>
+                        <h3 className="font-bold text-gray-900">Appointment Requests</h3>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                            {myBarangay
+                                ? `Seniors registered in Brgy. ${displayBarangay(myBarangay)}`
+                                : 'Sent automatically to the barangay each senior signed up in'}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {!myBarangay && (
+                            <select value={filterBgy} onChange={e => setFilterBgy(e.target.value)}
+                                className="text-sm bg-gray-50 border border-gray-200 rounded-xl py-1.5 px-3 text-gray-700">
+                                <option value="all">All barangays</option>
+                                {barangayOptions.map(b => (
+                                    <option key={b || 'none'} value={b}>{b ? `Brgy. ${b}` : 'No barangay (older bookings)'}</option>
+                                ))}
+                            </select>
+                        )}
+                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                            className="text-sm bg-gray-50 border border-gray-200 rounded-xl py-1.5 px-3 text-gray-700">
+                            <option value="pending">Pending</option>
+                            {APPOINTMENT_STATUSES.filter(x => x !== 'pending').map(x => (
+                                <option key={x} value={x}>{x.charAt(0).toUpperCase() + x.slice(1)}</option>
+                            ))}
+                            <option value="all">All statuses</option>
+                        </select>
+                    </div>
+                </div>
+                {shownAppts.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-6">No appointment requests here.</p>
+                ) : (
+                    <div className="space-y-3">
+                        {shownAppts.map(a => <AppointmentRow key={a.id} appt={a} />)}
+                    </div>
+                )}
             </div>
 
             {/* 3S Center Cards — scoped to the logged-in admin's barangay, if any */}

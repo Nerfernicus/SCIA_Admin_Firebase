@@ -1,23 +1,76 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { UserPlus, Loader2, CheckCircle2, Copy, AlertCircle, ExternalLink } from 'lucide-react';
 import { functions } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
+import { DISTRICTS, barangaysOf, resolveBarangay } from '../lib/barangay';
 
 const createAssistedSeniorAccount = httpsCallable(functions, 'createAssistedSeniorAccount');
 
 const NCSC_FORM_URL = 'https://www.ncsc.gov.ph/seniorcitizensdataform';
 
 const EMPTY_FORM = {
-  firstName: '', midName: '', lastName: '', address: '', conNumber: '',
-  gender: '', dob: '', idNumber: '',
+  firstName: '', midName: '', lastName: '', district: '', barangay: '', street: '',
+  conNumber: '', gender: '', dob: '', idNumber: '',
 };
+
+const INPUT_CLS = 'w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none';
+const LABEL_CLS = 'block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5';
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+  'August', 'September', 'October', 'November', 'December'];
+
+// Month / Day / Year dropdowns. Years start 60 years back (the youngest a
+// senior can be) and go down, so nobody has to scroll past decades of years.
+function DobSelect({ value, onChange }) {
+  const thisYear = new Date().getFullYear();
+  const years = Array.from({ length: 51 }, (_, i) => thisYear - 60 - i);
+  const [p, setP] = useState({ y: '', m: '', d: '' });
+
+  // Parent cleared the form after a successful submit -> clear our parts too.
+  useEffect(() => {
+    if (!value) setP((prev) => (prev.y && prev.m && prev.d ? { y: '', m: '', d: '' } : prev));
+  }, [value]);
+
+  const set = (key, v) => {
+    const n = { ...p, [key]: v };
+    if (n.y && n.m) {
+      const max = new Date(Number(n.y), Number(n.m), 0).getDate();
+      if (n.d && Number(n.d) > max) n.d = String(max);
+    }
+    setP(n);
+    onChange(n.y && n.m && n.d
+      ? `${n.y}-${String(n.m).padStart(2, '0')}-${String(n.d).padStart(2, '0')}`
+      : '');
+  };
+
+  const daysInMonth = p.y && p.m ? new Date(Number(p.y), Number(p.m), 0).getDate() : 31;
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <select value={p.m} onChange={(e) => set('m', e.target.value)} className={INPUT_CLS} aria-label="Birth month">
+        <option value="">Month</option>
+        {MONTHS.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
+      </select>
+      <select value={p.d} onChange={(e) => set('d', e.target.value)} className={INPUT_CLS} aria-label="Birth day">
+        <option value="">Day</option>
+        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}</option>)}
+      </select>
+      <select value={p.y} onChange={(e) => set('y', e.target.value)} className={INPUT_CLS} aria-label="Birth year">
+        <option value="">Year</option>
+        {years.map((y) => <option key={y} value={y}>{y}</option>)}
+      </select>
+    </div>
+  );
+}
 
 export default function AssistedSignup() {
   const { adminData, isSuperAdmin } = useAuth();
   const { t } = useLang();
   const myBarangay = adminData?.barangay || null;
+  // A barangay-scoped sub-admin can only register seniors in their own barangay
+  // (the server enforces this too), so district + barangay are fixed for them.
+  const locked = myBarangay && !isSuperAdmin ? resolveBarangay(myBarangay) : null;
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
@@ -29,12 +82,13 @@ export default function AssistedSignup() {
   const [ncscAnswer, setNcscAnswer] = useState(null);
 
   const update = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  const pickDistrict = (d) => setForm((prev) => ({ ...prev, district: d, barangay: '' }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
-    if (!form.firstName.trim() || !form.midName.trim() || !form.lastName.trim() || !form.address || !form.conNumber || !form.gender || !form.dob) {
+    if (!form.firstName.trim() || !form.midName.trim() || !form.lastName.trim() || !form.street.trim() || (!locked && (!form.district || !form.barangay)) || !form.conNumber || !form.gender || !form.dob) {
       setError(t.fillAllFields);
       return;
     }
@@ -53,7 +107,13 @@ export default function AssistedSignup() {
       const ncscStatus = ['started', 'cancelled', 'completed_claimed'].includes(ncscAnswer)
         ? ncscAnswer
         : null;
-      const res = await createAssistedSeniorAccount({ ...form, ncscStatus });
+      const res = await createAssistedSeniorAccount({
+        ...form,
+        street: form.street.trim(),
+        barangay: locked ? locked.name : form.barangay,
+        district: locked ? locked.district : form.district,
+        ncscStatus,
+      });
       setResult(res.data);
       setForm(EMPTY_FORM);
       setNcscAnswer(null);
@@ -228,55 +288,110 @@ export default function AssistedSignup() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider -mb-2">Personal Information</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">First Name</label>
-              <input value={form.firstName} onChange={update('firstName')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
+              <label className={LABEL_CLS}>First Name *</label>
+              <input value={form.firstName} onChange={update('firstName')} className={INPUT_CLS} />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Middle Name *</label>
-              <input value={form.midName} onChange={update('midName')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
+              <label className={LABEL_CLS}>Middle Name *</label>
+              <input value={form.midName} onChange={update('midName')} className={INPUT_CLS} />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Last Name</label>
-              <input value={form.lastName} onChange={update('lastName')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Address</label>
-            <input value={form.address} onChange={update('address')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Contact Number</label>
-              <input value={form.conNumber} onChange={update('conNumber')} placeholder="09XXXXXXXXX" className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
+              <label className={LABEL_CLS}>Last Name *</label>
+              <input value={form.lastName} onChange={update('lastName')} className={INPUT_CLS} />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Gender</label>
-              <select value={form.gender} onChange={update('gender')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none">
-                <option value="">Select</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Date of Birth</label>
-              <input type="date" value={form.dob} onChange={update('dob')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
+              <label className={LABEL_CLS}>Contact Number *</label>
+              <input value={form.conNumber} onChange={update('conNumber')} placeholder="09XXXXXXXXX" inputMode="tel" className={INPUT_CLS} />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-              OSCA ID Number{ncscAnswer === 'registered' ? ' *' : ''}{' '}
+            <label className={LABEL_CLS}>District{locked ? '' : ' *'}</label>
+            <div className="grid grid-cols-2 gap-3">
+              {DISTRICTS.map((d) => {
+                const active = (locked ? locked.district : form.district) === d;
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    disabled={!!locked}
+                    onClick={() => pickDistrict(d)}
+                    className={`py-2.5 rounded-xl border-2 text-sm font-bold transition-colors ${
+                      active
+                        ? 'border-[#0f52ba] bg-blue-50 text-[#0f52ba]'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    } ${locked ? 'cursor-not-allowed opacity-80' : ''}`}
+                  >
+                    {d}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className={LABEL_CLS}>Barangay{locked ? '' : ' *'}</label>
+            <select
+              value={locked ? locked.name : form.barangay}
+              onChange={update('barangay')}
+              disabled={!!locked || !form.district}
+              className={`${INPUT_CLS} disabled:opacity-60`}
+            >
+              {locked ? (
+                <option value={locked.name}>{locked.name}</option>
+              ) : (
+                <>
+                  <option value="">{form.district ? 'Select barangay' : 'Select a district first'}</option>
+                  {barangaysOf(form.district).map((b) => <option key={b} value={b}>{b}</option>)}
+                </>
+              )}
+            </select>
+          </div>
+
+          <div>
+            <label className={LABEL_CLS}>Street / House No. *</label>
+            <input value={form.street} onChange={update('street')} placeholder="e.g. 123 Rizal St." className={INPUT_CLS} />
+          </div>
+
+          <div>
+            <label className={LABEL_CLS}>Date of Birth *</label>
+            <DobSelect value={form.dob} onChange={(v) => setForm((prev) => ({ ...prev, dob: v }))} />
+          </div>
+
+          <div>
+            <label className={LABEL_CLS}>Gender *</label>
+            <div className="grid grid-cols-2 gap-3">
+              {['Male', 'Female'].map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, gender: g }))}
+                  className={`py-2.5 rounded-xl border-2 text-sm font-bold transition-colors ${
+                    form.gender === g
+                      ? 'border-[#0f52ba] bg-blue-50 text-[#0f52ba]'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider -mb-2">Account Details</p>
+          <div>
+            <label className={LABEL_CLS}>
+              Senior Citizen ID Number{ncscAnswer === 'registered' ? ' *' : ''}{' '}
               <span className="normal-case font-normal text-gray-400">
                 {ncscAnswer === 'registered'
                   ? '(required)'
-                  : "(leave blank if they don't have one yet — a temporary ID will be assigned)"}
+                  : "(optional — leave blank if they don't have one yet; a temporary ID will be assigned)"}
               </span>
             </label>
-            <input value={form.idNumber} onChange={update('idNumber')} className="w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none" />
+            <input value={form.idNumber} onChange={update('idNumber')} className={INPUT_CLS} />
           </div>
 
           <button

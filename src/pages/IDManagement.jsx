@@ -5,7 +5,8 @@ import {
   FileImage, FileText, MapPin, Phone, CreditCard,
   Send, Bell, Package,
 } from 'lucide-react';
-import { db } from '../lib/firebase';
+import { db, functions } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import {
   collection, onSnapshot, query, orderBy, where,
   doc, updateDoc, deleteDoc, serverTimestamp, Timestamp,
@@ -16,6 +17,10 @@ import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import OSCAIdCard from '../components/Oscaidcard';
 import { setIdRequestStatus, buildStatusPayload, ID_STATUS } from '../lib/idRequestStatus';
+
+// Server-side (Admin SDK) so the senior's login email can move with the ID number
+const approveIdVerificationFn = httpsCallable(functions, 'approveIdVerification');
+const assignOscaIdNumberFn    = httpsCallable(functions, 'assignOscaIdNumber');
 
 /* Helpers */
 const hasBirthday = r => !!(r.dob || r.dateOfBirth || r.birthday);
@@ -691,34 +696,26 @@ export default function IDManagement() {
   async function handleDecision(id, decision, collectionName = 'id_verifications', record = null) {
     setProcessing(true);
     try {
-      await updateDoc(doc(db, collectionName, id), { status: decision, reviewedAt: serverTimestamp() });
-
-      if (decision === 'approved' && record) {
-        if (collectionName === 'id_verifications') {
-          const uid = record.uid;
-          if (uid) {
-            try { await updateDoc(doc(db, 'users', uid), { isVerified: true, status: 'VERIFIED', verifiedAt: serverTimestamp() }); } catch (e) {}
-          }
-          // Digital ID creation is now a separate step, done from the Digital ID page
-
-          const controlNumber = record.idNumber || record.seniorId || id.slice(-6).toUpperCase();
-          try {
-            await addDoc(collection(db, 'released_ids'), {
-              requestId: id, uid: uid || null,
-              seniorName: record.fullName || record.seniorName || '',
-              seniorId: record.idNumber || record.seniorId || '',
-              firstName: record.firstName || '', lastName: record.lastName || record.surname || '',
-              middleName: record.middleName || '', dob: record.dob || record.dateOfBirth || '',
-              sex: record.sex || '', address: record.address || '', barangay: record.barangay || '',
-              controlNumber, status: 'notified', releasedAt: serverTimestamp(),
-              releasedBy: 'auto_verification', notifiedAt: serverTimestamp(), sourceType: 'id_verification',
-            });
-          } catch (e) {}
+      // Verifying an uploaded ID: one server call approves it, replaces the senior's
+      // temporary OSCA ID with the number on the card (login + lookup move with it),
+      // marks them verified, counts them in NCSC and issues the digital ID.
+      if (decision === 'approved' && collectionName === 'id_verifications') {
+        try {
+          const res = await approveIdVerificationFn({ verificationId: id });
+          setSelected(null);
+          showToast(res.data?.replacedTempId
+            ? L(t, 'toastVerifiedIdReplaced', 'Verified — the temporary OSCA ID was replaced with the ID on the card.')
+            : t.toastApprovedQueued);
+        } catch (e) {
+          console.error(e);
+          showToast(e?.message || L(t, 'toastStatusFailed', 'Could not update the status. Please try again.'), 'error');
         }
-
-        // NOTE: approving a physical request no longer auto-releases it — it now goes Approved → Processing → Delivered → Received → Claimed
+        return;
       }
 
+      await updateDoc(doc(db, collectionName, id), { status: decision, reviewedAt: serverTimestamp() });
+
+      // NOTE: approving a physical request no longer auto-releases it — it now goes Approved → Processing → Delivered → Received → Claimed
       setSelected(null);
       showToast(decision === 'approved' ? t.toastApprovedQueued : t.toastRequestRejected);
     } finally { setProcessing(false); }
@@ -800,6 +797,18 @@ export default function IDManagement() {
       if (usedByOther) {
         showToast(L(t, 'toastOscaIdInUse', 'That OSCA ID number is already assigned to another senior.'), 'error');
         return;
+      }
+
+      // Put the real OSCA ID number on the senior's account (replaces the TEMP one).
+      // Done first: if it fails nothing is marked delivered with a number the account doesn't have.
+      if (record.uid) {
+        try {
+          await assignOscaIdNumberFn({ uid: record.uid, idNumber: controlNumber });
+        } catch (e) {
+          console.error(e);
+          showToast(e?.message || L(t, 'toastStatusFailed', 'Could not update the status. Please try again.'), 'error');
+          return;
+        }
       }
 
       const bgy = record.barangay || record.sub_admin_barangay || '';

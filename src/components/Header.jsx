@@ -1,5 +1,6 @@
 import './Header.css';
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bell, Settings, X, Check, AlertTriangle, Megaphone,
   ShieldCheck, Save, Loader2, Camera, Globe, Volume2,
@@ -305,8 +306,11 @@ function AdminProfileModal({ onClose }) {
 
   const avatarSeed = adminData?.name || user?.email || 'admin';
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  // Rendered into document.body with a z-index above every page layer (the SOS
+  // Map page uses z-[2000] for its header and z-[1000] for its panels), so this
+  // modal and its blurred backdrop always cover the whole screen.
+  return createPortal(
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md z-10 overflow-hidden">
 
@@ -389,7 +393,8 @@ function AdminProfileModal({ onClose }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

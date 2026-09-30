@@ -11,7 +11,7 @@ const createAssistedSeniorAccount = httpsCallable(functions, 'createAssistedSeni
 const NCSC_FORM_URL = 'https://www.ncsc.gov.ph/seniorcitizensdataform';
 
 const EMPTY_FORM = {
-  firstName: '', midName: '', lastName: '', district: '', barangay: '', street: '',
+  firstName: '', midName: '', lastName: '', district: '', barangay: '', block: '', street: '',
   conNumber: '', gender: '', dob: '', idNumber: '',
 };
 
@@ -109,6 +109,7 @@ export default function AssistedSignup() {
         : null;
       const res = await createAssistedSeniorAccount({
         ...form,
+        block: form.block.trim(),
         street: form.street.trim(),
         barangay: locked ? locked.name : form.barangay,
         district: locked ? locked.district : form.district,
@@ -141,7 +142,7 @@ export default function AssistedSignup() {
           <UserPlus size={22} className="text-[#0f52ba]" /> Assisted Senior Sign-Up
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          For seniors visiting in person without a phone or tech familiarity — fill this in on their
+          For seniors visiting in person without a phone or tech familiarity. Fill this in on their
           behalf and give them the printed credentials below to log into the app later.
           {myBarangay && !isSuperAdmin && ` This account will be registered under Brgy. ${myBarangay}.`}
         </p>
@@ -351,9 +352,15 @@ export default function AssistedSignup() {
             </select>
           </div>
 
-          <div>
-            <label className={LABEL_CLS}>Street / House No. *</label>
-            <input value={form.street} onChange={update('street')} placeholder="e.g. 123 Rizal St." className={INPUT_CLS} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={LABEL_CLS}>Blk / Lot / House No.</label>
+              <input value={form.block} onChange={update('block')} placeholder="e.g. Blk 5 Lot 12" className={INPUT_CLS} />
+            </div>
+            <div>
+              <label className={LABEL_CLS}>Street *</label>
+              <input value={form.street} onChange={update('street')} placeholder="e.g. Rizal St." className={INPUT_CLS} />
+            </div>
           </div>
 
           <div>
@@ -388,7 +395,7 @@ export default function AssistedSignup() {
               <span className="normal-case font-normal text-gray-400">
                 {ncscAnswer === 'registered'
                   ? '(required)'
-                  : "(optional — leave blank if they don't have one yet; a temporary ID will be assigned)"}
+                  : "(optional. Leave blank if they don't have one yet and a temporary ID will be assigned)"}
               </span>
             </label>
             <input value={form.idNumber} onChange={update('idNumber')} className={INPUT_CLS} />

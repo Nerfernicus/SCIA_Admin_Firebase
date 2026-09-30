@@ -538,3 +538,6 @@ exports.onIdRequestStatusChange = require("./idRequestNotifications").onIdReques
 // Otherwise Firebase still only looks at functions.js and none of this runs.
 // You can delete functions/functions.js afterward; everything it had is
 // now here.
+
+// ── Inactivity monitor (50-min "are you safe?" push, 60-min SMS to guardians + barangay) ──
+exports.monitorInactivity = require("./inactivityMonitor").monitorInactivity;

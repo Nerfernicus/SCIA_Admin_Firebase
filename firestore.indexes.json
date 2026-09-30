@@ -4,16 +4,42 @@
       "collectionGroup": "editorial_health",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "isJoinable", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "isJoinable",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "released_ids",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "barangay", "order": "ASCENDING" },
-        { "fieldPath": "releasedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "barangay",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "releasedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "safety_monitoring_enabled",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "last_active_timestamp",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],

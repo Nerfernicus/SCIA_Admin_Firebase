@@ -13,7 +13,11 @@ const NCSC_FORM_URL = 'https://www.ncsc.gov.ph/seniorcitizensdataform';
 const EMPTY_FORM = {
   firstName: '', midName: '', lastName: '', district: '', barangay: '', block: '', street: '',
   conNumber: '', gender: '', dob: '', idNumber: '',
+  // Who the inactivity-monitoring alert texts if this senior goes silent too long.
+  guardianName: '', guardianPhone: '', guardianRelation: '',
 };
+
+const PH_MOBILE = /^(09\d{9}|\+639\d{9})$/;
 
 const INPUT_CLS = 'w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none';
 const LABEL_CLS = 'block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5';
@@ -92,6 +96,14 @@ export default function AssistedSignup() {
       setError(t.fillAllFields);
       return;
     }
+    if (!form.guardianName.trim() || !form.guardianPhone.trim()) {
+      setError('Please add a guardian or relative name and contact number — this is who gets alerted if the senior is unreachable.');
+      return;
+    }
+    if (!PH_MOBILE.test(form.guardianPhone.trim())) {
+      setError('Please enter a valid PH mobile number for the guardian, e.g. 09171234567.');
+      return;
+    }
 
     if (ncscAnswer === null) {
       setError('Please answer whether the senior is already registered.');
@@ -113,6 +125,9 @@ export default function AssistedSignup() {
         street: form.street.trim(),
         barangay: locked ? locked.name : form.barangay,
         district: locked ? locked.district : form.district,
+        guardianName: form.guardianName.trim(),
+        guardianPhone: form.guardianPhone.trim(),
+        guardianRelation: form.guardianRelation.trim(),
         ncscStatus,
       });
       setResult(res.data);
@@ -306,6 +321,25 @@ export default function AssistedSignup() {
             <div>
               <label className={LABEL_CLS}>Contact Number *</label>
               <input value={form.conNumber} onChange={update('conNumber')} placeholder="09XXXXXXXXX" inputMode="tel" className={INPUT_CLS} />
+            </div>
+          </div>
+
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider -mb-2">Guardian / Relative Contact</p>
+          <p className="text-xs text-gray-400 -mt-3">
+            Who to alert if the senior doesn't check in — required for the safety-monitoring feature.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className={LABEL_CLS}>Guardian/Relative Name *</label>
+              <input value={form.guardianName} onChange={update('guardianName')} className={INPUT_CLS} />
+            </div>
+            <div>
+              <label className={LABEL_CLS}>Guardian Contact Number *</label>
+              <input value={form.guardianPhone} onChange={update('guardianPhone')} placeholder="09XXXXXXXXX" inputMode="tel" className={INPUT_CLS} />
+            </div>
+            <div>
+              <label className={LABEL_CLS}>Relationship</label>
+              <input value={form.guardianRelation} onChange={update('guardianRelation')} placeholder="e.g. Daughter, Son, Neighbor" className={INPUT_CLS} />
             </div>
           </div>
 

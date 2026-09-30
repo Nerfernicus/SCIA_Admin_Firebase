@@ -174,6 +174,7 @@ exports.createAssistedSeniorAccount = onCall(
     const {
       firstName, midName, lastName, street, conNumber, gender, dob, idNumber,
       barangay: submittedBarangay, ncscStatus,
+      guardianName, guardianPhone, guardianRelation,
     } = data || {};
     const clean = (v) => String(v || "").trim().replace(/\s+/g, " ");
     const first = clean(firstName);
@@ -181,9 +182,20 @@ exports.createAssistedSeniorAccount = onCall(
     const last = clean(lastName);
     const streetClean = clean(street);
     const phone = clean(conNumber);
+    const guardianNameClean = clean(guardianName);
+    const guardianPhoneClean = clean(guardianPhone);
 
     if (!first || !mid || !last || !streetClean || !phone || !gender || !dob) {
       throw new HttpsError("invalid-argument", "Please fill in all required fields.");
+    }
+    // Required here (unlike the mobile app's own sign-up, where it's optional and
+    // can be added later from Account): an assisted sign-up is staff-supervised,
+    // so it's the reliable moment to capture who the inactivity alert should text.
+    if (!guardianNameClean || !guardianPhoneClean) {
+      throw new HttpsError("invalid-argument", "Please provide the guardian/relative's name and contact number.");
+    }
+    if (!/^(09\d{9}|\+639\d{9})$/.test(guardianPhoneClean)) {
+      throw new HttpsError("invalid-argument", "Please enter a valid PH mobile number for the guardian, e.g. 09171234567.");
     }
 
     // A barangay-scoped sub_admin can only register seniors in THEIR OWN
@@ -226,6 +238,8 @@ exports.createAssistedSeniorAccount = onCall(
       district, barangay: effectiveBarangay, street: streetClean, address,
       conNumber: phone, gender, dob,
       idNumber: effectiveIdNumber, hasTempId: effectiveIdNumber.startsWith("TEMP"),
+      guardianName: guardianNameClean, guardianPhone: guardianPhoneClean,
+      guardianRelation: clean(guardianRelation),
       status: "PENDING", isVerified: false,
       role: "SENIOR_CITIZEN", uid,
       createdAt: now,

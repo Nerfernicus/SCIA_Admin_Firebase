@@ -19,10 +19,25 @@ const EMPTY_FORM = {
 
 const PH_MOBILE = /^(09\d{9}|\+639\d{9})$/;
 
-const INPUT_CLS = 'w-full bg-gray-50 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none';
+const INPUT_CLS = 'w-full bg-gray-50 text-gray-900 placeholder:text-gray-400 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 focus:border-blue-200 outline-none';
+// Selected / unselected choice buttons (district, gender). dark: keeps the blue readable on the dark theme.
+const CHOICE_ON = 'border-[#0f52ba] bg-blue-50 text-[#0f52ba] dark:border-blue-400 dark:text-blue-300';
+const CHOICE_OFF = 'border-gray-200 text-gray-600 hover:bg-gray-50';
 const LABEL_CLS = 'block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
   'August', 'September', 'October', 'November', 'December'];
+
+function Section({ title, hint, children }) {
+  return (
+    <section className="rounded-2xl border border-gray-100 p-4 sm:p-5 space-y-4">
+      <div>
+        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">{title}</h3>
+        {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
 
 // Month / Day / Year dropdowns. Years start 60 years back (the youngest a
 // senior can be) and go down, so nobody has to scroll past decades of years.
@@ -97,7 +112,7 @@ export default function AssistedSignup() {
       return;
     }
     if (!form.guardianName.trim() || !form.guardianPhone.trim()) {
-      setError('Please add a guardian or relative name and contact number — this is who gets alerted if the senior is unreachable.');
+      setError('Please add a guardian or relative name and contact number. This is who gets alerted if the senior is unreachable.');
       return;
     }
     if (!PH_MOBILE.test(form.guardianPhone.trim())) {
@@ -304,136 +319,133 @@ export default function AssistedSignup() {
             )}
           </div>
 
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider -mb-2">Personal Information</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className={LABEL_CLS}>First Name *</label>
-              <input value={form.firstName} onChange={update('firstName')} className={INPUT_CLS} />
+          <Section title="Personal Information">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={LABEL_CLS}>First Name *</label>
+                <input value={form.firstName} onChange={update('firstName')} className={INPUT_CLS} />
+              </div>
+              <div>
+                <label className={LABEL_CLS}>Middle Name *</label>
+                <input value={form.midName} onChange={update('midName')} className={INPUT_CLS} />
+              </div>
+              <div>
+                <label className={LABEL_CLS}>Last Name *</label>
+                <input value={form.lastName} onChange={update('lastName')} className={INPUT_CLS} />
+              </div>
+              <div>
+                <label className={LABEL_CLS}>Contact Number *</label>
+                <input value={form.conNumber} onChange={update('conNumber')} placeholder="09XXXXXXXXX" inputMode="tel" className={INPUT_CLS} />
+              </div>
             </div>
-            <div>
-              <label className={LABEL_CLS}>Middle Name *</label>
-              <input value={form.midName} onChange={update('midName')} className={INPUT_CLS} />
-            </div>
-            <div>
-              <label className={LABEL_CLS}>Last Name *</label>
-              <input value={form.lastName} onChange={update('lastName')} className={INPUT_CLS} />
-            </div>
-            <div>
-              <label className={LABEL_CLS}>Contact Number *</label>
-              <input value={form.conNumber} onChange={update('conNumber')} placeholder="09XXXXXXXXX" inputMode="tel" className={INPUT_CLS} />
-            </div>
-          </div>
 
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider -mb-2">Guardian / Relative Contact</p>
-          <p className="text-xs text-gray-400 -mt-3">
-            Who to alert if the senior doesn't check in — required for the safety-monitoring feature.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className={LABEL_CLS}>Date of Birth *</label>
+              <DobSelect value={form.dob} onChange={(v) => setForm((prev) => ({ ...prev, dob: v }))} />
+            </div>
+
+            <div>
+              <label className={LABEL_CLS}>Gender *</label>
+              <div className="grid grid-cols-2 gap-3">
+                {['Male', 'Female'].map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, gender: g }))}
+                    className={`py-2.5 rounded-xl border-2 text-sm font-bold transition-colors ${form.gender === g ? CHOICE_ON : CHOICE_OFF}`}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Address">
+            <div>
+              <label className={LABEL_CLS}>District{locked ? '' : ' *'}</label>
+              <div className="grid grid-cols-2 gap-3">
+                {DISTRICTS.map((d) => {
+                  const active = (locked ? locked.district : form.district) === d;
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      disabled={!!locked}
+                      onClick={() => pickDistrict(d)}
+                      className={`py-2.5 rounded-xl border-2 text-sm font-bold transition-colors ${active ? CHOICE_ON : CHOICE_OFF} ${locked ? 'cursor-not-allowed opacity-80' : ''}`}
+                    >
+                      {d}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label className={LABEL_CLS}>Barangay{locked ? '' : ' *'}</label>
+              <select
+                value={locked ? locked.name : form.barangay}
+                onChange={update('barangay')}
+                disabled={!!locked || !form.district}
+                className={`${INPUT_CLS} disabled:opacity-60`}
+              >
+                {locked ? (
+                  <option value={locked.name}>{locked.name}</option>
+                ) : (
+                  <>
+                    <option value="">{form.district ? 'Select barangay' : 'Select a district first'}</option>
+                    {barangaysOf(form.district).map((b) => <option key={b} value={b}>{b}</option>)}
+                  </>
+                )}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={LABEL_CLS}>Blk / Lot / House No.</label>
+                <input value={form.block} onChange={update('block')} placeholder="e.g. Blk 5 Lot 12" className={INPUT_CLS} />
+              </div>
+              <div>
+                <label className={LABEL_CLS}>Street *</label>
+                <input value={form.street} onChange={update('street')} placeholder="e.g. Rizal St." className={INPUT_CLS} />
+              </div>
+            </div>
+          </Section>
+
+          <Section
+            title="Guardian / Relative Contact"
+            hint="Who to alert if the senior doesn't check in. Required for the safety-monitoring feature."
+          >
             <div>
               <label className={LABEL_CLS}>Guardian/Relative Name *</label>
               <input value={form.guardianName} onChange={update('guardianName')} className={INPUT_CLS} />
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={LABEL_CLS}>Guardian Contact Number *</label>
+                <input value={form.guardianPhone} onChange={update('guardianPhone')} placeholder="09XXXXXXXXX" inputMode="tel" className={INPUT_CLS} />
+              </div>
+              <div>
+                <label className={LABEL_CLS}>Relationship</label>
+                <input value={form.guardianRelation} onChange={update('guardianRelation')} placeholder="e.g. Daughter, Son, Neighbor" className={INPUT_CLS} />
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Account Details">
             <div>
-              <label className={LABEL_CLS}>Guardian Contact Number *</label>
-              <input value={form.guardianPhone} onChange={update('guardianPhone')} placeholder="09XXXXXXXXX" inputMode="tel" className={INPUT_CLS} />
-            </div>
-            <div>
-              <label className={LABEL_CLS}>Relationship</label>
-              <input value={form.guardianRelation} onChange={update('guardianRelation')} placeholder="e.g. Daughter, Son, Neighbor" className={INPUT_CLS} />
-            </div>
-          </div>
-
-          <div>
-            <label className={LABEL_CLS}>District{locked ? '' : ' *'}</label>
-            <div className="grid grid-cols-2 gap-3">
-              {DISTRICTS.map((d) => {
-                const active = (locked ? locked.district : form.district) === d;
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    disabled={!!locked}
-                    onClick={() => pickDistrict(d)}
-                    className={`py-2.5 rounded-xl border-2 text-sm font-bold transition-colors ${
-                      active
-                        ? 'border-[#0f52ba] bg-blue-50 text-[#0f52ba]'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                    } ${locked ? 'cursor-not-allowed opacity-80' : ''}`}
-                  >
-                    {d}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label className={LABEL_CLS}>Barangay{locked ? '' : ' *'}</label>
-            <select
-              value={locked ? locked.name : form.barangay}
-              onChange={update('barangay')}
-              disabled={!!locked || !form.district}
-              className={`${INPUT_CLS} disabled:opacity-60`}
-            >
-              {locked ? (
-                <option value={locked.name}>{locked.name}</option>
-              ) : (
-                <>
-                  <option value="">{form.district ? 'Select barangay' : 'Select a district first'}</option>
-                  {barangaysOf(form.district).map((b) => <option key={b} value={b}>{b}</option>)}
-                </>
-              )}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className={LABEL_CLS}>Blk / Lot / House No.</label>
-              <input value={form.block} onChange={update('block')} placeholder="e.g. Blk 5 Lot 12" className={INPUT_CLS} />
-            </div>
-            <div>
-              <label className={LABEL_CLS}>Street *</label>
-              <input value={form.street} onChange={update('street')} placeholder="e.g. Rizal St." className={INPUT_CLS} />
-            </div>
-          </div>
-
-          <div>
-            <label className={LABEL_CLS}>Date of Birth *</label>
-            <DobSelect value={form.dob} onChange={(v) => setForm((prev) => ({ ...prev, dob: v }))} />
-          </div>
-
-          <div>
-            <label className={LABEL_CLS}>Gender *</label>
-            <div className="grid grid-cols-2 gap-3">
-              {['Male', 'Female'].map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, gender: g }))}
-                  className={`py-2.5 rounded-xl border-2 text-sm font-bold transition-colors ${
-                    form.gender === g
-                      ? 'border-[#0f52ba] bg-blue-50 text-[#0f52ba]'
-                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider -mb-2">Account Details</p>
-          <div>
-            <label className={LABEL_CLS}>
-              Senior Citizen ID Number{ncscAnswer === 'registered' ? ' *' : ''}{' '}
-              <span className="normal-case font-normal text-gray-400">
+              <label className={LABEL_CLS}>
+                Senior Citizen ID Number{ncscAnswer === 'registered' ? ' *' : ' (optional)'}
+              </label>
+              <input value={form.idNumber} onChange={update('idNumber')} className={INPUT_CLS} />
+              <p className="text-xs text-gray-400 mt-1.5">
                 {ncscAnswer === 'registered'
-                  ? '(required)'
-                  : "(optional. Leave blank if they don't have one yet and a temporary ID will be assigned)"}
-              </span>
-            </label>
-            <input value={form.idNumber} onChange={update('idNumber')} className={INPUT_CLS} />
-          </div>
+                  ? 'Required for a senior who is already registered.'
+                  : "Leave blank if they don't have one yet. A temporary ID will be assigned."}
+              </p>
+            </div>
+          </Section>
 
           <button
             type="submit"

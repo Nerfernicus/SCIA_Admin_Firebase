@@ -46,7 +46,7 @@ function LocationNotice({ alert }) {
   if (alert.homeBarangay && !sameBarangay(alert.homeBarangay, alert.barangay)) {
     return (
       <p className={`mt-1 text-xs ${pending ? 'text-red-100' : 'text-gray-500'}`}>
-        Registered in Brgy. {alert.homeBarangay}; alert is from Brgy. {alert.barangay}.
+        Away from home: registered in Brgy. {alert.homeBarangay}, currently in Brgy. {alert.barangay}.
       </p>
     );
   }
@@ -225,7 +225,17 @@ function AlertsList({
               </div>
 
               <div className={`text-sm mb-3 break-words ${alert.status === "pending" ? "text-red-100" : "text-gray-600"}`}>
-                <p>{alert.barangay}, {alert.address}</p>
+                <p>
+                  <span className="font-semibold">Current location: </span>
+                  {alert.barangay ? `Brgy. ${alert.barangay}, ` : ''}{alert.currentAddress || alert.address}
+                  {alert.barangayApproximate && <span className="opacity-70"> (barangay approximate)</span>}
+                </p>
+                {(alert.homeAddress || alert.homeBarangay) && (
+                  <p className="mt-0.5">
+                    <span className="font-semibold">Registered address: </span>
+                    {alert.homeAddress || `Brgy. ${alert.homeBarangay}`}
+                  </p>
+                )}
                 <LocationNotice alert={alert} />
                 {isResolved && alert.resolvedAt && (
                   <p className="text-xs text-gray-400 mt-0.5">
@@ -430,8 +440,9 @@ export default function SOSMap() {
                     <div className="space-y-1">
                       <p className="font-bold text-base">{alert.name}</p>
                       <p className="text-red-600 font-semibold text-sm">{alert.emergencyType}</p>
-                      <p className="text-gray-600 text-sm">{alert.barangay}</p>
-                      <p className="text-gray-500 text-xs">{alert.address}</p>
+                      <p className="text-gray-600 text-sm">Now: Brgy. {alert.barangay}</p>
+                      <p className="text-gray-500 text-xs">{alert.currentAddress || alert.address}</p>
+                      {alert.homeAddress && <p className="text-gray-400 text-xs mt-1">Home: {alert.homeAddress}</p>}
                       {alert.outsideCity && (
                         <p className="text-amber-700 text-xs font-semibold">
                           Outside Valenzuela{alert.city ? `: ${alert.city}` : ''}. Coordinate with local responders (911).
@@ -528,4 +539,3 @@ export default function SOSMap() {
     </div>
   );
 }
-  

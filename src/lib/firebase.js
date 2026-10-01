@@ -49,3 +49,4 @@ export default app;
 // Event join/check-in subcollection: editorial_health/{eventId}/attendees/{uid}
 // Written by the mobile app on Join; flipped to checkedIn: true by EventCheckIn.jsx
 export const EVENT_ATTENDEES_SUBCOLLECTION = "attendees";
+

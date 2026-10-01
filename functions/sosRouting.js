@@ -39,7 +39,7 @@ const toNum = (v) => (isNum(v) ? v : (typeof v === "string" && v.trim() !== "" &
  *   escalation: "barangay"|"local_responders"
  * }}
  */
-function routeSos(lat, lng, homeBarangayRaw) {
+function routeSos(lat, lng, homeBarangayRaw, currentHint) {
   const home = resolveBarangay(homeBarangayRaw);
   const homeBarangay = home ? home.name : (String(homeBarangayRaw || "").trim() || null);
 
@@ -48,7 +48,15 @@ function routeSos(lat, lng, homeBarangayRaw) {
   }
   const geo = locateBarangay(lat, lng);
   if (geo.insideCity) {
-    return { hasLocation: true, outsideCity: false, city: "Valenzuela City", barangay: geo.barangay, homeBarangay, escalation: "barangay" };
+    // The phone's reverse geocoder knows the real street/barangay; the nearest
+    // point in locateBarangay() is only a rough guess (wrong near borders, e.g.
+    // Lawang Bato showing as Polo). Trust the phone's answer when it named a real
+    // Valenzuela barangay, and flag the result as approximate when we had to guess.
+    const hinted = currentHint && currentHint.source === "geocoder" ? resolveBarangay(currentHint.barangay) : null;
+    if (hinted) {
+      return { hasLocation: true, outsideCity: false, city: "Valenzuela City", barangay: hinted.name, homeBarangay, barangayApproximate: false, escalation: "barangay" };
+    }
+    return { hasLocation: true, outsideCity: false, city: "Valenzuela City", barangay: geo.barangay, homeBarangay, barangayApproximate: true, escalation: "barangay" };
   }
   const place = locateCity(lat, lng);
   return { hasLocation: true, outsideCity: true, city: place.city, barangay: homeBarangay, homeBarangay, escalation: "local_responders" };
@@ -91,11 +99,26 @@ exports.onEmergencyCreated = onDocumentCreated(
 
     const lat = toNum(d.latitude);
     const lng = toNum(d.longitude);
-    const route = routeSos(lat, lng, d.barangay);
+
+    // Home = what the senior registered with (their account), never what the
+    // phone sent as the current spot. Older app builds put the home barangay in
+    // `barangay`, so that stays the last fallback.
+    let profile = {};
+    if (d.uid && d.uid !== "anonymous") {
+      try {
+        const u = await db().collection("users").doc(d.uid).get();
+        profile = u.exists ? u.data() : {};
+      } catch (e) { logger.warn("onEmergencyCreated: user lookup failed:", e.message); }
+    }
+    const homeRaw = profile.barangay || d.homeBarangay || (d.barangaySource ? "" : d.barangay);
+    const route = routeSos(lat, lng, homeRaw, { barangay: d.barangay, source: d.barangaySource });
 
     const update = {
       routedAt: admin.firestore.FieldValue.serverTimestamp(),
       homeBarangay: route.homeBarangay || "",
+      homeAddress: profile.address || d.homeAddress || "",
+      currentAddress: d.address || "",
+      barangayApproximate: !!route.barangayApproximate,
       outsideCity: route.outsideCity,
       city: route.city || null,
       escalation: route.escalation,
@@ -110,13 +133,7 @@ exports.onEmergencyCreated = onDocumentCreated(
     await snap.ref.update(update);
 
     // Text the office that has to act.
-    let contact = "";
-    if (d.uid && d.uid !== "anonymous") {
-      try {
-        const u = await db().collection("users").doc(d.uid).get();
-        contact = u.exists ? (u.data().conNumber || "") : "";
-      } catch (e) { logger.warn("onEmergencyCreated: user lookup failed:", e.message); }
-    }
+    const contact = profile.conNumber || "";
     const who = d.name || "A senior citizen";
     const phones = await barangayOfficePhones(route.barangay);
     if (!phones.length) {

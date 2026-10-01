@@ -161,11 +161,29 @@ export function downloadBlob(content, filename, mime) {
   URL.revokeObjectURL(url);
 }
 
-// Requires the 'xlsx' (SheetJS) package: npm install xlsx
+// Requires the 'exceljs' package: npm install exceljs
+// (replaces SheetJS 'xlsx', which has unfixed security advisories on npm)
 export async function exportExcel(rows, filename) {
-  const XLSX = await import('xlsx');
-  const worksheet = XLSX.utils.json_to_sheet(rows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
-  XLSX.writeFile(workbook, filename);
+  const ExcelJS = (await import('exceljs')).default;
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Report');
+
+  const keys = [];
+  rows.forEach((r) => Object.keys(r).forEach((k) => { if (!keys.includes(k)) keys.push(k); }));
+  sheet.columns = keys.map((k) => ({
+    header: k,
+    key: k,
+    width: Math.min(40, Math.max(12, k.length + 2, ...rows.map((r) => String(r[k] ?? '').length + 2))),
+  }));
+  sheet.getRow(1).font = { bold: true };
+  rows.forEach((r) => sheet.addRow(r));
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }

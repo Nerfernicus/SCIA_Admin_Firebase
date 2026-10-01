@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Eye, EyeOff, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import mapOfValenzuela from '../assets/map_of_valenzuela.jpg';
 
 export default function Login() {
@@ -13,8 +13,23 @@ export default function Login() {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState('signin'); // 'signin' | 'reset'
+  const [resetSent, setResetSent] = useState(false);
+  const [notice, setNotice] = useState('');
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // AuthContext leaves a note here when it signs someone out (5-minute idle lock
+  // or a locked account) so the reason is visible on this screen.
+  useEffect(() => {
+    try {
+      const n = sessionStorage.getItem('scia_lock_notice');
+      if (n) {
+        setNotice(n);
+        sessionStorage.removeItem('scia_lock_notice');
+      }
+    } catch { /* storage unavailable */ }
+  }, []);
 
   useEffect(() => {
     if (user) navigate('/', { replace: true });
@@ -36,10 +51,19 @@ export default function Login() {
         return;
       }
 
+      if (adminSnap.data().locked === true) {
+        await auth.signOut();
+        setError('This account is locked. Please contact the OSCA Super Admin to unlock it.');
+        setLoading(false);
+        return;
+      }
+
       // Navigation is handled by the useEffect above once AuthContext sees the admin
     } catch (err) {
       console.error(err);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+      if (err.code === 'auth/user-disabled') {
+        setError('This account is locked. Please contact the OSCA Super Admin to unlock it.');
+      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setError('Invalid email or password.');
       } else if (err.code === 'auth/too-many-requests') {
         setError('Too many failed attempts. Please try again later.');
@@ -49,6 +73,25 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleReset(e) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+    } catch (err) {
+      // Same message either way so this cannot be used to discover which emails are admins.
+      console.warn('password reset:', err.code);
+      if (err.code === 'auth/too-many-requests') {
+        setError('Too many requests. Please try again later.');
+        setLoading(false);
+        return;
+      }
+    }
+    setResetSent(true);
+    setLoading(false);
   }
 
   return (
@@ -108,6 +151,13 @@ export default function Login() {
           <h2 className="font-serif text-2xl text-gray-900 mb-1">Welcome back</h2>
           <p className="text-sm text-gray-500 mb-7">Sign in with your admin account to continue.</p>
 
+          {notice && (
+            <div role="status" className="flex items-start gap-2 bg-amber-50 border-l-2 border-amber-400 text-amber-800 text-sm px-3.5 py-2.5 mb-6">
+              <Clock size={16} className="shrink-0 mt-0.5" />
+              <span>{notice}</span>
+            </div>
+          )}
+
           {error && (
             <div className="flex items-start gap-2 bg-red-50 border-l-2 border-red-400 text-red-700 text-sm px-3.5 py-2.5 mb-6">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
@@ -115,6 +165,42 @@ export default function Login() {
             </div>
           )}
 
+          {mode === 'reset' ? (
+            resetSent ? (
+              <div className="space-y-5">
+                <div className="flex items-start gap-2 bg-green-50 border-l-2 border-green-500 text-green-800 text-sm px-3.5 py-2.5">
+                  <CheckCircle2 size={16} className="shrink-0 mt-0.5" />
+                  <span>If that email belongs to an admin account, a password reset link has been sent. Check your inbox.</span>
+                </div>
+                <button type="button" onClick={() => { setMode('signin'); setResetSent(false); }} className="text-sm text-[#0f52ba] hover:underline">
+                  Back to sign in
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleReset} className="space-y-5">
+                <p className="text-sm text-gray-500 -mt-3">Enter your admin email and we will send a reset link.</p>
+                <div>
+                  <label htmlFor="reset-email" className="block text-sm font-medium text-gray-700 mb-1.5">Email address</label>
+                  <input
+                    id="reset-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@scia.gov"
+                    required
+                    autoComplete="email"
+                    className="w-full border-0 border-b-2 border-gray-200 py-2 px-0.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#0f52ba] transition-colors"
+                  />
+                </div>
+                <button type="submit" disabled={loading} className="w-full bg-[#0f52ba] hover:bg-[#0c4295] disabled:opacity-60 text-white py-2.5 text-sm font-medium transition-colors">
+                  {loading ? 'Sending...' : 'Send reset link'}
+                </button>
+                <button type="button" onClick={() => { setMode('signin'); setError(''); }} className="text-sm text-gray-500 hover:underline">
+                  Back to sign in
+                </button>
+              </form>
+            )
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -156,6 +242,11 @@ export default function Login() {
                   {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
               </div>
+              <div className="text-right mt-2">
+                <button type="button" onClick={() => { setMode('reset'); setError(''); setNotice(''); }} className="text-xs text-[#0f52ba] hover:underline">
+                  Forgot password?
+                </button>
+              </div>
             </div>
 
             <button
@@ -173,6 +264,7 @@ export default function Login() {
               )}
             </button>
           </form>
+          )}
 
           <p className="text-center text-xs text-gray-400 mt-8">
             Access is restricted to authorized personnel only. Contact your system administrator for access.

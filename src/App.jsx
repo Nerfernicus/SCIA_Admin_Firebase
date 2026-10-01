@@ -18,6 +18,7 @@ import Analytics      from './pages/Analytics';
 import DigitalID      from './pages/DigitalID';
 import EventCheckIn from './pages/EventCheckIn';
 import AssistedSignup from './pages/AssistedSignup';
+import AdminAccounts from './pages/AdminAccounts';
 import NcscRegistrations from './pages/NcscRegistrations';
 
 
@@ -103,6 +104,14 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
             <HealthCenters />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin-accounts',
+        element: (
+          <ProtectedRoute allowedRoles={['super_admin']}>
+            <AdminAccounts />
           </ProtectedRoute>
         ),
       },

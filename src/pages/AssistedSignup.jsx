@@ -5,6 +5,7 @@ import { functions } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import { DISTRICTS, barangaysOf, resolveBarangay } from '../lib/barangay';
+import { RULES, sanitize, validate, validateGender, validateDob, validateOption } from '../lib/validators';
 
 const createAssistedSeniorAccount = httpsCallable(functions, 'createAssistedSeniorAccount');
 
@@ -19,13 +20,26 @@ const EMPTY_FORM = {
 
 const PH_MOBILE = /^(09\d{9}|\+639\d{9})$/;
 
-const INPUT_CLS = 'w-full bg-gray-50 text-gray-900 placeholder:text-gray-400 rounded-xl py-2.5 px-3 text-sm border border-gray-100 focus:ring-2 focus:ring-blue-100 focus:border-blue-200 outline-none';
+const INPUT_BASE = 'w-full text-gray-900 placeholder:text-gray-400 rounded-xl py-2.5 px-3 text-sm border outline-none focus:ring-2';
+const INPUT_OK = 'bg-gray-50 border-gray-100 focus:ring-blue-100 focus:border-blue-200';
+const INPUT_BAD = 'bg-red-50 border-red-300 focus:ring-red-100 focus:border-red-400';
+const INPUT_CLS = `${INPUT_BASE} ${INPUT_OK}`;
+const inputCls = (err) => `${INPUT_BASE} ${err ? INPUT_BAD : INPUT_OK}`;
 // Selected / unselected choice buttons (district, gender). dark: keeps the blue readable on the dark theme.
 const CHOICE_ON = 'border-[#0f52ba] bg-blue-50 text-[#0f52ba] dark:border-blue-400 dark:text-blue-300';
 const CHOICE_OFF = 'border-gray-200 text-gray-600 hover:bg-gray-50';
 const LABEL_CLS = 'block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
   'August', 'September', 'October', 'November', 'December'];
+
+function FieldError({ msg }) {
+  if (!msg) return null;
+  return (
+    <p role="alert" className="mt-1 text-xs font-medium text-red-600 flex items-center gap-1">
+      <AlertCircle size={12} className="shrink-0" /> {msg}
+    </p>
+  );
+}
 
 function Section({ title, hint, children }) {
   return (
@@ -96,27 +110,63 @@ export default function AssistedSignup() {
   const [error, setError] = useState('');
   const [result, setResult] = useState(null); // { uid, idNumber, tempPassword }
   const [copied, setCopied] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   // null = not asked yet, 'registered' = already registered with NCSC,
   // otherwise the progress of registering them now: started | cancelled | completed_claimed
   const [ncscAnswer, setNcscAnswer] = useState(null);
 
   const update = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
-  const pickDistrict = (d) => setForm((prev) => ({ ...prev, district: d, barangay: '' }));
+  const clearErr = (...fields) =>
+    setFieldErrors((prev) => {
+      const n = { ...prev };
+      fields.forEach((f) => delete n[f]);
+      return n;
+    });
+  // Text fields: disallowed characters are dropped as the person types and the
+  // field is flagged with the rule's hint.
+  const updateText = (field, kind) => (e) => {
+    const { value, rejected } = sanitize(kind, e.target.value);
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setFieldErrors((prev) => {
+      const n = { ...prev };
+      if (rejected) n[field] = RULES[kind].hint; else delete n[field];
+      return n;
+    });
+  };
+  const pickDistrict = (d) => {
+    setForm((prev) => ({ ...prev, district: d, barangay: '' }));
+    clearErr('district', 'barangay');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
-    if (!form.firstName.trim() || !form.midName.trim() || !form.lastName.trim() || !form.street.trim() || (!locked && (!form.district || !form.barangay)) || !form.conNumber || !form.gender || !form.dob) {
-      setError(t.fillAllFields);
-      return;
+    const effDistrict = locked ? locked.district : form.district;
+    const effBarangay = locked ? locked.name : form.barangay;
+    const errs = {
+      firstName: validate('name', form.firstName),
+      midName: validate('name', form.midName),
+      lastName: validate('name', form.lastName),
+      conNumber: validate('phone', form.conNumber),
+      dob: validateDob(form.dob),
+      gender: validateGender(form.gender),
+      district: validateOption(effDistrict, DISTRICTS, 'district'),
+      barangay: locked ? '' : validateOption(effBarangay, barangaysOf(form.district), 'barangay'),
+      block: validate('address', form.block, { required: false }),
+      street: validate('address', form.street),
+      guardianName: validate('name', form.guardianName),
+      guardianPhone: validate('phone', form.guardianPhone),
+      guardianRelation: validate('relation', form.guardianRelation, { required: false }),
+      idNumber: validate('idNumber', form.idNumber, { required: ncscAnswer === 'registered' }),
+    };
+    if (!errs.guardianPhone && form.guardianPhone.replace(/\D/g, '').slice(-10) === form.conNumber.replace(/\D/g, '').slice(-10)) {
+      errs.guardianPhone = "The guardian's number must be different from the senior's own number.";
     }
-    if (!form.guardianName.trim() || !form.guardianPhone.trim()) {
-      setError('Please add a guardian or relative name and contact number. This is who gets alerted if the senior is unreachable.');
-      return;
-    }
-    if (!PH_MOBILE.test(form.guardianPhone.trim())) {
-      setError('Please enter a valid PH mobile number for the guardian, e.g. 09171234567.');
+    Object.keys(errs).forEach((k) => { if (!errs[k]) delete errs[k]; });
+    setFieldErrors(errs);
+    if (Object.keys(errs).length) {
+      setError('Please fix the highlighted fields before creating the account.');
       return;
     }
 
@@ -323,25 +373,30 @@ export default function AssistedSignup() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={LABEL_CLS}>First Name *</label>
-                <input value={form.firstName} onChange={update('firstName')} className={INPUT_CLS} />
+                <input value={form.firstName} onChange={updateText('firstName', 'name')} maxLength={RULES.name.max} aria-invalid={!!fieldErrors.firstName} className={inputCls(fieldErrors.firstName)} />
+                <FieldError msg={fieldErrors.firstName} />
               </div>
               <div>
                 <label className={LABEL_CLS}>Middle Name *</label>
-                <input value={form.midName} onChange={update('midName')} className={INPUT_CLS} />
+                <input value={form.midName} onChange={updateText('midName', 'name')} maxLength={RULES.name.max} aria-invalid={!!fieldErrors.midName} className={inputCls(fieldErrors.midName)} />
+                <FieldError msg={fieldErrors.midName} />
               </div>
               <div>
                 <label className={LABEL_CLS}>Last Name *</label>
-                <input value={form.lastName} onChange={update('lastName')} className={INPUT_CLS} />
+                <input value={form.lastName} onChange={updateText('lastName', 'name')} maxLength={RULES.name.max} aria-invalid={!!fieldErrors.lastName} className={inputCls(fieldErrors.lastName)} />
+                <FieldError msg={fieldErrors.lastName} />
               </div>
               <div>
                 <label className={LABEL_CLS}>Contact Number *</label>
-                <input value={form.conNumber} onChange={update('conNumber')} placeholder="09XXXXXXXXX" inputMode="tel" className={INPUT_CLS} />
+                <input value={form.conNumber} onChange={updateText('conNumber', 'phone')} maxLength={RULES.phone.max} aria-invalid={!!fieldErrors.conNumber} placeholder="09XXXXXXXXX" inputMode="tel" className={inputCls(fieldErrors.conNumber)} />
+                <FieldError msg={fieldErrors.conNumber} />
               </div>
             </div>
 
             <div>
               <label className={LABEL_CLS}>Date of Birth *</label>
-              <DobSelect value={form.dob} onChange={(v) => setForm((prev) => ({ ...prev, dob: v }))} />
+              <DobSelect value={form.dob} onChange={(v) => { setForm((prev) => ({ ...prev, dob: v })); clearErr('dob'); }} />
+              <FieldError msg={fieldErrors.dob} />
             </div>
 
             <div>
@@ -351,13 +406,14 @@ export default function AssistedSignup() {
                   <button
                     key={g}
                     type="button"
-                    onClick={() => setForm((prev) => ({ ...prev, gender: g }))}
+                    onClick={() => { setForm((prev) => ({ ...prev, gender: g })); clearErr('gender'); }}
                     className={`py-2.5 rounded-xl border-2 text-sm font-bold transition-colors ${form.gender === g ? CHOICE_ON : CHOICE_OFF}`}
                   >
                     {g}
                   </button>
                 ))}
               </div>
+              <FieldError msg={fieldErrors.gender} />
             </div>
           </Section>
 
@@ -380,13 +436,14 @@ export default function AssistedSignup() {
                   );
                 })}
               </div>
+              <FieldError msg={fieldErrors.district} />
             </div>
 
             <div>
               <label className={LABEL_CLS}>Barangay{locked ? '' : ' *'}</label>
               <select
                 value={locked ? locked.name : form.barangay}
-                onChange={update('barangay')}
+                onChange={(e) => { update('barangay')(e); clearErr('barangay'); }}
                 disabled={!!locked || !form.district}
                 className={`${INPUT_CLS} disabled:opacity-60`}
               >
@@ -399,16 +456,19 @@ export default function AssistedSignup() {
                   </>
                 )}
               </select>
+              <FieldError msg={fieldErrors.barangay} />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={LABEL_CLS}>Blk / Lot / House No.</label>
-                <input value={form.block} onChange={update('block')} placeholder="e.g. Blk 5 Lot 12" className={INPUT_CLS} />
+                <input value={form.block} onChange={updateText('block', 'address')} maxLength={RULES.address.max} aria-invalid={!!fieldErrors.block} placeholder="e.g. Blk 5 Lot 12" className={inputCls(fieldErrors.block)} />
+                <FieldError msg={fieldErrors.block} />
               </div>
               <div>
                 <label className={LABEL_CLS}>Street *</label>
-                <input value={form.street} onChange={update('street')} placeholder="e.g. Rizal St." className={INPUT_CLS} />
+                <input value={form.street} onChange={updateText('street', 'address')} maxLength={RULES.address.max} aria-invalid={!!fieldErrors.street} placeholder="e.g. Rizal St." className={inputCls(fieldErrors.street)} />
+                <FieldError msg={fieldErrors.street} />
               </div>
             </div>
           </Section>
@@ -419,16 +479,19 @@ export default function AssistedSignup() {
           >
             <div>
               <label className={LABEL_CLS}>Guardian/Relative Name *</label>
-              <input value={form.guardianName} onChange={update('guardianName')} className={INPUT_CLS} />
+              <input value={form.guardianName} onChange={updateText('guardianName', 'name')} maxLength={RULES.name.max} aria-invalid={!!fieldErrors.guardianName} className={inputCls(fieldErrors.guardianName)} />
+              <FieldError msg={fieldErrors.guardianName} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={LABEL_CLS}>Guardian Contact Number *</label>
-                <input value={form.guardianPhone} onChange={update('guardianPhone')} placeholder="09XXXXXXXXX" inputMode="tel" className={INPUT_CLS} />
+                <input value={form.guardianPhone} onChange={updateText('guardianPhone', 'phone')} maxLength={RULES.phone.max} aria-invalid={!!fieldErrors.guardianPhone} placeholder="09XXXXXXXXX" inputMode="tel" className={inputCls(fieldErrors.guardianPhone)} />
+                <FieldError msg={fieldErrors.guardianPhone} />
               </div>
               <div>
                 <label className={LABEL_CLS}>Relationship</label>
-                <input value={form.guardianRelation} onChange={update('guardianRelation')} placeholder="e.g. Daughter, Son, Neighbor" className={INPUT_CLS} />
+                <input value={form.guardianRelation} onChange={updateText('guardianRelation', 'relation')} maxLength={RULES.relation.max} aria-invalid={!!fieldErrors.guardianRelation} placeholder="e.g. Daughter, Son, Neighbor" className={inputCls(fieldErrors.guardianRelation)} />
+                <FieldError msg={fieldErrors.guardianRelation} />
               </div>
             </div>
           </Section>
@@ -438,7 +501,8 @@ export default function AssistedSignup() {
               <label className={LABEL_CLS}>
                 Senior Citizen ID Number{ncscAnswer === 'registered' ? ' *' : ' (optional)'}
               </label>
-              <input value={form.idNumber} onChange={update('idNumber')} className={INPUT_CLS} />
+              <input value={form.idNumber} onChange={updateText('idNumber', 'idNumber')} maxLength={RULES.idNumber.max} aria-invalid={!!fieldErrors.idNumber} className={inputCls(fieldErrors.idNumber)} />
+              <FieldError msg={fieldErrors.idNumber} />
               <p className="text-xs text-gray-400 mt-1.5">
                 {ncscAnswer === 'registered'
                   ? 'Required for a senior who is already registered.'

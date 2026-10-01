@@ -188,9 +188,36 @@ exports.createAssistedSeniorAccount = onCall(
     if (!first || !mid || !last || !streetClean || !phone || !gender || !dob) {
       throw new HttpsError("invalid-argument", "Please fill in all required fields.");
     }
-    // Required here (unlike the mobile app's own sign-up, where it's optional and
-    // can be added later from Account): an assisted sign-up is staff-supervised,
-    // so it's the reliable moment to capture who the inactivity alert should text.
+    // Same character rules as the admin form (src/lib/validators.js), enforced
+    // again here so a hand-made request cannot store bad data.
+    const NAME_OK = /^\p{L}[\p{L}\p{M}\s.'-]{0,49}$/u;
+    const ADDR_OK = /^[\p{L}\p{N}][\p{L}\p{N}\s.,#'/-]{0,79}$/u;
+    const PH_OK = /^(09\d{9}|\+639\d{9})$/;
+    if (![first, mid, last].every((n) => NAME_OK.test(n))) {
+      throw new HttpsError("invalid-argument", "Names may only contain letters, spaces and . ' -");
+    }
+    if (!ADDR_OK.test(streetClean) || (clean(data.block) && !ADDR_OK.test(clean(data.block)))) {
+      throw new HttpsError("invalid-argument", "The address contains characters that are not allowed.");
+    }
+    if (!PH_OK.test(phone)) {
+      throw new HttpsError("invalid-argument", "Enter a valid PH mobile number, e.g. 09171234567.");
+    }
+    if (gender !== "Male" && gender !== "Female") {
+      throw new HttpsError("invalid-argument", "Gender must be Male or Female.");
+    }
+    if ((guardianNameClean && !NAME_OK.test(guardianNameClean)) || (clean(guardianRelation) && !NAME_OK.test(clean(guardianRelation)))) {
+      throw new HttpsError("invalid-argument", "The guardian name and relationship may only contain letters.");
+    }
+    if (idNumber && !/^[A-Za-z0-9-]{4,20}$/.test(String(idNumber).trim())) {
+      throw new HttpsError("invalid-argument", "The ID number may only contain letters, numbers and dashes.");
+    }
+    const dobDate = new Date(`${String(dob)}T00:00:00`);
+    if (Number.isNaN(dobDate.getTime()) || (Date.now() - dobDate.getTime()) / 31557600000 < 60) {
+      throw new HttpsError("invalid-argument", "The senior must be at least 60 years old.");
+    }
+
+    // Required (same as the mobile app's sign-up) so the inactivity alert always
+    // has someone to text.
     if (!guardianNameClean || !guardianPhoneClean) {
       throw new HttpsError("invalid-argument", "Please provide the guardian/relative's name and contact number.");
     }
@@ -238,8 +265,12 @@ exports.createAssistedSeniorAccount = onCall(
       district, barangay: effectiveBarangay, street: streetClean, address,
       conNumber: phone, gender, dob,
       idNumber: effectiveIdNumber, hasTempId: effectiveIdNumber.startsWith("TEMP"),
-      guardianName: guardianNameClean, guardianPhone: guardianPhoneClean,
-      guardianRelation: clean(guardianRelation),
+      // Same shape the mobile app's Account screen and the inactivity monitor use.
+      guardians: [{
+        name: guardianNameClean,
+        phone: guardianPhoneClean.replace(/[\s-]/g, ""),
+        ...(clean(guardianRelation) ? { relationship: clean(guardianRelation) } : {}),
+      }],
       status: "PENDING", isVerified: false,
       role: "SENIOR_CITIZEN", uid,
       createdAt: now,
@@ -555,3 +586,12 @@ exports.onIdRequestStatusChange = require("./idRequestNotifications").onIdReques
 
 // ── Inactivity monitor (50-min "are you safe?" push, 60-min SMS to guardians + barangay) ──
 exports.monitorInactivity = require("./inactivityMonitor").monitorInactivity;
+exports.onEmergencyCreated = require("./sosRouting").onEmergencyCreated;
+
+// Super admin lock/unlock + password reset, and the senior Forgot Password OTP flow.
+const accountControls = require("./accountControls");
+exports.setAdminLock = accountControls.setAdminLock;
+exports.resetUserPassword = accountControls.resetUserPassword;
+exports.deactivateInactiveUser = accountControls.deactivateInactiveUser;
+exports.requestPasswordResetOtp = accountControls.requestPasswordResetOtp;
+exports.resetPasswordWithOtp = accountControls.resetPasswordWithOtp;

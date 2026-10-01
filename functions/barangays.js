@@ -1,30 +1,32 @@
 // Valenzuela City barangays by district, spelled the way admin accounts store
 // them (`admins/{uid}.barangay`). The mobile app's sign-up list is identical
 // except it spells "General T. de Leon" as "Gen. T. de Leon" (see GEN_T below).
-// Keep in sync with functions/barangays.js and the mobile app's
-// constants/valenzuelaDistricts.ts.
+// Keep in sync with src/lib/barangay.js (the website's copy) and the mobile
+// app's constants/valenzuelaDistricts.ts. This copy is CommonJS because Cloud
+// Functions load it with require(); do not paste the website's `export` syntax
+// over it again (that is what removed locateBarangay before).
 
-export const DISTRICT_1_BARANGAYS = [
+const DISTRICT_1_BARANGAYS = [
   'Arkong Bato', 'Balangkas', 'Bignay', 'Bisig', 'Canumay East', 'Canumay West',
   'Coloong', 'Dalandanan', 'Isla', 'Lawang Bato', 'Lingunan', 'Mabolo',
   'Malanday', 'Malinta', 'Palasan', 'Pariancillo Villa', 'Pasolo', 'Poblacion',
   'Polo', 'Punturin', 'Rincon', 'Tagalag', 'Veinte Reales', 'Wawang Pulo',
 ];
 
-export const DISTRICT_2_BARANGAYS = [
+const DISTRICT_2_BARANGAYS = [
   'Bagbaguin', 'General T. de Leon', 'Karuhatan', 'Mapulang Lupa',
   'Marulas', 'Maysan', 'Parada', 'Paso de Blas', 'Ugong',
 ];
 
-export const DISTRICTS = ['District 1', 'District 2'];
+const DISTRICTS = ['District 1', 'District 2'];
 
-export const barangaysForDistrict = (district) =>
+const barangaysForDistrict = (district) =>
   district === 'District 1' ? DISTRICT_1_BARANGAYS
     : district === 'District 2' ? DISTRICT_2_BARANGAYS
       : [];
 
 // AssistedSignup.jsx imports this name; same function.
-export const barangaysOf = barangaysForDistrict;
+const barangaysOf = barangaysForDistrict;
 
 const ALIASES = {
   pulo: 'polo',
@@ -42,7 +44,7 @@ const normalize = (s) => String(s || '')
   .replace(/^brgy\.?\s+/, '').replace(/^barangay\s+/, '');
 
 /** { name, district } for any known spelling of a barangay, else null. */
-export function resolveBarangay(barangay) {
+function resolveBarangay(barangay) {
   const key = ALIASES[normalize(barangay)] ?? normalize(barangay);
   if (!key) return null;
   const d1 = DISTRICT_1_BARANGAYS.find((b) => normalize(b) === key);
@@ -52,7 +54,7 @@ export function resolveBarangay(barangay) {
   return null;
 }
 
-export const districtOfBarangay = (barangay) => resolveBarangay(barangay)?.district ?? '';
+const districtOfBarangay = (barangay) => resolveBarangay(barangay)?.district ?? '';
 
 // A barangay whose spelling in stored data disagrees between the mobile app's
 // sign-up list and the admin dashboard needs every spelling listed together so
@@ -64,12 +66,12 @@ const SPELLING_GROUPS = [
 ];
 
 /** Canonical (admin-dashboard) spelling for any known spelling of a barangay. */
-export function displayBarangay(barangay) {
+function displayBarangay(barangay) {
   return resolveBarangay(barangay)?.name || String(barangay || '').trim();
 }
 
 /** True when both names resolve to the same barangay (any spelling, either side). */
-export function sameBarangay(a, b) {
+function sameBarangay(a, b) {
   const da = displayBarangay(a);
   const db = displayBarangay(b);
   return !!da && !!db && da === db;
@@ -80,9 +82,90 @@ export function sameBarangay(a, b) {
  * `where('barangay', 'in', barangayVariants(b))` so a barangay-scoped query
  * still matches documents written under a different (but equivalent) spelling.
  */
-export function barangayVariants(barangay) {
+function barangayVariants(barangay) {
   const canonical = displayBarangay(barangay);
   if (!canonical) return [];
   const group = SPELLING_GROUPS.find((g) => g.includes(canonical));
   return group ? [...group] : [canonical];
 }
+
+
+// ── Geofence ────────────────────────────────────────────────────────────────
+// The repo has no barangay boundary polygons, only one representative point per
+// barangay (the same points the mobile app's SOS screen uses as its fallback).
+// So the geofence is: (1) is the coordinate inside Valenzuela City's bounding
+// box at all, (2) which barangay point is nearest. Both are approximations;
+// near a barangay border the nearest point can be the neighbouring barangay.
+// Swap locateBarangay() for a point-in-polygon check if you get GeoJSON.
+// Southern edge is 14.675 (the southernmost barangay point is 14.6945) so the
+// box does not swallow Caloocan and Malabon just south of the city.
+const CITY_BOUNDS = { minLat: 14.675, maxLat: 14.78, minLng: 120.90, maxLng: 121.02 };
+
+const BARANGAY_POINTS = [
+  ["Arkong Bato", 14.7175, 120.9800], ["Bagbaguin", 14.7365, 120.9920],
+  ["Balangkas", 14.7015, 120.9790], ["Bignay", 14.7250, 120.9980],
+  ["Bisig", 14.7160, 120.9785], ["Canumay East", 14.7095, 120.9925],
+  ["Canumay West", 14.7065, 120.9880], ["Coloong", 14.7205, 120.9780],
+  ["Dalandanan", 14.7035, 120.9825], ["General T. de Leon", 14.7120, 120.9870],
+  ["Isla", 14.6945, 120.9950], ["Karuhatan", 14.7055, 120.9890],
+  ["Lawang Bato", 14.7155, 120.9975], ["Lingunan", 14.7060, 120.9830],
+  ["Mabolo", 14.6995, 120.9905], ["Malanday", 14.7190, 120.9820],
+  ["Malinta", 14.7045, 120.9785], ["Mapulang Lupa", 14.7135, 120.9965],
+  ["Marulas", 14.7145, 120.9915], ["Maysan", 14.7195, 120.9950],
+  ["Palasan", 14.7005, 120.9915], ["Parada", 14.7085, 120.9805],
+  ["Pariancillo Villa", 14.7030, 120.9865], ["Paso de Blas", 14.7290, 120.9930],
+  ["Pasolo", 14.7110, 120.9795], ["Poblacion", 14.7080, 120.9860],
+  ["Polo", 14.7245, 120.9835], ["Punturin", 14.7270, 120.9875],
+  ["Rincon", 14.7095, 120.9795], ["Tagalag", 14.7320, 120.9880],
+  ["Ugong", 14.7205, 120.9935], ["Veinte Reales", 14.7075, 120.9895],
+  ["Wawang Pulo", 14.7185, 120.9845],
+];
+
+const isCoord = (lat, lng) =>
+  typeof lat === "number" && typeof lng === "number" && Number.isFinite(lat) && Number.isFinite(lng);
+
+// { insideCity, barangay, district } — barangay/district are null outside the city.
+function locateBarangay(lat, lng) {
+  const inside = isCoord(lat, lng) &&
+    lat >= CITY_BOUNDS.minLat && lat <= CITY_BOUNDS.maxLat &&
+    lng >= CITY_BOUNDS.minLng && lng <= CITY_BOUNDS.maxLng;
+  if (!inside) return { insideCity: false, barangay: null, district: null };
+  let best = null;
+  for (const [name, bLat, bLng] of BARANGAY_POINTS) {
+    const d = Math.hypot(lat - bLat, lng - bLng);
+    if (!best || d < best.d) best = { name, d };
+  }
+  const resolved = resolveBarangay(best.name);
+  return { insideCity: true, barangay: resolved.name, district: resolved.district };
+}
+
+// Rough boxes for the cities around Valenzuela, used only to NAME where an SOS
+// came from when it is outside Valenzuela (for the alert text and the 911
+// coordination note). They are coarse rectangles, checked in order, so a point
+// near a city border can be named wrongly; an unknown place returns null and the
+// alert then just says "outside Valenzuela City". Replace with real boundaries
+// (GeoJSON) if exact city names matter.
+const NEARBY_CITIES = [
+  { city: "Malabon City", minLat: 14.64, maxLat: 14.675, minLng: 120.93, maxLng: 120.97 },
+  { city: "Caloocan City", minLat: 14.61, maxLat: 14.675, minLng: 120.95, maxLng: 121.01 },
+  { city: "Quezon City", minLat: 14.58, maxLat: 14.79, minLng: 120.99, maxLng: 121.13 },
+  { city: "Manila", minLat: 14.55, maxLat: 14.65, minLng: 120.95, maxLng: 121.02 },
+  { city: "San Jose del Monte, Bulacan", minLat: 14.78, maxLat: 14.86, minLng: 121.02, maxLng: 121.12 },
+  { city: "Meycauayan, Bulacan", minLat: 14.72, maxLat: 14.78, minLng: 120.93, maxLng: 120.98 },
+];
+
+// { insideCity: true } inside Valenzuela, else { insideCity: false, city: name | null }.
+function locateCity(lat, lng) {
+  if (!isCoord(lat, lng)) return { insideCity: false, city: null };
+  if (locateBarangay(lat, lng).insideCity) return { insideCity: true, city: "Valenzuela City" };
+  const hit = NEARBY_CITIES.find((c) =>
+    lat >= c.minLat && lat <= c.maxLat && lng >= c.minLng && lng <= c.maxLng);
+  return { insideCity: false, city: hit ? hit.city : null };
+}
+
+module.exports = {
+  DISTRICTS, DISTRICT_1_BARANGAYS, DISTRICT_2_BARANGAYS,
+  barangaysForDistrict, barangaysOf, districtOfBarangay,
+  resolveBarangay, displayBarangay, sameBarangay, barangayVariants,
+  locateBarangay, locateCity,
+};

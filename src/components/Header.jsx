@@ -1,6 +1,7 @@
 import './Header.css';
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Bell, Settings, X, Check, AlertTriangle, Megaphone,
   ShieldCheck, Save, Loader2, Camera, Globe, Volume2,
@@ -11,83 +12,124 @@ import { useLang, LANGUAGES } from '../context/LangContext';
 import { useTheme } from '../context/ThemeContext';
 import { doc, updateDoc, collection, onSnapshot, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { RULES, sanitize, validate } from '../lib/validators';
+const RULES_HINT = Object.fromEntries(Object.entries(RULES).map(([k, r]) => [k, r.hint]));
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 
-function NotificationsPanel({ onClose, myBarangay }) {
-  const { t } = useLang();
-  const [notifs, setNotifs] = useState([]);
-  const [loading, setLoading] = useState(true);
+// ── Notifications ───────────────────────────────────────────────────────────
+// Notifications are assembled from other collections (emergencies, announcements,
+// released IDs), so "read" and "closed" are remembered per admin in this browser
+// rather than written to those documents.
+const NOTIF_LINKS = { sos: '/sos', announcement: '/announcements', id_release: '/id-management' };
+const NOTIF_STATE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+const notifKey = (n) => `${n.type}:${n.id}`;
+
+function useNotifState(uid) {
+  const storageKey = `scia_notif_state:${uid || 'anon'}`;
+  const [state, setState] = useState({ read: {}, closed: {} });
 
   useEffect(() => {
-    let mounted = true;
+    try {
+      const raw = JSON.parse(localStorage.getItem(storageKey) || 'null');
+      const keep = (o) => Object.fromEntries(Object.entries(o || {}).filter(([, ts]) => Date.now() - ts < NOTIF_STATE_TTL_MS));
+      setState({ read: keep(raw?.read), closed: keep(raw?.closed) });
+    } catch {
+      setState({ read: {}, closed: {} });
+    }
+  }, [storageKey]);
 
-    // getDocs, not onSnapshot — avoids Firestore assertion errors from concurrent listeners
-    const fetchNotifs = async () => {
-      try {
-        // Security rule requires server-side where() filtering for barangay-scoped admins
-        const releasedIdsQuery = myBarangay
-          ? query(collection(db, 'released_ids'), where('barangay', '==', myBarangay), orderBy('releasedAt', 'desc'), limit(5))
-          : query(collection(db, 'released_ids'), orderBy('releasedAt', 'desc'), limit(10));
+  const update = (fn) => setState((prev) => {
+    const next = fn(prev);
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* storage unavailable */ }
+    return next;
+  });
 
-        const [sosSnap, annSnap, idSnap] = await Promise.all([
-          getDocs(query(collection(db, 'emergencies'), orderBy('createdAt', 'desc'), limit(5))),
-          // Fetch a few extra so filtering out other barangays' posts doesn't leave us short
-          getDocs(query(collection(db, 'editorial_health'), orderBy('createdAt', 'desc'), limit(10))),
-          getDocs(releasedIdsQuery),
-        ]);
+  return {
+    state,
+    markRead: (key) => update((p) => ({ ...p, read: { ...p.read, [key]: Date.now() } })),
+    markAllRead: (keys) => update((p) => ({ ...p, read: { ...p.read, ...Object.fromEntries(keys.map((k) => [k, Date.now()])) } })),
+    close: (key) => update((p) => ({ ...p, read: { ...p.read, [key]: Date.now() }, closed: { ...p.closed, [key]: Date.now() } })),
+  };
+}
 
-        if (!mounted) return;
+function useNotifications(myBarangay) {
+  const [notifs, setNotifs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const mounted = useRef(true);
 
-        const sos = sosSnap.docs.map(d => ({
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  // getDocs, not onSnapshot: avoids Firestore assertion errors from concurrent listeners
+  const refresh = React.useCallback(async () => {
+    try {
+      // Security rule requires server-side where() filtering for barangay-scoped admins
+      const releasedIdsQuery = myBarangay
+        ? query(collection(db, 'released_ids'), where('barangay', '==', myBarangay), orderBy('releasedAt', 'desc'), limit(8))
+        : query(collection(db, 'released_ids'), orderBy('releasedAt', 'desc'), limit(10));
+
+      const [sosSnap, annSnap, idSnap] = await Promise.all([
+        getDocs(query(collection(db, 'emergencies'), orderBy('createdAt', 'desc'), limit(10))),
+        // Fetch a few extra so filtering out other barangays' posts doesn't leave us short
+        getDocs(query(collection(db, 'editorial_health'), orderBy('createdAt', 'desc'), limit(12))),
+        getDocs(releasedIdsQuery),
+      ]);
+      if (!mounted.current) return;
+
+      const sos = sosSnap.docs.map((d) => ({
+        id: d.id,
+        type: 'sos',
+        title: 'SOS Alert',
+        body: d.data().barangay || d.data().address || 'Emergency reported',
+        time: d.data().createdAt?.toDate?.() || new Date(),
+        status: d.data().status,
+      }));
+
+      const ann = annSnap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        // A barangay-scoped admin doesn't get notified about other barangays' posts
+        .filter((d) => !myBarangay || d.Audience !== 'BARANGAY' || d.barangay === myBarangay)
+        .slice(0, 5)
+        .map((d) => ({
           id: d.id,
-          type: 'sos',
-          title: 'SOS Alert',
-          body: d.data().barangay || d.data().address || 'Emergency reported',
-          time: d.data().createdAt?.toDate?.() || new Date(),
-          status: d.data().status,
+          type: 'announcement',
+          title: d.Title || 'Announcement',
+          body: d.Body || '',
+          time: d.createdAt?.toDate?.() || new Date(),
         }));
 
-        const ann = annSnap.docs
-          .map(d => ({ id: d.id, ...d.data() }))
-          // A barangay-scoped admin doesn't get notified about other barangays' posts
-          .filter(d => !myBarangay || d.Audience !== 'BARANGAY' || d.barangay === myBarangay)
-          .slice(0, 3)
-          .map(d => ({
-            id: d.id,
-            type: 'announcement',
-            title: d.Title || 'Announcement',
-            body: d.Body || '',
-            time: d.createdAt?.toDate?.() || new Date(),
-          }));
+      // Notifies the barangay sub-admin when OSCA releases an ID for their area
+      const idReleases = idSnap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((d) => !myBarangay || d.barangay === myBarangay)
+        .slice(0, 5)
+        .map((d) => ({
+          id: d.id,
+          type: 'id_release',
+          title: 'ID Released',
+          body: `${d.seniorName || 'Senior citizen'}, Brgy. ${d.barangay || 'Unassigned'}`,
+          time: d.releasedAt?.toDate?.() || new Date(),
+        }));
 
-        // Notifies the barangay sub-admin when OSCA releases an ID for their area
-        const idReleases = idSnap.docs
-          .map(d => ({ id: d.id, ...d.data() }))
-          .filter(d => !myBarangay || d.barangay === myBarangay)
-          .slice(0, 3)
-          .map(d => ({
-            id: d.id,
-            type: 'id_release',
-            title: 'ID Released',
-            body: `${d.seniorName || 'Senior citizen'}, Brgy. ${d.barangay || 'Unassigned'}`,
-            time: d.releasedAt?.toDate?.() || new Date(),
-          }));
-
-        const combined = [...sos, ...ann, ...idReleases]
-          .sort((a, b) => b.time - a.time)
-          .slice(0, 8);
-
-        setNotifs(combined);
-      } catch (err) {
-        console.error('Notification fetch error:', err);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    fetchNotifs();
-    return () => { mounted = false; };
+      setNotifs([...sos, ...ann, ...idReleases].sort((a, b) => b.time - a.time).slice(0, 15));
+    } catch (err) {
+      console.error('Notification fetch error:', err);
+    } finally {
+      if (mounted.current) setLoading(false);
+    }
   }, [myBarangay]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { notifs, loading, refresh };
+}
+
+function NotificationsPanel({ items, loading, isRead, onOpen, onMarkRead, onMarkAllRead, onCloseItem, onClose }) {
+  const { t } = useLang();
+  const { dark } = useTheme();
+  const unreadKeys = items.filter((n) => !isRead(n)).map(notifKey);
 
   const timeAgo = (date) => {
     const diff = Math.round((Date.now() - date) / 60000);
@@ -97,52 +139,83 @@ function NotificationsPanel({ onClose, myBarangay }) {
     return `${Math.round(diff / 1440)}d ago`;
   };
 
-  const { dark } = useTheme();
-
   return (
     <div className={(dark ? 'bg-[#202124] border-white/10' : 'bg-white border-gray-100') + ' absolute right-0 top-12 w-80 max-w-[calc(100vw-24px)] rounded-2xl shadow-2xl border z-50 overflow-hidden'}>
-      <div className={(dark ? 'border-white/10' : 'border-gray-100') + ' flex items-center justify-between px-4 py-3 border-b'}>
+      <div className={(dark ? 'border-white/10' : 'border-gray-100') + ' flex items-center justify-between gap-2 px-4 py-3 border-b'}>
         <span className={(dark ? 'text-[#f0efec]' : 'text-gray-900') + ' font-bold text-sm'}>{t.notifications}</span>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-          <X size={16} />
-        </button>
+        <div className="flex items-center gap-3">
+          {unreadKeys.length > 0 && (
+            <button onClick={() => onMarkAllRead(unreadKeys)} className="text-[11px] font-semibold text-[#0f52ba] hover:underline">
+              Mark all as read
+            </button>
+          )}
+          <button onClick={onClose} aria-label="Close notifications" className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
       </div>
-      <div className="max-h-80 overflow-y-auto">
+      <div className="max-h-96 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 size={20} className="animate-spin text-gray-300" />
           </div>
-        ) : notifs.length === 0 ? (
+        ) : items.length === 0 ? (
           <p className="text-center text-gray-400 text-sm py-8">{t.noNotifications}</p>
         ) : (
-          notifs.map(n => (
-            <div key={n.id + n.type} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                n.type === 'sos' ? 'bg-red-100' : n.type === 'id_release' ? 'bg-green-100' : 'bg-blue-100'
-              }`}>
-                {n.type === 'sos'
-                  ? <AlertTriangle size={14} className="text-red-500" />
-                  : n.type === 'id_release'
-                  ? <ShieldCheck size={14} className="text-green-600" />
-                  : <Megaphone size={14} className="text-blue-500" />
-                }
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-bold text-gray-900 truncate">{n.title}</p>
-                  <span className="text-[10px] text-gray-400 whitespace-nowrap">{timeAgo(n.time)}</span>
+          items.map((n) => {
+            const unread = !isRead(n);
+            return (
+              <div
+                key={notifKey(n)}
+                className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0 ${unread ? 'bg-blue-50/40' : ''}`}
+              >
+                <button
+                  type="button"
+                  onClick={() => onOpen(n)}
+                  title="Open"
+                  className="flex items-start gap-3 flex-1 min-w-0 text-left"
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                    n.type === 'sos' ? 'bg-red-100' : n.type === 'id_release' ? 'bg-green-100' : 'bg-blue-100'
+                  }`}>
+                    {n.type === 'sos'
+                      ? <AlertTriangle size={14} className="text-red-500" />
+                      : n.type === 'id_release'
+                      ? <ShieldCheck size={14} className="text-green-600" />
+                      : <Megaphone size={14} className="text-blue-500" />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={`text-xs text-gray-900 truncate ${unread ? 'font-bold' : 'font-medium'}`}>
+                        {unread && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#0f52ba] mr-1.5 align-middle" />}
+                        {n.title}
+                      </p>
+                      <span className="text-[10px] text-gray-400 whitespace-nowrap">{timeAgo(n.time)}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 truncate mt-0.5">{n.body}</p>
+                    {n.type === 'sos' && n.status && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mt-1 inline-block ${
+                        n.status === 'pending'    ? 'bg-red-100 text-red-600' :
+                        n.status === 'dispatched' ? 'bg-orange-100 text-orange-600' :
+                                                   'bg-green-100 text-green-600'
+                      }`}>{n.status.toUpperCase()}</span>
+                    )}
+                  </div>
+                </button>
+                <div className="flex flex-col gap-1 shrink-0">
+                  {unread && (
+                    <button onClick={() => onMarkRead(notifKey(n))} title="Mark as read" aria-label="Mark as read" className="p-1 rounded-md text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors">
+                      <Check size={13} />
+                    </button>
+                  )}
+                  <button onClick={() => onCloseItem(notifKey(n))} title="Close (remove)" aria-label="Close notification" className="p-1 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                    <X size={13} />
+                  </button>
                 </div>
-                <p className="text-xs text-gray-500 truncate mt-0.5">{n.body}</p>
-                {n.type === 'sos' && n.status && (
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mt-1 inline-block ${
-                    n.status === 'pending'    ? 'bg-red-100 text-red-600' :
-                    n.status === 'dispatched' ? 'bg-orange-100 text-orange-600' :
-                                               'bg-green-100 text-green-600'
-                  }`}>{n.status.toUpperCase()}</span>
-                )}
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
@@ -260,6 +333,14 @@ function AdminProfileModal({ onClose }) {
   const [saving,   setSaving]   = useState(false);
   const [saved,    setSaved]    = useState(false);
   const [error,    setError]    = useState('');
+  // Per-field message shown in red when a typed character was rejected or the value is invalid.
+  const [fieldErr, setFieldErr] = useState({});
+
+  const setField = (key, kind, setter) => (raw) => {
+    const { value, rejected } = sanitize(kind, raw);
+    setter(value);
+    setFieldErr((prev) => ({ ...prev, [key]: rejected ? RULES_HINT[kind] : '' }));
+  };
 
   const [currentPass, setCurrentPass] = useState('');
   const [newPass,     setNewPass]     = useState('');
@@ -268,7 +349,13 @@ function AdminProfileModal({ onClose }) {
   const [passSaved,   setPassSaved]   = useState(false);
 
   const handleSaveProfile = async () => {
-    if (!name.trim()) { setError('Name is required.'); return; }
+    const errs = {
+      name: validate('name', name),
+      phone: validate('phone', phone, { required: false }),
+      position: validate('position', position, { required: false }),
+    };
+    setFieldErr(errs);
+    if (errs.name || errs.phone || errs.position) { setError('Please fix the highlighted fields.'); return; }
     setSaving(true); setError('');
     try {
       const ref = doc(db, 'admins', user.uid);
@@ -344,11 +431,11 @@ function AdminProfileModal({ onClose }) {
             <h3 className="text-sm font-bold text-gray-700">{t.profile}</h3>
             {error && <p className="text-xs text-red-500 font-semibold">{error}</p>}
             {[
-              { label: t.fullName, value: name, setter: setName, placeholder: 'Enter full name', disabled: false },
-              { label: t.email,    value: email, setter: null,    placeholder: '',               disabled: true  },
-              { label: t.phone,    value: phone, setter: setPhone, placeholder: 'e.g. +63 912 345 6789', disabled: false },
-              { label: t.position, value: position, setter: setPosition, placeholder: 'e.g. Health Officer', disabled: false },
-            ].map(({ label, value, setter, placeholder, disabled }) => (
+              { key: 'name',     label: t.fullName, value: name, setter: setField('name', 'name', setName), placeholder: 'Enter full name', disabled: false },
+              { key: 'email',    label: t.email,    value: email, setter: null,    placeholder: '',               disabled: true  },
+              { key: 'phone',    label: t.phone,    value: phone, setter: setField('phone', 'phone', setPhone), placeholder: 'e.g. 09171234567', disabled: false, inputMode: 'tel' },
+              { key: 'position', label: t.position, value: position, setter: setField('position', 'position', setPosition), placeholder: 'e.g. Health Officer', disabled: false },
+            ].map(({ key, label, value, setter, placeholder, disabled, inputMode }) => (
               <div key={label}>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">{label}</label>
                 <input
@@ -356,10 +443,14 @@ function AdminProfileModal({ onClose }) {
                   onChange={setter ? e => setter(e.target.value) : undefined}
                   placeholder={placeholder}
                   disabled={disabled}
+                  inputMode={inputMode}
+                  aria-invalid={!!fieldErr[key]}
                   className={`w-full border rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all ${
-                    disabled ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-50 border-gray-200 text-gray-800'
+                    disabled ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                      : fieldErr[key] ? 'bg-red-50 border-red-300 text-gray-800' : 'bg-gray-50 border-gray-200 text-gray-800'
                   }`}
                 />
+                {fieldErr[key] && <p className="text-[11px] text-red-500 font-semibold mt-1">{fieldErr[key]}</p>}
                 {disabled && <p className="text-[10px] text-gray-400 mt-1">{t.emailCannotChange}</p>}
               </div>
             ))}
@@ -405,22 +496,24 @@ export default function Header({ onMenuClick }) {
   const [showNotifs,   setShowNotifs]   = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile,  setShowProfile]  = useState(false);
-  const [unreadCount,  setUnreadCount]  = useState(0);
 
   const notifsRef   = useRef(null);
   const settingsRef = useRef(null);
 
-  // Unread badge — safe one-time fetch on mount to avoid assertion errors
-  useEffect(() => {
-    let mounted = true;
-    getDocs(query(collection(db, 'emergencies'), orderBy('createdAt', 'desc'), limit(20)))
-      .then(snap => {
-        if (!mounted) return;
-        setUnreadCount(snap.docs.filter(d => d.data().status === 'pending').length);
-      })
-      .catch(() => {});
-    return () => { mounted = false; };
-  }, []);
+  const navigate = useNavigate();
+  const { notifs, loading: notifsLoading, refresh: refreshNotifs } = useNotifications(adminData?.barangay || null);
+  const notifState = useNotifState(user?.uid);
+  const isRead = (n) => !!notifState.state.read[notifKey(n)];
+  const visibleNotifs = notifs.filter((n) => !notifState.state.closed[notifKey(n)]);
+  const unreadCount = visibleNotifs.filter((n) => !isRead(n)).length;
+
+  // Opening a notification marks it read and goes to the related page.
+  const openNotification = (n) => {
+    notifState.markRead(notifKey(n));
+    setShowNotifs(false);
+    const link = NOTIF_LINKS[n.type];
+    if (link) navigate(link);
+  };
 
   useEffect(() => {
     const handler = (e) => {
@@ -457,7 +550,7 @@ export default function Header({ onMenuClick }) {
         <div className="flex items-center gap-2 shrink-0">
           <div className="relative" ref={notifsRef}>
             <button
-              onClick={() => { setShowNotifs(v => !v); setShowSettings(false); }}
+              onClick={() => { if (!showNotifs) refreshNotifs(); setShowNotifs(v => !v); setShowSettings(false); }}
               className={(dark ? 'border-white/10 text-[#96958d] hover:bg-white/5 hover:text-[#ddd9d2]' : 'border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800') + ' relative w-9 h-9 flex items-center justify-center rounded-xl border transition-colors'}
               title={t.notifications}
             >
@@ -468,7 +561,18 @@ export default function Header({ onMenuClick }) {
                 </span>
               )}
             </button>
-            {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} myBarangay={adminData?.barangay || null} />}
+            {showNotifs && (
+              <NotificationsPanel
+                items={visibleNotifs}
+                loading={notifsLoading}
+                isRead={isRead}
+                onOpen={openNotification}
+                onMarkRead={notifState.markRead}
+                onMarkAllRead={notifState.markAllRead}
+                onCloseItem={notifState.close}
+                onClose={() => setShowNotifs(false)}
+              />
+            )}
           </div>
 
           <div className="relative" ref={settingsRef}>

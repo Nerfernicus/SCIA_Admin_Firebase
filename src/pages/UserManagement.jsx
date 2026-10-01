@@ -14,8 +14,13 @@ import {
   ChevronDown,
   ThumbsUp,
   ThumbsDown,
+  KeyRound,
+  Clock,
+  Copy,
+  Loader2,
 } from "lucide-react";
-import { db } from "../lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../lib/firebase";
 import {
   collection,
   onSnapshot,
@@ -40,6 +45,138 @@ const statusText = (status) => {
   if (status === "SUSPENDED") return "text-red-600";
   return "text-gray-600";
 };
+
+// ── Inactivity (180-day rule) ──────────────────────────────────────────────
+// An account can only be deactivated after MORE than 180 days with no activity.
+// "Last activity" = newest of the phone's presence ping, the last app login and
+// the account creation time. The server enforces the same rule.
+const INACTIVITY_DAYS = 180;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const toMs = (t) =>
+  t?.toMillis ? t.toMillis() : t?.toDate ? t.toDate().getTime() : t ? new Date(t).getTime() || 0 : 0;
+const lastActivityMs = (u) =>
+  Math.max(toMs(u.last_active_timestamp), toMs(u.lastLoginAt), toMs(u.lastActivityAt), toMs(u.createdAt));
+const daysInactive = (u) => {
+  const last = lastActivityMs(u);
+  return last ? Math.floor((Date.now() - last) / DAY_MS) : 0;
+};
+const isInactiveEligible = (u) => u.status !== "SUSPENDED" && u.status !== "PENDING" && daysInactive(u) > INACTIVITY_DAYS;
+const fmtDate = (ms) => (ms ? new Date(ms).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "No record");
+
+const deactivateInactiveUser = httpsCallable(functions, "deactivateInactiveUser");
+const resetUserPassword = httpsCallable(functions, "resetUserPassword");
+const callError = (e) => e?.message?.replace(/^.*?:\s*/, "") || "Something went wrong. Please try again.";
+
+// ── Deactivate (one account, after review) ─────────────────────────────────
+function DeactivateModal({ user, busy, onClose, onConfirm }) {
+  const fullName = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={busy ? undefined : onClose} />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 z-10 text-center">
+        <div className="w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Ban size={24} className="text-orange-600" />
+        </div>
+        <h2 className="text-lg font-bold text-gray-900 mb-1">Deactivate this account?</h2>
+        <p className="text-sm font-bold text-gray-800 mb-3">"{fullName}"</p>
+        <div className="bg-gray-50 rounded-xl px-4 py-3 mb-4 text-left space-y-1">
+          <p className="text-xs text-gray-500">Last activity: <span className="font-semibold text-gray-800">{fmtDate(lastActivityMs(user))}</span></p>
+          <p className="text-xs text-gray-500">Inactive for: <span className="font-semibold text-gray-800">{daysInactive(user)} days</span> (limit: more than {INACTIVITY_DAYS})</p>
+        </div>
+        <p className="text-xs text-orange-700 font-semibold bg-orange-50 rounded-xl px-4 py-2 mb-6">
+          The senior will no longer be able to use the account. You can reactivate it later.
+        </p>
+        <div className="flex gap-3">
+          <button onClick={onClose} disabled={busy} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+            Cancel
+          </button>
+          <button onClick={onConfirm} disabled={busy} className="flex-1 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors">
+            {busy ? <Loader2 size={15} className="animate-spin" /> : <Ban size={15} />} Deactivate
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Reset a senior's password (Super Admin) ────────────────────────────────
+function ResetPasswordModal({ user, onClose }) {
+  const fullName = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null); // { tempPassword, idNumber }
+  const [copied, setCopied] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await resetUserPassword({ uid: user.id });
+      setResult(res.data);
+    } catch (e) {
+      setError(callError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copy = () => {
+    const text = `SCIA Login\nID Number: ${result.idNumber ?? user.idNumber ?? ""}\nTemporary Password: ${result.tempPassword}`;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={busy ? undefined : onClose} />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 z-10 text-center">
+        <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <KeyRound size={24} className="text-[#0f52ba]" />
+        </div>
+        {!result ? (
+          <>
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Reset password?</h2>
+            <p className="text-sm font-bold text-gray-800 mb-3">"{fullName}"</p>
+            <p className="text-xs text-gray-500 bg-gray-50 rounded-xl px-4 py-3 mb-4">
+              A new temporary password will be created and the senior will be signed out of every device.
+              Only do this after confirming who they are.
+            </p>
+            {error && <p role="alert" className="text-xs font-medium text-red-600 mb-3">{error}</p>}
+            <div className="flex gap-3">
+              <button onClick={onClose} disabled={busy} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors">Cancel</button>
+              <button onClick={run} disabled={busy} className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors">
+                {busy ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />} Reset
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Password reset</h2>
+            <p className="text-xs text-gray-500 mb-4">Give these to the senior now. The password is shown only once.</p>
+            <div className="bg-gray-50 rounded-2xl border border-gray-100 p-4 text-left mb-4 space-y-3">
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">ID Number</p>
+                <p className="text-lg font-mono font-bold text-gray-900">{result.idNumber ?? user.idNumber}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Temporary Password</p>
+                <p className="text-lg font-mono font-bold text-gray-900">{result.tempPassword}</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={copy} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2 transition-colors">
+                <Copy size={15} /> {copied ? "Copied!" : "Copy"}
+              </button>
+              <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 text-white text-sm font-bold transition-colors">Done</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── Disapprove Confirm Modal ───────────────────────────────────────────────
 function DisapproveModal({ user, onClose, onConfirm }) {
@@ -89,10 +226,12 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [selected, setSelected] = useState(new Set());
   const [toastMsg, setToastMsg] = useState("");
   const [toastType, setToastType] = useState("success");
   const [disapproveTarget, setDisapproveTarget] = useState(null);
+  const [deactivateTarget, setDeactivateTarget] = useState(null);
+  const [resetTarget, setResetTarget] = useState(null);
+  const [busy, setBusy] = useState(false);
   const tableRef = useRef(null);
   const filterRef = useRef(null);
 
@@ -138,60 +277,45 @@ export default function UserManagement() {
     const name =
       `${disapproveTarget.firstName ?? ""} ${disapproveTarget.lastName ?? ""}`.trim();
     await deleteDoc(doc(db, "users", disapproveTarget.id));
-    setSelected((prev) => {
-      const n = new Set(prev);
-      n.delete(disapproveTarget.id);
-      return n;
-    });
     setDisapproveTarget(null);
     showToast(`${name} disapproved and removed.`, "error");
   };
 
   // ── Other status actions ───────────────────────────────────────────────
-  const setStatus = async (userId, newStatus) => {
-    await updateDoc(doc(db, "users", userId), { status: newStatus });
-    showToast(`User ${newStatus.toLowerCase()} successfully.`);
+  const handleReactivate = async (userId) => {
+    await updateDoc(doc(db, "users", userId), {
+      status: "ACTIVE",
+      reactivatedAt: new Date(),
+    });
+    showToast("User reactivated.");
+  };
+
+  // Deactivation is one account at a time and only for accounts inactive for
+  // more than 180 days. The server re-checks the rule.
+  const handleDeactivateConfirm = async () => {
+    if (!deactivateTarget) return;
+    if (!isInactiveEligible(deactivateTarget)) {
+      showToast(`Only accounts inactive for more than ${INACTIVITY_DAYS} days can be deactivated.`, "error");
+      setDeactivateTarget(null);
+      return;
+    }
+    setBusy(true);
+    try {
+      await deactivateInactiveUser({ uid: deactivateTarget.id });
+      const name = `${deactivateTarget.firstName ?? ""} ${deactivateTarget.lastName ?? ""}`.trim();
+      setDeactivateTarget(null);
+      showToast(`${name} deactivated.`);
+    } catch (e) {
+      showToast(callError(e), "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const deleteUser = async (userId) => {
     if (!window.confirm("Delete this user permanently?")) return;
     await deleteDoc(doc(db, "users", userId));
-    setSelected((prev) => {
-      const n = new Set(prev);
-      n.delete(userId);
-      return n;
-    });
     showToast("User deleted.");
-  };
-
-  // ── Selection helpers ──────────────────────────────────────────────────
-  const toggleSelect = (id) => {
-    setSelected((prev) => {
-      const n = new Set(prev);
-      n.has(id) ? n.delete(id) : n.add(id);
-      return n;
-    });
-  };
-
-  const toggleSelectAll = () => {
-    if (selected.size === filtered.length) setSelected(new Set());
-    else setSelected(new Set(filtered.map((u) => u.id)));
-  };
-
-  // ── Batch: Mass Deactivate ─────────────────────────────────────────────
-  const handleMassDeactivate = async () => {
-    if (selected.size === 0) {
-      showToast("Select at least one user first.");
-      return;
-    }
-    if (!window.confirm(`Suspend ${selected.size} selected user(s)?`)) return;
-    await Promise.all(
-      [...selected].map((id) =>
-        updateDoc(doc(db, "users", id), { status: "SUSPENDED" }),
-      ),
-    );
-    setSelected(new Set());
-    showToast(`${selected.size} user(s) suspended.`);
   };
 
   // ── Download CSV ───────────────────────────────────────────────────────
@@ -241,6 +365,12 @@ export default function UserManagement() {
     );
   };
 
+  const handleReviewInactive = () => {
+    setStatusFilter("INACTIVE");
+    setSearch("");
+    setTimeout(() => tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+  };
+
   // ── Filter ─────────────────────────────────────────────────────────────
   const filtered = users.filter((u) => {
     const fullName = `${u.firstName ?? ""} ${u.lastName ?? ""}`.toLowerCase();
@@ -250,9 +380,14 @@ export default function UserManagement() {
       (u.idNumber ?? "").includes(s) ||
       (u.address ?? "").toLowerCase().includes(s);
     const matchesStatus =
-      statusFilter === "ALL" || (u.status ?? "PENDING") === statusFilter;
+      statusFilter === "ALL" ||
+      (statusFilter === "INACTIVE"
+        ? isInactiveEligible(u)
+        : (u.status ?? "PENDING") === statusFilter);
     return matchesSearch && matchesStatus;
   });
+  // Longest-inactive first when reviewing inactive accounts.
+  if (statusFilter === "INACTIVE") filtered.sort((a, b) => daysInactive(b) - daysInactive(a));
 
   // ── KPI counts ─────────────────────────────────────────────────────────
   const totalUsers = users.length;
@@ -260,12 +395,14 @@ export default function UserManagement() {
     (u) => (u.status ?? "PENDING") === "PENDING",
   ).length;
   const suspendedCount = users.filter((u) => u.status === "SUSPENDED").length;
+  const inactiveCount = users.filter(isInactiveEligible).length;
 
   const filterLabels = {
     ALL: "All Users",
     ACTIVE: "Active",
     PENDING: "Pending",
     SUSPENDED: "Suspended",
+    INACTIVE: `Inactive ${INACTIVITY_DAYS}+ days`,
   };
 
   return (
@@ -279,10 +416,22 @@ export default function UserManagement() {
         />
       )}
 
+      {deactivateTarget && (
+        <DeactivateModal
+          user={deactivateTarget}
+          busy={busy}
+          onClose={() => setDeactivateTarget(null)}
+          onConfirm={handleDeactivateConfirm}
+        />
+      )}
+      {resetTarget && (
+        <ResetPasswordModal user={resetTarget} onClose={() => setResetTarget(null)} />
+      )}
+
       {/* Toast Notification */}
       {toastMsg && (
         <div
-          className={`fixed top-6 right-6 z-9999 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-fade-in ${
+          className={`fixed top-6 right-6 z-[10001] text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-fade-in ${
             toastType === "error" ? "bg-red-600" : "bg-gray-900"
           }`}
         >
@@ -324,7 +473,7 @@ export default function UserManagement() {
       </div>
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
         <button
           onClick={() => setStatusFilter("ALL")}
           className={`bg-white rounded-2xl p-6 shadow-sm border flex items-center gap-4 text-left transition-all ${statusFilter === "ALL" ? "border-[#0f52ba] ring-2 ring-[#0f52ba]/20" : "border-gray-100 hover:border-blue-200"}`}
@@ -369,6 +518,20 @@ export default function UserManagement() {
             </h2>
           </div>
         </button>
+        <button
+          onClick={() => setStatusFilter("INACTIVE")}
+          className={`bg-white rounded-2xl p-6 shadow-sm border flex items-center gap-4 text-left transition-all ${statusFilter === "INACTIVE" ? "border-orange-400 ring-2 ring-orange-200" : "border-gray-100 hover:border-orange-200"}`}
+        >
+          <div className="bg-orange-50 p-4 rounded-xl text-orange-600">
+            <Clock size={24} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+              Inactive {INACTIVITY_DAYS}+ Days
+            </p>
+            <h2 className="text-3xl font-bold text-gray-900">{inactiveCount}</h2>
+          </div>
+        </button>
       </div>
 
       {/* Table */}
@@ -389,11 +552,6 @@ export default function UserManagement() {
                 <button onClick={() => setStatusFilter("ALL")}>
                   <X size={12} />
                 </button>
-              </span>
-            )}
-            {selected.size > 0 && (
-              <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                {selected.size} selected
               </span>
             )}
           </div>
@@ -434,16 +592,6 @@ export default function UserManagement() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-white border-b border-gray-100">
-                <th className="py-4 px-4 w-10">
-                  <input
-                    type="checkbox"
-                    checked={
-                      filtered.length > 0 && selected.size === filtered.length
-                    }
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded accent-[#0f52ba] cursor-pointer"
-                  />
-                </th>
                 <th className="py-4 px-6 text-xs font-bold text-gray-400 uppercase tracking-wider">
                   User
                 </th>
@@ -458,6 +606,9 @@ export default function UserManagement() {
                 </th>
                 <th className="py-4 px-6 text-xs font-bold text-gray-400 uppercase tracking-wider">
                   Registered
+                </th>
+                <th className="py-4 px-6 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                  Last Active
                 </th>
                 <th className="py-4 px-6 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">
                   Actions
@@ -498,7 +649,8 @@ export default function UserManagement() {
                     : timeAgo < 1440
                       ? `${Math.round(timeAgo / 60)}h ago`
                       : `${Math.round(timeAgo / 1440)}d ago`;
-                const isSelected = selected.has(user.id);
+                const inactiveDays = daysInactive(user);
+                const eligible = isInactiveEligible(user);
                 const isPending = user.status === "PENDING" || !user.status;
                 const fullName =
                   `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
@@ -506,16 +658,8 @@ export default function UserManagement() {
                 return (
                   <tr
                     key={user.id}
-                    className={`border-b border-gray-50 transition-colors ${isSelected ? "bg-blue-50/50" : "hover:bg-gray-50/50"}`}
+                    className="border-b border-gray-50 transition-colors hover:bg-gray-50/50"
                   >
-                    <td className="py-4 px-4">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(user.id)}
-                        className="w-4 h-4 rounded accent-[#0f52ba] cursor-pointer"
-                      />
-                    </td>
                     <td className="py-4 px-6">
                       <p className="font-bold text-gray-900 text-sm">
                         {user.firstName}{" "}
@@ -545,6 +689,12 @@ export default function UserManagement() {
                     <td className="py-4 px-6 text-sm text-gray-500">
                       {joined}
                     </td>
+                    <td className="py-4 px-6 text-sm">
+                      <p className="text-gray-600">{fmtDate(lastActivityMs(user))}</p>
+                      <p className={`text-xs font-semibold ${inactiveDays > INACTIVITY_DAYS ? "text-orange-600" : "text-gray-400"}`}>
+                        {inactiveDays === 0 ? "Today" : `${inactiveDays} day${inactiveDays === 1 ? "" : "s"} inactive`}
+                      </p>
+                    </td>
 
                     {/* ── Actions ── */}
                     <td className="py-4 px-6">
@@ -569,14 +719,19 @@ export default function UserManagement() {
                           </>
                         )}
 
-                        {/* ACTIVE: Suspend */}
+                        {/* ACTIVE: Deactivate (one at a time, only after 180+ inactive days) */}
                         {user.status === "ACTIVE" && (
                           <button
-                            title="Suspend user"
-                            onClick={() => setStatus(user.id, "SUSPENDED")}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 text-xs font-bold transition-colors border border-orange-200"
+                            title={eligible ? "Review and deactivate this inactive account" : `Only available after more than ${INACTIVITY_DAYS} days of inactivity (${Math.max(0, INACTIVITY_DAYS + 1 - inactiveDays)} to go)`}
+                            disabled={!eligible}
+                            onClick={() => setDeactivateTarget(user)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border ${
+                              eligible
+                                ? "bg-orange-50 hover:bg-orange-100 text-orange-600 border-orange-200"
+                                : "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
+                            }`}
                           >
-                            <Ban size={13} /> Suspend
+                            <Ban size={13} /> Deactivate
                           </button>
                         )}
 
@@ -584,12 +739,21 @@ export default function UserManagement() {
                         {user.status === "SUSPENDED" && (
                           <button
                             title="Reactivate user"
-                            onClick={() => setStatus(user.id, "ACTIVE")}
+                            onClick={() => handleReactivate(user.id)}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold transition-colors border border-blue-200"
                           >
                             <RotateCcw size={13} /> Reactivate
                           </button>
                         )}
+
+                        {/* Super Admin: reset password */}
+                        <button
+                          title="Reset password"
+                          onClick={() => setResetTarget(user)}
+                          className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-[#0f52ba] transition-colors"
+                        >
+                          <KeyRound size={16} />
+                        </button>
 
                         {/* Delete — always visible */}
                         <button
@@ -610,35 +774,34 @@ export default function UserManagement() {
       </div>
 
       {/* Bottom Widgets */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-[#f4f6fc] rounded-2xl p-6 border border-blue-50">
-          <h3 className="text-lg font-bold text-gray-900 mb-2">
-            Batch Operations
-          </h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Export</h3>
           <p className="text-sm text-gray-500 mb-6">
-            {selected.size > 0
-              ? `${selected.size} user(s) selected.`
-              : "Select users from the table above using checkboxes."}
+            Download the users currently shown in the table.
           </p>
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={handleDownloadCSV}
-              className="bg-white border border-[#0f52ba] text-[#0f52ba] px-4 py-2 rounded-full text-sm font-semibold hover:bg-blue-50 transition-colors shadow-sm flex items-center gap-2"
-            >
-              <Download size={15} /> Download CSV
-            </button>
-            <button
-              onClick={handleMassDeactivate}
-              className={`border px-4 py-2 rounded-full text-sm font-semibold transition-colors shadow-sm flex items-center gap-2 ${
-                selected.size > 0
-                  ? "bg-white border-red-500 text-red-600 hover:bg-red-50"
-                  : "bg-white border-gray-300 text-gray-400 cursor-not-allowed"
-              }`}
-            >
-              <Ban size={15} /> Mass Deactivate{" "}
-              {selected.size > 0 ? `(${selected.size})` : ""}
-            </button>
-          </div>
+          <button
+            onClick={handleDownloadCSV}
+            className="bg-white border border-[#0f52ba] text-[#0f52ba] px-4 py-2 rounded-full text-sm font-semibold hover:bg-blue-50 transition-colors shadow-sm flex items-center gap-2"
+          >
+            <Download size={15} /> Download CSV
+          </button>
+        </div>
+
+        <div className="bg-[#fff4ec] rounded-2xl p-6 border border-orange-100">
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Inactive Account Review</h3>
+          <p className="text-sm text-gray-600 font-medium mb-1">
+            {inactiveCount} account{inactiveCount !== 1 ? "s" : ""} inactive for more than {INACTIVITY_DAYS} days.
+          </p>
+          <p className="text-xs text-gray-500 mb-3">
+            Review each one and deactivate individually. Bulk deactivation is not available.
+          </p>
+          <button
+            onClick={handleReviewInactive}
+            className="text-orange-700 font-semibold text-sm flex items-center gap-1 hover:text-orange-800 transition-colors"
+          >
+            Review Inactive <ArrowRight size={16} />
+          </button>
         </div>
 
         <div className="bg-[#fff9ed] rounded-2xl p-6 border border-yellow-100">

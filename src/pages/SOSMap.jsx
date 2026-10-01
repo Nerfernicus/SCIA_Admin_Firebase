@@ -5,6 +5,7 @@ import {
 } from "firebase/firestore";
 import React, { useState, useEffect } from 'react';
 import { MapPin, Crosshair, CheckCircle2, AlertTriangle, Trash2, X, History, ChevronUp } from 'lucide-react';
+import { sameBarangay } from '../lib/barangay';
 import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -22,6 +23,33 @@ function MapController({ centerPosition }) {
   React.useEffect(() => {
     if (centerPosition) map.flyTo(centerPosition, 16, { duration: 1.5 });
   }, [centerPosition, map]);
+  return null;
+}
+
+// Shown on alerts that came from outside Valenzuela City (routed server-side by
+// functions/sosRouting.js) and on alerts raised from a different barangay than
+// the senior's registered one.
+function LocationNotice({ alert }) {
+  const pending = alert.status === 'pending';
+  if (alert.outsideCity) {
+    return (
+      <div className={`mt-2 rounded-xl p-2.5 text-xs ${pending ? 'bg-black/20 text-white' : 'bg-amber-50 border border-amber-200 text-amber-800'}`}>
+        <p className="font-bold">Outside Valenzuela{alert.city ? `: ${alert.city}` : ''}</p>
+        <p className="mt-0.5">
+          {alert.responderNote || "Coordinate with that area's barangay and call 911 / local emergency responders."}
+        </p>
+        {alert.homeBarangay && <p className="mt-0.5 opacity-80">Registered in Brgy. {alert.homeBarangay}</p>}
+        <a href="tel:911" className={`inline-block mt-1.5 font-bold underline ${pending ? 'text-white' : 'text-amber-900'}`}>Call 911</a>
+      </div>
+    );
+  }
+  if (alert.homeBarangay && !sameBarangay(alert.homeBarangay, alert.barangay)) {
+    return (
+      <p className={`mt-1 text-xs ${pending ? 'text-red-100' : 'text-gray-500'}`}>
+        Registered in Brgy. {alert.homeBarangay}; alert is from Brgy. {alert.barangay}.
+      </p>
+    );
+  }
   return null;
 }
 
@@ -198,6 +226,7 @@ function AlertsList({
 
               <div className={`text-sm mb-3 break-words ${alert.status === "pending" ? "text-red-100" : "text-gray-600"}`}>
                 <p>{alert.barangay}, {alert.address}</p>
+                <LocationNotice alert={alert} />
                 {isResolved && alert.resolvedAt && (
                   <p className="text-xs text-gray-400 mt-0.5">
                     Resolved {alert.resolvedAt?.toDate?.()?.toLocaleString?.() || 'N/A'}
@@ -257,7 +286,7 @@ export default function SOSMap() {
           _source: 'emergencies', // AFTER spread so it can't be overwritten
         }))
         // A barangay-scoped admin only sees SOS alerts from their own barangay
-        .filter(a => !myBarangay || a.barangay === myBarangay);
+        .filter(a => !myBarangay || sameBarangay(a.barangay, myBarangay) || sameBarangay(a.homeBarangay, myBarangay));
       setLiveAlerts(alerts);
     });
     return () => unsub();
@@ -403,6 +432,11 @@ export default function SOSMap() {
                       <p className="text-red-600 font-semibold text-sm">{alert.emergencyType}</p>
                       <p className="text-gray-600 text-sm">{alert.barangay}</p>
                       <p className="text-gray-500 text-xs">{alert.address}</p>
+                      {alert.outsideCity && (
+                        <p className="text-amber-700 text-xs font-semibold">
+                          Outside Valenzuela{alert.city ? `: ${alert.city}` : ''}. Coordinate with local responders (911).
+                        </p>
+                      )}
                       <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase mt-1 ${
                         alert.status === 'pending' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800'
                       }`}>{alert.status}</span>
@@ -494,3 +528,4 @@ export default function SOSMap() {
     </div>
   );
 }
+  

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Map, Megaphone, Users,
   Building2, LogOut, Crown, User2, CreditCard,
   PanelLeftClose, PanelLeftOpen, FileText, Contact,
-  QrCode, UserPlus, ClipboardCheck,
+  QrCode, UserPlus, ClipboardCheck, ShieldCheck,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -30,6 +30,7 @@ export default function Sidebar({ children }) {
     { key: 'ncscRegistrations', icon: ClipboardCheck, path: '/ncsc-registrations' },
     { key: 'digitalId',      icon: Contact,         path: '/digital-id' },
     { key: 'userManagement', icon: Users,           path: '/users' },
+    { key: 'adminAccounts',  icon: ShieldCheck,     path: '/admin-accounts' },
     { key: 'analytics',      icon: LayoutDashboard, path: '/analytics' },
     { key: 'announcements',  icon: Megaphone,       path: '/announcements' },
     { key: 'eventCheckIn', icon: QrCode, path: '/event-check-in' },

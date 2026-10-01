@@ -12,7 +12,7 @@
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
-const { locateBarangay, resolveBarangay } = require("./barangays");
+const { routeSos, outsideCityNote, barangayOfficePhones } = require("./sosRouting");
 const { sendSms, normalizePhNumber, SMS_API_KEY } = require("./sms");
 
 const MIN = 60 * 1000;
@@ -75,11 +75,14 @@ async function warn(ref, u, lastMs, now) {
   logger.info(`safety warning for ${ref.id}, push delivered: ${delivered}`);
 }
 
-async function barangayPhones(barangay) {
-  if (!barangay) return [];
-  const snap = await db().collection("admins")
-    .where("role", "==", "sub_admin").where("barangay", "==", barangay).get();
-  return snap.docs.map((d) => normalizePhNumber(d.data().phone)).filter(Boolean);
+// Guardian numbers for a senior. The current shape is users/{uid}.guardians =
+// [{ name, phone, relationship }]. Accounts created by the assisted sign-up
+// before that was unified only have the flat guardianPhone field, so it is
+// still read here as a fallback. Numbers are de-duplicated.
+function guardianPhonesOf(u) {
+  const fromList = (Array.isArray(u.guardians) ? u.guardians : []).map((g) => g && g.phone);
+  const legacy = u.guardianPhone ? [u.guardianPhone] : [];
+  return [...new Set([...fromList, ...legacy].map((p) => normalizePhNumber(p)).filter(Boolean))];
 }
 
 async function escalate(ref, u, lastMs, now, fromState) {
@@ -90,22 +93,26 @@ async function escalate(ref, u, lastMs, now, fromState) {
   const lat = loc && typeof loc.latitude === "number" ? loc.latitude : null;
   const lng = loc && typeof loc.longitude === "number" ? loc.longitude : null;
 
-  // Geofence: which barangay's office covers where they were last seen.
-  // Outside Valenzuela (or no location at all) falls back to their home barangay.
-  const geo = locateBarangay(lat, lng);
-  const home = resolveBarangay(u.barangay);
-  const barangay = geo.barangay || (home && home.name) || null;
-  const basis = geo.insideCity ? "last_location" : (lat !== null ? "outside_city_home_barangay" : "no_location_home_barangay");
+  // Which barangay office covers where they were last seen. Outside Valenzuela
+  // the home barangay office is told, flagged so it coordinates with the local
+  // barangay and 911 (see sosRouting.js).
+  const route = routeSos(lat, lng, u.barangay);
+  const barangay = route.barangay;
+  const basis = !route.hasLocation ? "no_location_home_barangay"
+    : route.outsideCity ? "outside_city_home_barangay" : "last_location";
 
   const fullName = [u.firstName, u.lastName].filter(Boolean).join(" ") || "A senior citizen";
   const mapLink = lat !== null ? ` Last seen ${fmtTime(loc.captured_at || lastMs)}: https://maps.google.com/?q=${lat},${lng}` : "";
-  const where = barangay ? ` Brgy. ${barangay}${geo.insideCity ? "" : " (home)"}.` : "";
+  const where = route.outsideCity
+    ? ` Last known location is outside Valenzuela (${route.city || "another city"}); home Brgy. ${barangay || "n/a"}.`
+    : (barangay ? ` Brgy. ${barangay}${route.hasLocation ? "" : " (home)"}.` : "");
+  const escalationNote = route.outsideCity ? " Please coordinate with that area's barangay and call 911." : "";
   const message =
     `SCIA URGENT: ${fullName} has had no phone activity for 60 min and did not confirm they are safe.` +
-    `${where}${mapLink} Contact: ${u.conNumber || "n/a"}. Please check on them.`;
+    `${where}${mapLink} Contact: ${u.conNumber || "n/a"}. Please check on them.${escalationNote}`;
 
-  const guardianPhones = (Array.isArray(u.guardians) ? u.guardians : []).map((g) => normalizePhNumber(g && g.phone)).filter(Boolean);
-  const officePhones = await barangayPhones(barangay);
+  const guardianPhones = guardianPhonesOf(u);
+  const officePhones = await barangayOfficePhones(barangay);
   const recipients = [...new Set([...guardianPhones, ...officePhones])];
 
   // Same SOS record a manual SOS creates, so the dashboard's SOS Map shows it too.
@@ -113,6 +120,10 @@ async function escalate(ref, u, lastMs, now, fromState) {
     await db().collection("emergencies").add({
       name: fullName, latitude: lat, longitude: lng,
       address: u.address || "", barangay: barangay || "",
+      homeBarangay: route.homeBarangay || "", outsideCity: route.outsideCity,
+      city: route.city || null, escalation: route.escalation,
+      ...(route.outsideCity ? { needsLocalResponders: true, responderNote: outsideCityNote(route.city) } : {}),
+      routedAt: admin.firestore.FieldValue.serverTimestamp(),
       uid: ref.id, status: "pending", type: "inactivity", source: "inactivity_monitor",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     }).catch((e) => logger.error("inactivity emergency doc failed:", e.message));

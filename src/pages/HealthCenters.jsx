@@ -9,8 +9,18 @@ import {
     collection, onSnapshot, query, orderBy, where, doc, updateDoc, addDoc, serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { RULES, sanitize, validate } from '../lib/validators';
 import { useAuth } from '../context/AuthContext';
 import { sameBarangay, barangayVariants, displayBarangay } from '../lib/barangay';
+
+// Name inputs (patient / prescriber) only accept letters, spaces and . ' -
+// Anything else is removed as it is typed and the form says why.
+const nameField = (setter, setError) => (raw) => {
+    const { value, rejected } = sanitize('name', raw);
+    setter(value);
+    setError(rejected ? RULES.name.hint : '');
+};
+
 
 // Oldest-last sort that tolerates a just-written doc whose server timestamp
 // hasn't resolved yet (treated as newest).
@@ -191,6 +201,8 @@ function AddAppointmentModal({ centerId, centerName, barangay, onClose }) {
 
     const handleSave = async () => {
         if (!patientName || !date) { setError('Patient name and date are required.'); return; }
+        const nameErr = validate('name', patientName);
+        if (nameErr) { setError(nameErr); return; }
         setSaving(true);
         try {
             await addDoc(collection(db, 'appointments'), {
@@ -214,7 +226,7 @@ function AddAppointmentModal({ centerId, centerName, barangay, onClose }) {
                 {error && <p className="text-xs text-red-500 mb-3 font-semibold">{error}</p>}
                 <div className="space-y-3">
                     {[
-                        { label: 'Patient Name', value: patientName, setter: setPatientName, placeholder: 'Full name' },
+                        { label: 'Patient Name', value: patientName, setter: nameField(setPatientName, setError), placeholder: 'Full name' },
                         { label: 'Date', value: date, setter: setDate, type: 'date' },
                         { label: 'Time', value: time, setter: setTime, type: 'time' },
                         { label: 'Reason', value: reason, setter: setReason, placeholder: 'e.g. General Consultation' },
@@ -253,6 +265,8 @@ function AddMedicationModal({ centerId, centerName, onClose }) {
 
     const handleSave = async () => {
         if (!patientName || !medicationName) { setError('Patient and medication name are required.'); return; }
+        const nameErr = validate('name', patientName) || validate('name', prescribedBy, { required: false });
+        if (nameErr) { setError(nameErr); return; }
         setSaving(true);
         try {
             await addDoc(collection(db, 'medications'), {
@@ -276,11 +290,11 @@ function AddMedicationModal({ centerId, centerName, onClose }) {
                 {error && <p className="text-xs text-red-500 mb-3 font-semibold">{error}</p>}
                 <div className="space-y-3">
                     {[
-                        { label: 'Patient Name', value: patientName, setter: setPatientName, placeholder: 'Full name' },
+                        { label: 'Patient Name', value: patientName, setter: nameField(setPatientName, setError), placeholder: 'Full name' },
                         { label: 'Medication Name', value: medicationName, setter: setMedicationName, placeholder: 'e.g. Amlodipine 5mg' },
                         { label: 'Dosage', value: dosage, setter: setDosage, placeholder: 'e.g. 1 tablet' },
                         { label: 'Frequency', value: frequency, setter: setFrequency, placeholder: 'e.g. Once daily' },
-                        { label: 'Prescribed By', value: prescribedBy, setter: setPrescribedBy, placeholder: 'Doctor name' },
+                        { label: 'Prescribed By', value: prescribedBy, setter: nameField(setPrescribedBy, setError), placeholder: 'Doctor name' },
                     ].map(({ label, value, setter, placeholder }) => (
                         <div key={label}>
                             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">{label}</label>

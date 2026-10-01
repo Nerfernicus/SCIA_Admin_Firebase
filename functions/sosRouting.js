@@ -39,7 +39,7 @@ const toNum = (v) => (isNum(v) ? v : (typeof v === "string" && v.trim() !== "" &
  *   escalation: "barangay"|"local_responders"
  * }}
  */
-function routeSos(lat, lng, homeBarangayRaw, currentHint) {
+function routeSos(lat, lng, homeBarangayRaw) {
   const home = resolveBarangay(homeBarangayRaw);
   const homeBarangay = home ? home.name : (String(homeBarangayRaw || "").trim() || null);
 
@@ -48,15 +48,9 @@ function routeSos(lat, lng, homeBarangayRaw, currentHint) {
   }
   const geo = locateBarangay(lat, lng);
   if (geo.insideCity) {
-    // The phone's reverse geocoder knows the real street/barangay; the nearest
-    // point in locateBarangay() is only a rough guess (wrong near borders, e.g.
-    // Lawang Bato showing as Polo). Trust the phone's answer when it named a real
-    // Valenzuela barangay, and flag the result as approximate when we had to guess.
-    const hinted = currentHint && currentHint.source === "geocoder" ? resolveBarangay(currentHint.barangay) : null;
-    if (hinted) {
-      return { hasLocation: true, outsideCity: false, city: "Valenzuela City", barangay: hinted.name, homeBarangay, barangayApproximate: false, escalation: "barangay" };
-    }
-    return { hasLocation: true, outsideCity: false, city: "Valenzuela City", barangay: geo.barangay, homeBarangay, barangayApproximate: true, escalation: "barangay" };
+    // Real boundary polygons decide the barangay (barangays.js -> barangayBoundaries.js).
+    // Only flag "approximate" when the point sat on a simplified edge, not inside a polygon.
+    return { hasLocation: true, outsideCity: false, city: "Valenzuela City", barangay: geo.barangay, homeBarangay, barangayApproximate: !geo.exact, escalation: "barangay" };
   }
   const place = locateCity(lat, lng);
   return { hasLocation: true, outsideCity: true, city: place.city, barangay: homeBarangay, homeBarangay, escalation: "local_responders" };
@@ -111,7 +105,7 @@ exports.onEmergencyCreated = onDocumentCreated(
       } catch (e) { logger.warn("onEmergencyCreated: user lookup failed:", e.message); }
     }
     const homeRaw = profile.barangay || d.homeBarangay || (d.barangaySource ? "" : d.barangay);
-    const route = routeSos(lat, lng, homeRaw, { barangay: d.barangay, source: d.barangaySource });
+    const route = routeSos(lat, lng, homeRaw);
 
     const update = {
       routedAt: admin.firestore.FieldValue.serverTimestamp(),

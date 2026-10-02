@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
-  Bell, Settings, X, Check, AlertTriangle, Megaphone,
+  Bell, Settings, X, Check, AlertTriangle, Megaphone, PackageCheck,
   ShieldCheck, Save, Loader2, Camera, Globe, Volume2,
   Moon, Mail, Menu
 } from 'lucide-react';
@@ -20,7 +20,7 @@ import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 
 // Notifications are assembled from other collections (emergencies, announcements,
 // released IDs), so "read" and "closed" are remembered per admin in this browser
 // rather than written to those documents.
-const NOTIF_LINKS = { sos: '/sos', announcement: '/announcements', id_release: '/id-management' };
+const NOTIF_LINKS = { sos: '/sos', announcement: '/announcements', id_release: '/id-management', id_received: '/id-management' };
 const NOTIF_STATE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 const notifKey = (n) => `${n.type}:${n.id}`;
 
@@ -126,6 +126,33 @@ function useNotifications(myBarangay) {
   return { notifs, loading, refresh };
 }
 
+// OSCA Super Admin only: live feed of physical-ID events reported by barangays
+// (ID received / claimed), written by the onIdRequestStatusChange Cloud Function
+// into /admin_notifications. One listener, real time, no polling.
+function useOscaIdNotifications(enabled) {
+  const [items, setItems] = useState([]);
+  useEffect(() => {
+    if (!enabled) { setItems([]); return undefined; }
+    const q = query(collection(db, 'admin_notifications'), orderBy('createdAt', 'desc'), limit(10));
+    const unsub = onSnapshot(
+      q,
+      (snap) => setItems(snap.docs.map((d) => {
+        const n = d.data();
+        return {
+          id: d.id,
+          type: 'id_received',
+          title: n.title || 'Physical ID update',
+          body: n.body || '',
+          time: n.createdAt?.toDate?.() || new Date(),
+        };
+      })),
+      (err) => console.warn('OSCA notification listener error:', err),
+    );
+    return () => unsub();
+  }, [enabled]);
+  return items;
+}
+
 function NotificationsPanel({ items, loading, isRead, onOpen, onMarkRead, onMarkAllRead, onCloseItem, onClose }) {
   const { t } = useLang();
   const { dark } = useTheme();
@@ -176,12 +203,14 @@ function NotificationsPanel({ items, loading, isRead, onOpen, onMarkRead, onMark
                   className="flex items-start gap-3 flex-1 min-w-0 text-left"
                 >
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                    n.type === 'sos' ? 'bg-red-100' : n.type === 'id_release' ? 'bg-green-100' : 'bg-blue-100'
+                    n.type === 'sos' ? 'bg-red-100' : n.type === 'id_release' ? 'bg-green-100' : n.type === 'id_received' ? 'bg-teal-100' : 'bg-blue-100'
                   }`}>
                     {n.type === 'sos'
                       ? <AlertTriangle size={14} className="text-red-500" />
                       : n.type === 'id_release'
                       ? <ShieldCheck size={14} className="text-green-600" />
+                      : n.type === 'id_received'
+                      ? <PackageCheck size={14} className="text-teal-600" />
                       : <Megaphone size={14} className="text-blue-500" />
                     }
                   </div>
@@ -490,7 +519,7 @@ function AdminProfileModal({ onClose }) {
 }
 
 export default function Header({ onMenuClick }) {
-  const { user, adminData } = useAuth();
+  const { user, adminData, isSuperAdmin } = useAuth();
   const { t } = useLang();
   const { dark } = useTheme();
   const [showNotifs,   setShowNotifs]   = useState(false);
@@ -502,9 +531,12 @@ export default function Header({ onMenuClick }) {
 
   const navigate = useNavigate();
   const { notifs, loading: notifsLoading, refresh: refreshNotifs } = useNotifications(adminData?.barangay || null);
+  const oscaIdNotifs = useOscaIdNotifications(!!isSuperAdmin);
   const notifState = useNotifState(user?.uid);
   const isRead = (n) => !!notifState.state.read[notifKey(n)];
-  const visibleNotifs = notifs.filter((n) => !notifState.state.closed[notifKey(n)]);
+  const visibleNotifs = [...oscaIdNotifs, ...notifs]
+    .sort((a, b) => b.time - a.time)
+    .filter((n) => !notifState.state.closed[notifKey(n)]);
   const unreadCount = visibleNotifs.filter((n) => !isRead(n)).length;
 
   // Opening a notification marks it read and goes to the related page.

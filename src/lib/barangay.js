@@ -62,7 +62,7 @@ const districtOfBarangay = (barangay) => resolveBarangay(barangay)?.district ?? 
 // row here (not to ALIASES above) if another barangay turns out to need one.
 // Keep in sync with `isGenT()` in firestore.rules.
 const SPELLING_GROUPS = [
-  ['General T. de Leon', 'Gen. T. de Leon', 'Gen T. de Leon', 'Hen. T. de Leon'],
+  ['General T. de Leon', 'General T de Leon', 'Gen. T. de Leon', 'Gen T. de Leon', 'Gen T de Leon', 'Hen. T. de Leon'],
 ];
 
 /** Canonical (admin-dashboard) spelling for any known spelling of a barangay. */

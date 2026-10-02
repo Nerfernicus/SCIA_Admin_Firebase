@@ -156,6 +156,11 @@ export default function DigitalID() {
   const [verifiedPending, setVerifiedPending] = useState([]);
   const [releasing, setReleasing] = useState(null);
 
+  // Verified seniors with no digital ID at all (e.g. verified some other way, or
+  // who haven't tapped "Claim" in the app). OSCA can issue theirs from here.
+  const [verifiedUsers, setVerifiedUsers] = useState([]);
+  const [issuing, setIssuing] = useState(null);
+
   useEffect(() => {
     const q = query(collection(db, 'digital_ids'), orderBy('releasedAt', 'desc'));
     return onSnapshot(q, snap => {
@@ -173,6 +178,14 @@ export default function DigitalID() {
       list.sort((a, b) => (b.reviewedAt?.toMillis?.() || 0) - (a.reviewedAt?.toMillis?.() || 0));
       setVerifiedPending(list);
     });
+  }, [isSuperAdmin]);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    const q = query(collection(db, 'users'), where('isVerified', '==', true));
+    return onSnapshot(q, snap => {
+      setVerifiedUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, err => console.warn('verified users listener error:', err));
   }, [isSuperAdmin]);
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 3500); }
@@ -193,6 +206,19 @@ export default function DigitalID() {
     }
   }
 
+  async function issueForUser(person) {
+    setIssuing(person.id);
+    try {
+      await httpsCallable(functions, 'issueDigitalId')({ uid: person.id });
+      showToast(`Digital ID issued to ${userName(person)}.`);
+    } catch (err) {
+      console.error(err);
+      showToast(err?.message || 'Could not issue the digital ID.');
+    } finally {
+      setIssuing(null);
+    }
+  }
+
   async function handleInvalidate(record) {
     if (!window.confirm(`${t.invalidateConfirm} ${record.fullName}? ${t.invalidateConfirmSuffix}`)) return;
     setInvalidating(record.id);
@@ -209,6 +235,15 @@ export default function DigitalID() {
   // Verified seniors who don't have a digital_ids doc yet (matched by uid)
   const readyToRelease = verifiedPending.filter(
     r => r.uid && !digitalIDs.some(d => d.id === r.uid)
+  );
+
+  const userName = (p) => p.fullName || [p.firstName, p.midName, p.lastName].filter(Boolean).join(' ') || 'Senior citizen';
+  // Only people who can actually be issued one: a real OSCA ID number, not already
+  // listed above for release, not deactivated.
+  const needsDigitalId = verifiedUsers.filter(p =>
+    !digitalIDs.some(d => d.id === p.id)
+    && !readyToRelease.some(r => r.uid === p.id)
+    && String(p.status || '').toUpperCase() !== 'SUSPENDED'
   );
 
   const filtered = digitalIDs.filter(r => {
@@ -325,6 +360,42 @@ export default function DigitalID() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {isSuperAdmin && needsDigitalId.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1">
+            Verified seniors without a digital ID ({needsDigitalId.length})
+          </h2>
+          <p className="text-xs text-gray-400 mb-3">
+            Seniors can also claim their own from the app's Settings. Issue one here to do it for them.
+          </p>
+          <div className="space-y-3">
+            {needsDigitalId.map(p => (
+              <div key={p.id} className="bg-white border border-gray-100 rounded-2xl p-5 flex items-center justify-between hover:border-blue-200 transition-colors">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
+                    <User2 size={18} className="text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 truncate">{userName(p)}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 truncate">
+                      {p.idNumber || 'No ID number'}{p.barangay ? ` · Brgy. ${p.barangay}` : ''}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => issueForUser(p)}
+                  disabled={issuing === p.id}
+                  className="flex items-center gap-2 bg-[#0a3d91] hover:bg-blue-800 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors shrink-0"
+                >
+                  {issuing === p.id ? <Loader2 size={13} className="animate-spin" /> : <CreditCard size={13} />}
+                  Issue Digital ID
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

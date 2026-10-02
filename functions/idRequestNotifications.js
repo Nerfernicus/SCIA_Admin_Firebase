@@ -42,6 +42,20 @@ const MESSAGES = {
   }),
 };
 
+// Which statuses notify the OSCA Super Admin (the master admin). These are the
+// two steps that happen out in the barangays, so without this OSCA never learns
+// that a printed ID reached its barangay or ended up in the senior's hands.
+const OSCA_MESSAGES = {
+  received: (r, who) => ({
+    title: "Physical ID received",
+    body: `${who} — Brgy. ${r.barangay || "n/a"} confirmed it received the ID from OSCA.`,
+  }),
+  done: (r, who) => ({
+    title: "Physical ID claimed",
+    body: `${who} — Brgy. ${r.barangay || "n/a"} marked the ID as claimed by the senior.`,
+  }),
+};
+
 exports.onIdRequestStatusChange = onDocumentUpdated(
   "id_requests/{requestId}",
   async (event) => {
@@ -49,12 +63,33 @@ exports.onIdRequestStatusChange = onDocumentUpdated(
     const after = event.data.after.data();
     if (!before || !after || before.status === after.status) return;
 
+    const requestId = event.params.requestId;
+    const db = getFirestore();
+
+    // In-app notification for the OSCA Super Admin (read in the dashboard bell).
+    // Deterministic doc ID => a retried event overwrites instead of duplicating.
+    const oscaBuild = OSCA_MESSAGES[after.status];
+    if (oscaBuild) {
+      const who = after.name || after.fullName || after.seniorName || "A senior citizen";
+      const { title, body } = oscaBuild(after, who);
+      await db.doc(`admin_notifications/${requestId}_${after.status}`).set({
+        audience: "super_admin",
+        type: "id_request_status",
+        requestId,
+        uid: after.uid || null,
+        status: after.status,
+        barangay: after.barangay || null,
+        title,
+        body,
+        read: false,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+
     const build = MESSAGES[after.status];
     if (!build || !after.uid) return;
 
     const { title, body } = build(after);
-    const requestId = event.params.requestId;
-    const db = getFirestore();
 
     // Deterministic doc ID => if the function is retried, it overwrites
     // instead of creating a duplicate notification.

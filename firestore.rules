@@ -34,21 +34,39 @@ service cloud.firestore {
         : null;
     }
 
-    function canSeeBarangay(bgy) {
-      return isSuperAdmin()
-        || (adminRole() == 'sub_admin' && (bgy == null || myBarangay() == null || myBarangay() == bgy));
-    }
-
     // Barangay names are spelled two ways for Gen. T. de Leon (the mobile
     // sign-up list vs. the admin dashboard). Keep in sync with GEN_T in
     // src/lib/barangay.js.
     function isGenT(b) {
-      return b in ['General T. de Leon', 'Gen. T. de Leon', 'Gen T. de Leon', 'Hen. T. de Leon'];
+      return b is string
+        && b.lower() in ['general t. de leon', 'general t de leon', 'gen. t. de leon',
+                         'gen t. de leon', 'gen t de leon', 'hen. t. de leon'];
     }
 
     function sameBarangay(a, b) {
       return a is string && b is string && a != '' && b != ''
         && (a.lower() == b.lower() || (isGenT(a) && isGenT(b)));
+    }
+
+    // Which records a barangay sub_admin may see / act on. Uses sameBarangay()
+    // so "General T. de Leon" (dashboard) and "Gen. T. de Leon" (mobile app)
+    // count as the same barangay. This used to compare strings exactly, which
+    // is why the Gen. T. de Leon sub_admin could see SOS alerts (the dashboard
+    // filters with the alias-aware helper) but was denied when dispatching.
+    function canSeeBarangay(bgy) {
+      return isSuperAdmin()
+        || (adminRole() == 'sub_admin'
+            && (bgy == null || myBarangay() == null || myBarangay() == ''
+                || sameBarangay(myBarangay(), bgy)));
+    }
+
+    // SOS alerts: an alert from outside Valenzuela is routed to the senior's
+    // HOME barangay (see functions/sosRouting.js) and the dashboard lists it
+    // for that office, so that office must be able to dispatch it too.
+    function canHandleSos(data) {
+      return canSeeBarangay(data.get('barangay', null))
+        || (adminRole() == 'sub_admin'
+            && sameBarangay(myBarangay(), data.get('homeBarangay', null)));
     }
 
     // Who may work with a record that belongs to barangay `bgy`:
@@ -109,7 +127,8 @@ service cloud.firestore {
             || (request.auth.uid == userId
                 && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
                      'isVerified', 'status', 'idNumber', 'hasTempId', 'role',
-                     'verifiedAt', 'previousIdNumber', 'tempIdReplacedAt'])));
+                     'verifiedAt', 'previousIdNumber', 'tempIdReplacedAt',
+                     'safety_alert'])));
 
       allow delete: if isSuperAdmin();
     }
@@ -164,6 +183,16 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
+    // ── /admin_notifications ─────────────────────────────────────────────
+    // Written by Cloud Functions (e.g. a physical ID was received / claimed).
+    // Only the OSCA Super Admin reads them and may flip `read`.
+    match /admin_notifications/{notificationId} {
+      allow read: if isSuperAdmin();
+      allow update: if isSuperAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow create, delete: if false;
+    }
+
     // ── /emergencies ─────────────────────────────────────────────────────
     match /emergencies/{docId} {
       allow create: if request.auth != null;
@@ -171,7 +200,7 @@ service cloud.firestore {
       allow read: if request.auth != null
         && (isOwner() || isSubOrSuperAdmin());
 
-      allow update: if isSubOrSuperAdmin() && canSeeBarangay(resource.data.get('barangay', null));
+      allow update: if isSubOrSuperAdmin() && canHandleSos(resource.data);
 
       allow delete: if isSuperAdmin();
     }
@@ -296,13 +325,46 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    // ── /digital_id_requests ─────────────────────────────────────────────
+    // The senior's "Claim" tap in the app. A senior may only (re)raise their
+    // own request (status 'requested'); the onDigitalIdRequested Cloud Function
+    // checks they are verified, creates digital_ids/{uid} and writes the result
+    // (status 'issued' / 'denied' + message) back here.
+    match /digital_id_requests/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isSuperAdmin());
+
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.status == 'requested'
+        && request.resource.data.keys().hasOnly(['uid', 'status', 'requestedAt']);
+
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.status == 'requested'
+        && resource.data.status in ['requested', 'denied', 'issued']
+        && request.resource.data.keys().hasOnly(['uid', 'status', 'requestedAt', 'code', 'message', 'processedAt']);
+
+      allow delete: if false;
+    }
+
     // ── /sos_events (legacy) ─────────────────────────────────────────────
     match /sos_events/{docId} {
       allow create: if request.auth != null;
       allow read: if request.auth != null
         && (isOwner() || isSubOrSuperAdmin());
-      allow update: if isSubOrSuperAdmin() && canSeeBarangay(resource.data.get('barangay', null));
+      allow update: if isSubOrSuperAdmin() && canHandleSos(resource.data);
       allow delete: if isSuperAdmin();
+    }
+
+    // ── /inactivity_alerts ───────────────────────────────────────────────
+    // Audit trail written only by the monitorInactivity Cloud Function
+    // (Admin SDK bypasses rules). Admins can read; nobody can write from a client.
+    match /inactivity_alerts/{docId} {
+      allow read: if isSubOrSuperAdmin()
+        && canSeeBarangay(resource.data.get('barangay', null));
+      allow write: if false;
     }
 
     // ── /ncsc_registrations ──────────────────────────────────────────────

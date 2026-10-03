@@ -181,7 +181,7 @@ export default function AssistedSignup() {
 
     setSubmitting(true);
     try {
-      const ncscStatus = ['started', 'cancelled', 'completed_claimed'].includes(ncscAnswer)
+      const ncscStatus = ['started', 'cancelled', 'completed_claimed', 'registered'].includes(ncscAnswer)
         ? ncscAnswer
         : null;
       const res = await createAssistedSeniorAccount({

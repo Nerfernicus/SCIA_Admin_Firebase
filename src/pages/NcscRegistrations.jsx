@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  collection, doc, onSnapshot, query, serverTimestamp, updateDoc, where,
+  collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, updateDoc, where,
 } from 'firebase/firestore';
-import { ClipboardCheck, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { ClipboardCheck, CheckCircle2, XCircle, Loader2, Trash2 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'completed_claimed', label: 'Needs review' },
+  { key: 'already', label: 'Already registered' },
   { key: 'started', label: 'Started' },
   { key: 'verified', label: 'Verified' },
   { key: 'rejected', label: 'Rejected' },
@@ -36,6 +37,9 @@ const SOURCE = {
   assisted_signup: 'Assisted sign-up',
 };
 
+// 'already' is not a status: it is the seniors who answered "Yes, I'm registered"
+const matches = (r, key) => (key === 'all' ? true : key === 'already' ? !!r.alreadyRegistered : r.status === key);
+
 const fmt = (ts) => ts?.toDate?.()?.toLocaleString?.() || '-';
 
 export default function NcscRegistrations() {
@@ -46,6 +50,7 @@ export default function NcscRegistrations() {
   const [filter, setFilter] = useState('all');
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState('');
+  const [toDelete, setToDelete] = useState(null); // one record at a time, never a batch
 
   useEffect(() => {
     if (!adminData) return undefined;
@@ -68,7 +73,7 @@ export default function NcscRegistrations() {
   }, [adminData, isSuperAdmin, myBarangay]);
 
   const visible = useMemo(
-    () => (filter === 'all' ? rows : rows.filter((r) => r.status === filter)),
+    () => rows.filter((r) => matches(r, filter)),
     [rows, filter],
   );
 
@@ -88,6 +93,22 @@ export default function NcscRegistrations() {
     }
   };
 
+  // Single delete only. firestore.rules lets only the master admin delete.
+  const confirmDelete = async () => {
+    if (!toDelete) return;
+    const row = toDelete;
+    setBusyId(row.id);
+    try {
+      await deleteDoc(doc(db, 'ncsc_registrations', row.id));
+      setToDelete(null);
+    } catch (e) {
+      setError(e.message);
+      setToDelete(null);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-8 max-w-6xl mx-auto font-sans">
       <div className="mb-6">
@@ -95,8 +116,9 @@ export default function NcscRegistrations() {
           <ClipboardCheck size={22} className="text-[#0f52ba]" /> NCSC Registrations
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Seniors who were sent to the NCSC Senior Citizens Data Form. Verify a record only after
-          you have confirmed the registration on NCSC.
+          Seniors who were sent to the NCSC Senior Citizens Data Form, and seniors who said they are
+          already registered (their ID number is shown under their name). Verify a record only after
+          you have checked the registration on NCSC yourself.
           {myBarangay && !isSuperAdmin && ` Showing Brgy. ${myBarangay} only.`}
         </p>
       </div>
@@ -115,7 +137,7 @@ export default function NcscRegistrations() {
             {f.label}
             {f.key !== 'all' && (
               <span className="ml-1 opacity-70">
-                ({rows.filter((r) => r.status === f.key).length})
+                ({rows.filter((r) => matches(r, f.key)).length})
               </span>
             )}
           </button>
@@ -166,8 +188,9 @@ export default function NcscRegistrations() {
                 <td className="px-4 py-3">{fmt(r.startedAt)}</td>
                 <td className="px-4 py-3">{fmt(r.updatedAt)}</td>
                 <td className="px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
                   {r.status === 'completed_claimed' ? (
-                    <div className="flex gap-2">
+                    <>
                       <button
                         disabled={busyId === r.id}
                         onClick={() => review(r, 'verified')}
@@ -183,16 +206,56 @@ export default function NcscRegistrations() {
                       >
                         <XCircle size={13} /> Reject
                       </button>
-                    </div>
+                    </>
                   ) : (
                     <span className="text-gray-300">-</span>
                   )}
+                  {isSuperAdmin && (
+                    <button
+                      disabled={busyId === r.id}
+                      onClick={() => setToDelete(r)}
+                      title="Delete this record"
+                      className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {toDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">Delete this record?</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              <span className="font-semibold">{toDelete.fullName || 'Unknown'}</span>
+              {toDelete.idNumber ? ` (OSCA ID ${toDelete.idNumber})` : ''} will be removed from NCSC
+              Registrations. This cannot be undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setToDelete(null)}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={busyId === toDelete.id}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-sm font-bold text-white flex items-center gap-1 disabled:opacity-50"
+              >
+                {busyId === toDelete.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { httpsCallable } from 'firebase/functions';
-import { UserPlus, Loader2, CheckCircle2, Copy, AlertCircle, ExternalLink, Camera, Clock } from 'lucide-react';
+import { UserPlus, Loader2, CheckCircle2, Copy, AlertCircle, ExternalLink, Clock } from 'lucide-react';
 import { functions } from '../lib/firebase';
 import { createAssistedSeniorAccountWithSession } from '../lib/assistedKiosk';
 import { useAuth } from '../context/AuthContext';
@@ -120,11 +120,11 @@ export default function AssistedSignup({ kiosk = null }) {
   // otherwise the progress of registering them now: started | cancelled | completed_claimed
   const [ncscAnswer, setNcscAnswer] = useState(null);
   // Only used when the senior says they already hold a physical OSCA ID:
-  // 'now' = photograph the card at the desk, 'later' = they didn't bring it and
-  // will send a photo from the app at home. idPhoto = raw base64 JPEG.
-  const [idPhotoChoice, setIdPhotoChoice] = useState(null);
+  // idPhoto = raw base64 JPEG of the card (taken with the camera or chosen from
+  // files); idPhotoLater = they didn't bring it and will send a photo from the app.
   const [idPhoto, setIdPhoto] = useState('');
-  const resetIdPhoto = () => { setIdPhotoChoice(null); setIdPhoto(''); };
+  const [idPhotoLater, setIdPhotoLater] = useState(false);
+  const resetIdPhoto = () => { setIdPhoto(''); setIdPhotoLater(false); };
 
   const update = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
   const clearErr = (...fields) =>
@@ -189,12 +189,8 @@ export default function AssistedSignup({ kiosk = null }) {
       setError('OSCA ID Number is required for a senior who is already registered.');
       return;
     }
-    if (ncscAnswer === 'registered' && idPhotoChoice === null) {
-      setError("Choose whether to take a photo of the senior's OSCA ID now or have them send it later.");
-      return;
-    }
-    if (ncscAnswer === 'registered' && idPhotoChoice === 'now' && !idPhoto) {
-      setError("Take a photo of the senior's OSCA ID first, or choose \"Didn't bring it\".");
+    if (ncscAnswer === 'registered' && !idPhoto && !idPhotoLater) {
+      setError("Add a photo of the senior's OSCA ID, or choose that they didn't bring it and will send it from home.");
       return;
     }
 
@@ -216,8 +212,8 @@ export default function AssistedSignup({ kiosk = null }) {
         guardianPhone: form.guardianPhone.trim(),
         guardianRelation: form.guardianRelation.trim(),
         ncscStatus,
-        ...(ncscAnswer === 'registered' && idPhotoChoice === 'now' ? { idPhotoBase64: idPhoto } : {}),
-        ...(ncscAnswer === 'registered' && idPhotoChoice === 'later' ? { idPhotoLater: true } : {}),
+        ...(ncscAnswer === 'registered' && idPhoto ? { idPhotoBase64: idPhoto } : {}),
+        ...(ncscAnswer === 'registered' && !idPhoto && idPhotoLater ? { idPhotoLater: true } : {}),
       });
       setResult(res.data);
       setForm(EMPTY_FORM);
@@ -352,37 +348,9 @@ export default function AssistedSignup({ kiosk = null }) {
             )}
 
             {ncscAnswer === 'registered' && (
-              <div className="space-y-3">
-                <p className="text-sm text-gray-600">
-                  Enter the senior's OSCA ID Number below. It is required. Then photograph the physical card.
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => { setIdPhotoChoice('now'); setIdPhoto(''); }}
-                    className={`py-2.5 px-3 rounded-xl border-2 text-sm font-bold transition-colors flex items-center justify-center gap-2 ${idPhotoChoice === 'now' ? CHOICE_ON : CHOICE_OFF}`}
-                  >
-                    <Camera size={16} /> Take a photo of the ID now
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setIdPhotoChoice('later'); setIdPhoto(''); }}
-                    className={`py-2.5 px-3 rounded-xl border-2 text-sm font-bold transition-colors ${idPhotoChoice === 'later' ? CHOICE_ON : CHOICE_OFF}`}
-                  >
-                    Didn&apos;t bring it, will send it from home
-                  </button>
-                </div>
-
-                {idPhotoChoice === 'now' && <IdCardCapture value={idPhoto} onChange={setIdPhoto} />}
-
-                {idPhotoChoice === 'later' && (
-                  <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
-                    The account will still be created, but it stays <b>not verified</b> until the senior sends a
-                    photo of the physical ID from the app and OSCA approves it.
-                  </p>
-                )}
-              </div>
+              <p className="text-sm text-gray-600">
+                Enter the senior's OSCA ID Number and add a photo of the physical ID under Account Details below.
+              </p>
             )}
 
             {(ncscAnswer === 'none' || ncscAnswer === 'cancelled') && (
@@ -590,6 +558,18 @@ export default function AssistedSignup({ kiosk = null }) {
                   : "Leave blank if they don't have one yet. A temporary ID will be assigned."}
               </p>
             </div>
+
+            {ncscAnswer === 'registered' && (
+              <div>
+                <label className={LABEL_CLS}>Senior Citizen ID Photo *</label>
+                <IdCardCapture
+                  value={idPhoto}
+                  onChange={setIdPhoto}
+                  later={idPhotoLater}
+                  onLaterChange={setIdPhotoLater}
+                />
+              </div>
+            )}
           </Section>
 
           <button

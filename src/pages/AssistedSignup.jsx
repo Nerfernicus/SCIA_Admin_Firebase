@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { httpsCallable } from 'firebase/functions';
-import { UserPlus, Loader2, CheckCircle2, Copy, AlertCircle, ExternalLink } from 'lucide-react';
+import { UserPlus, Loader2, CheckCircle2, Copy, AlertCircle, ExternalLink, Camera, Clock } from 'lucide-react';
 import { functions } from '../lib/firebase';
 import { createAssistedSeniorAccountWithSession } from '../lib/assistedKiosk';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import { DISTRICTS, barangaysOf, resolveBarangay } from '../lib/barangay';
+import IdCardCapture from '../components/IdCardCapture';
 import { RULES, sanitize, validate, validateGender, validateDob, validateOption } from '../lib/validators';
 
 const createAssistedSeniorAccount = httpsCallable(functions, 'createAssistedSeniorAccount');
@@ -118,6 +119,12 @@ export default function AssistedSignup({ kiosk = null }) {
   // null = not asked yet, 'registered' = already registered with NCSC,
   // otherwise the progress of registering them now: started | cancelled | completed_claimed
   const [ncscAnswer, setNcscAnswer] = useState(null);
+  // Only used when the senior says they already hold a physical OSCA ID:
+  // 'now' = photograph the card at the desk, 'later' = they didn't bring it and
+  // will send a photo from the app at home. idPhoto = raw base64 JPEG.
+  const [idPhotoChoice, setIdPhotoChoice] = useState(null);
+  const [idPhoto, setIdPhoto] = useState('');
+  const resetIdPhoto = () => { setIdPhotoChoice(null); setIdPhoto(''); };
 
   const update = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
   const clearErr = (...fields) =>
@@ -182,6 +189,14 @@ export default function AssistedSignup({ kiosk = null }) {
       setError('OSCA ID Number is required for a senior who is already registered.');
       return;
     }
+    if (ncscAnswer === 'registered' && idPhotoChoice === null) {
+      setError("Choose whether to take a photo of the senior's OSCA ID now or have them send it later.");
+      return;
+    }
+    if (ncscAnswer === 'registered' && idPhotoChoice === 'now' && !idPhoto) {
+      setError("Take a photo of the senior's OSCA ID first, or choose \"Didn't bring it\".");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -201,10 +216,13 @@ export default function AssistedSignup({ kiosk = null }) {
         guardianPhone: form.guardianPhone.trim(),
         guardianRelation: form.guardianRelation.trim(),
         ncscStatus,
+        ...(ncscAnswer === 'registered' && idPhotoChoice === 'now' ? { idPhotoBase64: idPhoto } : {}),
+        ...(ncscAnswer === 'registered' && idPhotoChoice === 'later' ? { idPhotoLater: true } : {}),
       });
       setResult(res.data);
       setForm(EMPTY_FORM);
       setNcscAnswer(null);
+      resetIdPhoto();
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to create the account. Please try again.');
@@ -245,6 +263,34 @@ export default function AssistedSignup({ kiosk = null }) {
             Write these down for the senior, or copy them to include in a printed slip. This is the
             only time this password will be shown.
           </p>
+
+          {result.idPhoto === 'submitted' && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-4 text-left flex items-start gap-2">
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-emerald-800">
+                The photo of the OSCA ID was sent to OSCA. The account becomes verified once OSCA approves it.
+              </p>
+            </div>
+          )}
+          {result.idPhoto === 'later' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-left flex items-start gap-2">
+              <Clock size={16} className="text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-800">
+                <b>Not verified yet.</b> Tell the senior to open the app at home, go to Account &gt; Verify My
+                OSCA ID, and send a photo of the physical ID (the ID number is already filled in). The account
+                is verified after OSCA approves it.
+              </p>
+            </div>
+          )}
+          {result.idPhoto === 'failed' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-left flex items-start gap-2">
+              <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-800">
+                The account was created, but the ID photo could not be saved. Ask the senior to send it from the
+                app (Account &gt; Verify My OSCA ID).
+              </p>
+            </div>
+          )}
 
           <div className="bg-gray-50 rounded-2xl border border-gray-100 p-5 text-left mb-6 space-y-3">
             <div>
@@ -306,9 +352,37 @@ export default function AssistedSignup({ kiosk = null }) {
             )}
 
             {ncscAnswer === 'registered' && (
-              <p className="text-sm text-gray-600">
-                Enter the senior's OSCA ID Number below. It is required.
-              </p>
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  Enter the senior's OSCA ID Number below. It is required. Then photograph the physical card.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setIdPhotoChoice('now'); setIdPhoto(''); }}
+                    className={`py-2.5 px-3 rounded-xl border-2 text-sm font-bold transition-colors flex items-center justify-center gap-2 ${idPhotoChoice === 'now' ? CHOICE_ON : CHOICE_OFF}`}
+                  >
+                    <Camera size={16} /> Take a photo of the ID now
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setIdPhotoChoice('later'); setIdPhoto(''); }}
+                    className={`py-2.5 px-3 rounded-xl border-2 text-sm font-bold transition-colors ${idPhotoChoice === 'later' ? CHOICE_ON : CHOICE_OFF}`}
+                  >
+                    Didn&apos;t bring it, will send it from home
+                  </button>
+                </div>
+
+                {idPhotoChoice === 'now' && <IdCardCapture value={idPhoto} onChange={setIdPhoto} />}
+
+                {idPhotoChoice === 'later' && (
+                  <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    The account will still be created, but it stays <b>not verified</b> until the senior sends a
+                    photo of the physical ID from the app and OSCA approves it.
+                  </p>
+                )}
+              </div>
             )}
 
             {(ncscAnswer === 'none' || ncscAnswer === 'cancelled') && (
@@ -368,7 +442,7 @@ export default function AssistedSignup({ kiosk = null }) {
             {ncscAnswer !== null && (
               <button
                 type="button"
-                onClick={() => setNcscAnswer(null)}
+                onClick={() => { setNcscAnswer(null); resetIdPhoto(); }}
                 className="text-xs text-gray-500 underline"
               >
                 Change answer

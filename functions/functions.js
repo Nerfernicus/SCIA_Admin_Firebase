@@ -165,6 +165,7 @@ async function createAssistedAccountCore({ data, callerUid, callerRole, callerBa
     firstName, midName, lastName, street, conNumber, gender, dob, idNumber,
     barangay: submittedBarangay, ncscStatus,
     guardianName, guardianPhone, guardianRelation,
+    idPhotoBase64, idPhotoLater,
   } = data || {};
   const clean = (v) => String(v || "").trim().replace(/\s+/g, " ");
   const first = clean(firstName);
@@ -233,6 +234,28 @@ async function createAssistedAccountCore({ data, callerUid, callerRole, callerBa
   if (ncscStatus === "registered" && effectiveIdNumber.startsWith("TEMP")) {
     throw new HttpsError("invalid-argument", "An OSCA ID number is required for a senior who is already registered.");
   }
+
+  // A senior who says they already have a physical OSCA ID must either have the
+  // card photographed now (it goes to OSCA's verification queue) or promise to
+  // send the photo from the app later (the account then stays unverified).
+  // Checked before anything is created so a bad request leaves no orphan account.
+  let idPhoto = null;
+  let idPhotoMode = null; // "now" | "later"
+  if (ncscStatus === "registered") {
+    if (idPhotoBase64) {
+      idPhoto = String(idPhotoBase64).replace(/^data:image\/jpeg;base64,/, "");
+      // Same ceiling as the mobile app (lib/idImage.ts); a Firestore doc is capped at 1 MiB.
+      if (idPhoto.length > 700000 || !/^[A-Za-z0-9+/=]+$/.test(idPhoto) || !idPhoto.startsWith("/9j/")) {
+        throw new HttpsError("invalid-argument", "The ID photo is not a valid, small enough JPEG. Please retake it.");
+      }
+      idPhotoMode = "now";
+    } else if (idPhotoLater === true) {
+      idPhotoMode = "later";
+    } else {
+      throw new HttpsError("invalid-argument", "Take a photo of the senior's OSCA ID, or choose that they will send it later from the app.");
+    }
+  }
+
   const email = idToEmail(effectiveIdNumber);
   const tempPassword = generateTempPassword();
 
@@ -299,8 +322,37 @@ async function createAssistedAccountCore({ data, callerUid, callerRole, callerBa
     }
   }
 
+  // Photo of the physical card taken at the desk: queue it on OSCA's ID Management
+  // page exactly like the app's sign-up / "Verify My OSCA ID" does. The account stays
+  // PENDING / not verified until OSCA approves it. With "later" nothing is queued
+  // and the account stays unverified until the senior sends the photo from the app.
+  let idPhotoResult = idPhotoMode === "later" ? "later" : null;
+  if (idPhotoMode === "now") {
+    try {
+      await db.collection("id_verifications").add({
+        uid,
+        idNumber: effectiveIdNumber,
+        imageBase64: idPhoto,
+        fullName: `${first} ${mid} ${last}`,
+        barangay: effectiveBarangay,
+        address, dob,
+        sex: gender,
+        contactNumber: phone,
+        status: "pending",
+        submittedAt: now,
+        source: "assisted_signup",
+        submittedByAdminUid: callerUid,
+      });
+      idPhotoResult = "submitted";
+    } catch (err) {
+      // The account exists already; the senior can still send the photo from the app.
+      logger.error("createAssistedSeniorAccount id photo write failed:", err.message);
+      idPhotoResult = "failed";
+    }
+  }
+
   // The ONLY time the temp password is ever visible — it is never stored.
-  return { uid, idNumber: effectiveIdNumber, tempPassword, ncscRecorded };
+  return { uid, idNumber: effectiveIdNumber, tempPassword, ncscRecorded, idPhoto: idPhotoResult };
 }
 
 exports.createAssistedSeniorAccount = onCall(

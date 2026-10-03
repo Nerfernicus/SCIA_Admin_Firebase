@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { UserPlus, Loader2, CheckCircle2, Copy, AlertCircle, ExternalLink } from 'lucide-react';
 import { functions } from '../lib/firebase';
+import { createAssistedSeniorAccountWithSession } from '../lib/assistedKiosk';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import { DISTRICTS, barangaysOf, resolveBarangay } from '../lib/barangay';
@@ -97,13 +98,16 @@ function DobSelect({ value, onChange }) {
   );
 }
 
-export default function AssistedSignup() {
+// `kiosk` is set when this form runs in the separate sign-up tab where the admin
+// is already logged out: { token, lockedBarangay }. The token (not a login) is
+// what lets the server record the sign-up under the admin who started it.
+export default function AssistedSignup({ kiosk = null }) {
   const { adminData, isSuperAdmin } = useAuth();
   const { t } = useLang();
-  const myBarangay = adminData?.barangay || null;
+  const myBarangay = kiosk ? (kiosk.lockedBarangay || null) : (adminData?.barangay || null);
   // A barangay-scoped sub-admin can only register seniors in their own barangay
   // (the server enforces this too), so district + barangay are fixed for them.
-  const locked = myBarangay && !isSuperAdmin ? resolveBarangay(myBarangay) : null;
+  const locked = myBarangay && (kiosk || !isSuperAdmin) ? resolveBarangay(myBarangay) : null;
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
@@ -184,7 +188,10 @@ export default function AssistedSignup() {
       const ncscStatus = ['started', 'cancelled', 'completed_claimed', 'registered'].includes(ncscAnswer)
         ? ncscAnswer
         : null;
-      const res = await createAssistedSeniorAccount({
+      const submit = kiosk
+        ? (payload) => createAssistedSeniorAccountWithSession({ ...payload, sessionToken: kiosk.token })
+        : createAssistedSeniorAccount;
+      const res = await submit({
         ...form,
         block: form.block.trim(),
         street: form.street.trim(),
@@ -224,7 +231,7 @@ export default function AssistedSignup() {
         <p className="text-sm text-gray-500 mt-1">
           For seniors visiting in person without a phone or tech familiarity. Fill this in on their
           behalf and give them the printed credentials below to log into the app later.
-          {myBarangay && !isSuperAdmin && ` This account will be registered under Brgy. ${myBarangay}.`}
+          {myBarangay && (kiosk || !isSuperAdmin) && ` This account will be registered under Brgy. ${myBarangay}.`}
         </p>
       </div>
 

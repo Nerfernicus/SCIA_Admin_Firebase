@@ -156,6 +156,153 @@ function generateTempPassword() {
 // NCSC Registrations page. verified / rejected stay reserved for that review.
 const NCSC_ALLOWED = ["started", "cancelled", "completed_claimed", "registered"];
 
+// Everything that actually validates and creates an assisted senior account.
+// Shared by the signed-in admin callable and by the kiosk-session callable
+// (the sign-up tab that stays usable after the admin has logged out).
+// `caller*` always describes the ADMIN the sign-up is recorded under.
+async function createAssistedAccountCore({ data, callerUid, callerRole, callerBarangay }) {
+  const {
+    firstName, midName, lastName, street, conNumber, gender, dob, idNumber,
+    barangay: submittedBarangay, ncscStatus,
+    guardianName, guardianPhone, guardianRelation,
+  } = data || {};
+  const clean = (v) => String(v || "").trim().replace(/\s+/g, " ");
+  const first = clean(firstName);
+  const mid = clean(midName);
+  const last = clean(lastName);
+  const streetClean = clean(street);
+  const phone = clean(conNumber);
+  const guardianNameClean = clean(guardianName);
+  const guardianPhoneClean = clean(guardianPhone);
+
+  if (!first || !mid || !last || !streetClean || !phone || !gender || !dob) {
+    throw new HttpsError("invalid-argument", "Please fill in all required fields.");
+  }
+  // Same character rules as the admin form (src/lib/validators.js), enforced
+  // again here so a hand-made request cannot store bad data.
+  const NAME_OK = /^\p{L}[\p{L}\p{M}\s.'-]{0,49}$/u;
+  const ADDR_OK = /^[\p{L}\p{N}][\p{L}\p{N}\s.,#'/-]{0,79}$/u;
+  const PH_OK = /^(09\d{9}|\+639\d{9})$/;
+  if (![first, mid, last].every((n) => NAME_OK.test(n))) {
+    throw new HttpsError("invalid-argument", "Names may only contain letters, spaces and . ' -");
+  }
+  if (!ADDR_OK.test(streetClean) || (clean(data.block) && !ADDR_OK.test(clean(data.block)))) {
+    throw new HttpsError("invalid-argument", "The address contains characters that are not allowed.");
+  }
+  if (!PH_OK.test(phone)) {
+    throw new HttpsError("invalid-argument", "Enter a valid PH mobile number, e.g. 09171234567.");
+  }
+  if (gender !== "Male" && gender !== "Female") {
+    throw new HttpsError("invalid-argument", "Gender must be Male or Female.");
+  }
+  if ((guardianNameClean && !NAME_OK.test(guardianNameClean)) || (clean(guardianRelation) && !NAME_OK.test(clean(guardianRelation)))) {
+    throw new HttpsError("invalid-argument", "The guardian name and relationship may only contain letters.");
+  }
+  if (idNumber && !/^[A-Za-z0-9-]{4,20}$/.test(String(idNumber).trim())) {
+    throw new HttpsError("invalid-argument", "The ID number may only contain letters, numbers and dashes.");
+  }
+  const dobDate = new Date(`${String(dob)}T00:00:00`);
+  if (Number.isNaN(dobDate.getTime()) || (Date.now() - dobDate.getTime()) / 31557600000 < 60) {
+    throw new HttpsError("invalid-argument", "The senior must be at least 60 years old.");
+  }
+
+  // Required (same as the mobile app's sign-up) so the inactivity alert always
+  // has someone to text.
+  if (!guardianNameClean || !guardianPhoneClean) {
+    throw new HttpsError("invalid-argument", "Please provide the guardian/relative's name and contact number.");
+  }
+  if (!/^(09\d{9}|\+639\d{9})$/.test(guardianPhoneClean)) {
+    throw new HttpsError("invalid-argument", "Please enter a valid PH mobile number for the guardian, e.g. 09171234567.");
+  }
+
+  // A barangay-scoped sub_admin can only register seniors in THEIR OWN
+  // barangay — the client can never pick another one for them. Everyone
+  // else (super admin, or a sub_admin with no barangay) must pick a real one.
+  const forcedBarangay = callerRole === "sub_admin" && callerBarangay ? callerBarangay : null;
+  const resolved = resolveBarangay(forcedBarangay || submittedBarangay);
+  if (!resolved && !forcedBarangay) {
+    throw new HttpsError("invalid-argument", "Please choose the senior's district and barangay.");
+  }
+  const effectiveBarangay = forcedBarangay || resolved.name;
+  const district = resolved ? resolved.district : null;
+  const address = `${streetClean}, Brgy. ${effectiveBarangay}, Valenzuela City`;
+
+  const effectiveIdNumber = idNumber && String(idNumber).trim().length > 0
+    ? String(idNumber).trim()
+    : `TEMP${Math.floor(100000 + Math.random() * 900000)}`;
+  if (ncscStatus === "registered" && effectiveIdNumber.startsWith("TEMP")) {
+    throw new HttpsError("invalid-argument", "An OSCA ID number is required for a senior who is already registered.");
+  }
+  const email = idToEmail(effectiveIdNumber);
+  const tempPassword = generateTempPassword();
+
+  let userRecord;
+  try {
+    userRecord = await auth.createUser({ email, password: tempPassword, displayName: `${first} ${last}` });
+  } catch (err) {
+    if (err.code === "auth/email-already-exists") throw new HttpsError("already-exists", "An account with that ID number already exists.");
+    logger.error("createAssistedSeniorAccount auth error:", err.message);
+    throw new HttpsError("internal", "Failed to create the account. Please try again.");
+  }
+
+  const uid = userRecord.uid;
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
+  // Same users/{uid} shape the mobile app's registerUser() writes
+  // (district / barangay / street / address), plus an assisted-signup audit trail.
+  await db.collection("users").doc(uid).set({
+    firstName: first, midName: mid, lastName: last,
+    district, barangay: effectiveBarangay, street: streetClean, address,
+    conNumber: phone, gender, dob,
+    idNumber: effectiveIdNumber, hasTempId: effectiveIdNumber.startsWith("TEMP"),
+    // Same shape the mobile app's Account screen and the inactivity monitor use.
+    guardians: [{
+      name: guardianNameClean,
+      phone: guardianPhoneClean.replace(/[\s-]/g, ""),
+      ...(clean(guardianRelation) ? { relationship: clean(guardianRelation) } : {}),
+    }],
+    status: "PENDING", isVerified: false,
+    role: "SENIOR_CITIZEN", uid,
+    createdAt: now,
+    createdByAdmin: true, createdByAdminUid: callerUid, createdInBarangay: callerBarangay,
+  });
+
+  const fullName = `${first} ${mid} ${last}`.toLowerCase().replace(/\s+/g, "_");
+  const firstLast = `${first} ${last}`.toLowerCase().replace(/\s+/g, "_");
+  const lookupKeys = [...new Set([effectiveIdNumber.toLowerCase(), phone, fullName, firstLast])];
+  await Promise.all(lookupKeys.map((key) => db.collection("user_lookup").doc(key).set({ idNumber: effectiveIdNumber, uid })));
+
+  // Record the NCSC progress captured on the form. Done here with the Admin
+  // SDK because Firestore rules only let a senior create their own doc. The
+  // account already exists at this point, so a failure is reported back
+  // (ncscRecorded: false) instead of failing the whole sign-up.
+  let ncscRecorded = null;
+  if (NCSC_ALLOWED.includes(ncscStatus)) {
+    const alreadyRegistered = ncscStatus === "registered";
+    const status = alreadyRegistered ? "completed_claimed" : ncscStatus;
+    try {
+      await db.collection("ncsc_registrations").doc(uid).set({
+        uid, status,
+        barangay: effectiveBarangay,
+        fullName: `${first} ${mid} ${last}`,
+        source: "assisted_signup",
+        createdByAdminUid: callerUid,
+        startedAt: now, updatedAt: now,
+        ...(alreadyRegistered ? { alreadyRegistered: true, idNumber: effectiveIdNumber } : {}),
+        ...(status === "cancelled" ? { cancelledAt: now } : {}),
+        ...(status === "completed_claimed" ? { claimedAt: now } : {}),
+      });
+      ncscRecorded = true;
+    } catch (err) {
+      logger.error("createAssistedSeniorAccount ncsc write failed:", err.message);
+      ncscRecorded = false;
+    }
+  }
+
+  // The ONLY time the temp password is ever visible — it is never stored.
+  return { uid, idNumber: effectiveIdNumber, tempPassword, ncscRecorded };
+}
+
 exports.createAssistedSeniorAccount = onCall(
   { region: "asia-southeast1" },
   async (request) => {
@@ -171,146 +318,132 @@ exports.createAssistedSeniorAccount = onCall(
       throw new HttpsError("permission-denied", "Your admin role cannot create accounts.");
     }
 
-    const {
-      firstName, midName, lastName, street, conNumber, gender, dob, idNumber,
-      barangay: submittedBarangay, ncscStatus,
-      guardianName, guardianPhone, guardianRelation,
-    } = data || {};
-    const clean = (v) => String(v || "").trim().replace(/\s+/g, " ");
-    const first = clean(firstName);
-    const mid = clean(midName);
-    const last = clean(lastName);
-    const streetClean = clean(street);
-    const phone = clean(conNumber);
-    const guardianNameClean = clean(guardianName);
-    const guardianPhoneClean = clean(guardianPhone);
+    return createAssistedAccountCore({ data, callerUid: callerAuth.uid, callerRole, callerBarangay });
+  }
+);
 
-    if (!first || !mid || !last || !streetClean || !phone || !gender || !dob) {
-      throw new HttpsError("invalid-argument", "Please fill in all required fields.");
-    }
-    // Same character rules as the admin form (src/lib/validators.js), enforced
-    // again here so a hand-made request cannot store bad data.
-    const NAME_OK = /^\p{L}[\p{L}\p{M}\s.'-]{0,49}$/u;
-    const ADDR_OK = /^[\p{L}\p{N}][\p{L}\p{N}\s.,#'/-]{0,79}$/u;
-    const PH_OK = /^(09\d{9}|\+639\d{9})$/;
-    if (![first, mid, last].every((n) => NAME_OK.test(n))) {
-      throw new HttpsError("invalid-argument", "Names may only contain letters, spaces and . ' -");
-    }
-    if (!ADDR_OK.test(streetClean) || (clean(data.block) && !ADDR_OK.test(clean(data.block)))) {
-      throw new HttpsError("invalid-argument", "The address contains characters that are not allowed.");
-    }
-    if (!PH_OK.test(phone)) {
-      throw new HttpsError("invalid-argument", "Enter a valid PH mobile number, e.g. 09171234567.");
-    }
-    if (gender !== "Male" && gender !== "Female") {
-      throw new HttpsError("invalid-argument", "Gender must be Male or Female.");
-    }
-    if ((guardianNameClean && !NAME_OK.test(guardianNameClean)) || (clean(guardianRelation) && !NAME_OK.test(clean(guardianRelation)))) {
-      throw new HttpsError("invalid-argument", "The guardian name and relationship may only contain letters.");
-    }
-    if (idNumber && !/^[A-Za-z0-9-]{4,20}$/.test(String(idNumber).trim())) {
-      throw new HttpsError("invalid-argument", "The ID number may only contain letters, numbers and dashes.");
-    }
-    const dobDate = new Date(`${String(dob)}T00:00:00`);
-    if (Number.isNaN(dobDate.getTime()) || (Date.now() - dobDate.getTime()) / 31557600000 < 60) {
-      throw new HttpsError("invalid-argument", "The senior must be at least 60 years old.");
-    }
+// ── Assisted sign-up "kiosk" sessions ─────────────────────────────────────
+// The admin opens the sign-up form in a NEW tab and is logged out of the
+// dashboard, so a senior using that PC cannot reach any admin page. The form
+// still has to be recorded under that admin, so before logging out the admin
+// asks for a short-lived session token:
+//   startAssistedSession   (signed-in admin)  -> returns the token once
+//   getAssistedSession     (token only)       -> tells the form what is allowed
+//   createAssistedSeniorAccountWithSession (token only) -> creates the account
+// Only a SHA-256 hash of the token is stored (assisted_sessions/{hash}), and the
+// collection has no Firestore rules, so browsers can never read or list it.
+// A session can only create seniors, is locked to the admin's barangay (for a
+// barangay sub_admin), expires after KIOSK_TTL_MS, and stops after
+// KIOSK_MAX_SIGNUPS accounts.
+const crypto = require("crypto");
+const KIOSK_TTL_MS = 10 * 60 * 60 * 1000; // 10 hours
+const KIOSK_MAX_SIGNUPS = 150;
+const KIOSK_COLLECTION = "assisted_sessions";
+const hashKioskToken = (t) => crypto.createHash("sha256").update(String(t || "")).digest("hex");
 
-    // Required (same as the mobile app's sign-up) so the inactivity alert always
-    // has someone to text.
-    if (!guardianNameClean || !guardianPhoneClean) {
-      throw new HttpsError("invalid-argument", "Please provide the guardian/relative's name and contact number.");
-    }
-    if (!/^(09\d{9}|\+639\d{9})$/.test(guardianPhoneClean)) {
-      throw new HttpsError("invalid-argument", "Please enter a valid PH mobile number for the guardian, e.g. 09171234567.");
-    }
+async function requireAssistedAdmin(uid) {
+  const snap = await db.collection("admins").doc(uid).get();
+  if (!snap.exists) throw new HttpsError("permission-denied", "Your account is not registered as an admin.");
+  const info = snap.data();
+  if (info.role !== "super_admin" && info.role !== "sub_admin") {
+    throw new HttpsError("permission-denied", "Your admin role cannot create accounts.");
+  }
+  return { role: info.role, barangay: info.barangay || null, name: info.name || info.email || "" };
+}
 
-    // A barangay-scoped sub_admin can only register seniors in THEIR OWN
-    // barangay — the client can never pick another one for them. Everyone
-    // else (super admin, or a sub_admin with no barangay) must pick a real one.
-    const forcedBarangay = callerRole === "sub_admin" && callerBarangay ? callerBarangay : null;
-    const resolved = resolveBarangay(forcedBarangay || submittedBarangay);
-    if (!resolved && !forcedBarangay) {
-      throw new HttpsError("invalid-argument", "Please choose the senior's district and barangay.");
-    }
-    const effectiveBarangay = forcedBarangay || resolved.name;
-    const district = resolved ? resolved.district : null;
-    const address = `${streetClean}, Brgy. ${effectiveBarangay}, Valenzuela City`;
+async function loadKioskSession(token) {
+  if (typeof token !== "string" || !/^[A-Za-z0-9_-]{40,64}$/.test(token)) {
+    throw new HttpsError("permission-denied", "This sign-up session is not valid. Please ask the staff to start it again.");
+  }
+  const ref = db.collection(KIOSK_COLLECTION).doc(hashKioskToken(token));
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new HttpsError("permission-denied", "This sign-up session is not valid. Please ask the staff to start it again.");
+  }
+  const session = snap.data();
+  const expired = !session.expiresAt || session.expiresAt.toMillis() < Date.now();
+  if (session.revoked || expired) {
+    throw new HttpsError("failed-precondition", "This sign-up session has ended. Please ask the staff to start it again.");
+  }
+  // The admin may have been removed or demoted since the session started.
+  const adminNow = await requireAssistedAdmin(session.adminUid);
+  return { ref, session, adminNow };
+}
 
-    const effectiveIdNumber = idNumber && String(idNumber).trim().length > 0
-      ? String(idNumber).trim()
-      : `TEMP${Math.floor(100000 + Math.random() * 900000)}`;
-    if (ncscStatus === "registered" && effectiveIdNumber.startsWith("TEMP")) {
-      throw new HttpsError("invalid-argument", "An OSCA ID number is required for a senior who is already registered.");
-    }
-    const email = idToEmail(effectiveIdNumber);
-    const tempPassword = generateTempPassword();
+exports.startAssistedSession = onCall(
+  { region: "asia-southeast1" },
+  async (request) => {
+    const { auth: callerAuth } = request;
+    if (!callerAuth) throw new HttpsError("unauthenticated", "You must be signed in as an admin to do this.");
+    const adminNow = await requireAssistedAdmin(callerAuth.uid);
 
-    let userRecord;
-    try {
-      userRecord = await auth.createUser({ email, password: tempPassword, displayName: `${first} ${last}` });
-    } catch (err) {
-      if (err.code === "auth/email-already-exists") throw new HttpsError("already-exists", "An account with that ID number already exists.");
-      logger.error("createAssistedSeniorAccount auth error:", err.message);
-      throw new HttpsError("internal", "Failed to create the account. Please try again.");
-    }
+    // One live session per admin: starting a new one ends the old ones.
+    const old = await db.collection(KIOSK_COLLECTION)
+      .where("adminUid", "==", callerAuth.uid).where("revoked", "==", false).get();
+    const batch = db.batch();
+    old.forEach((d) => batch.update(d.ref, { revoked: true, revokedAt: admin.firestore.FieldValue.serverTimestamp() }));
 
-    const uid = userRecord.uid;
-    const now = admin.firestore.FieldValue.serverTimestamp();
+    const token = crypto.randomBytes(32).toString("base64url");
+    const expiresAtMs = Date.now() + KIOSK_TTL_MS;
+    batch.set(db.collection(KIOSK_COLLECTION).doc(hashKioskToken(token)), {
+      adminUid: callerAuth.uid,
+      adminName: adminNow.name,
+      role: adminNow.role,
+      barangay: adminNow.barangay,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      expiresAt: admin.firestore.Timestamp.fromMillis(expiresAtMs),
+      maxUses: KIOSK_MAX_SIGNUPS,
+      uses: 0,
+      revoked: false,
+    });
+    await batch.commit();
+    return { token, expiresAt: expiresAtMs };
+  }
+);
 
-    // Same users/{uid} shape the mobile app's registerUser() writes
-    // (district / barangay / street / address), plus an assisted-signup audit trail.
-    await db.collection("users").doc(uid).set({
-      firstName: first, midName: mid, lastName: last,
-      district, barangay: effectiveBarangay, street: streetClean, address,
-      conNumber: phone, gender, dob,
-      idNumber: effectiveIdNumber, hasTempId: effectiveIdNumber.startsWith("TEMP"),
-      // Same shape the mobile app's Account screen and the inactivity monitor use.
-      guardians: [{
-        name: guardianNameClean,
-        phone: guardianPhoneClean.replace(/[\s-]/g, ""),
-        ...(clean(guardianRelation) ? { relationship: clean(guardianRelation) } : {}),
-      }],
-      status: "PENDING", isVerified: false,
-      role: "SENIOR_CITIZEN", uid,
-      createdAt: now,
-      createdByAdmin: true, createdByAdminUid: callerAuth.uid, createdInBarangay: callerBarangay,
+exports.getAssistedSession = onCall(
+  { region: "asia-southeast1" },
+  async (request) => {
+    const { session } = await loadKioskSession(request.data && request.data.token);
+    // Same rule as createAssistedAccountCore: only a barangay sub_admin is locked.
+    const lockedBarangay = session.role === "sub_admin" && session.barangay ? session.barangay : null;
+    return {
+      valid: true,
+      lockedBarangay,
+      expiresAt: session.expiresAt.toMillis(),
+      remaining: Math.max(0, (session.maxUses || 0) - (session.uses || 0)),
+    };
+  }
+);
+
+exports.createAssistedSeniorAccountWithSession = onCall(
+  { region: "asia-southeast1" },
+  async (request) => {
+    const { sessionToken, ...formData } = request.data || {};
+    const { ref, session, adminNow } = await loadKioskSession(sessionToken);
+
+    // Reserve one sign-up atomically so parallel requests cannot pass the cap.
+    await db.runTransaction(async (tx) => {
+      const fresh = (await tx.get(ref)).data();
+      if ((fresh.uses || 0) >= (fresh.maxUses || 0)) {
+        throw new HttpsError("resource-exhausted", "This sign-up session has reached its limit. Please ask the staff to start it again.");
+      }
+      tx.update(ref, { uses: (fresh.uses || 0) + 1, lastUsedAt: admin.firestore.FieldValue.serverTimestamp() });
     });
 
-    const fullName = `${first} ${mid} ${last}`.toLowerCase().replace(/\s+/g, "_");
-    const firstLast = `${first} ${last}`.toLowerCase().replace(/\s+/g, "_");
-    const lookupKeys = [...new Set([effectiveIdNumber.toLowerCase(), phone, fullName, firstLast])];
-    await Promise.all(lookupKeys.map((key) => db.collection("user_lookup").doc(key).set({ idNumber: effectiveIdNumber, uid })));
-
-    // Record the NCSC progress captured on the form. Done here with the Admin
-    // SDK because Firestore rules only let a senior create their own doc. The
-    // account already exists at this point, so a failure is reported back
-    // (ncscRecorded: false) instead of failing the whole sign-up.
-    let ncscRecorded = null;
-    if (NCSC_ALLOWED.includes(ncscStatus)) {
-      const alreadyRegistered = ncscStatus === "registered";
-      const status = alreadyRegistered ? "completed_claimed" : ncscStatus;
-      try {
-        await db.collection("ncsc_registrations").doc(uid).set({
-          uid, status,
-          barangay: effectiveBarangay,
-          fullName: `${first} ${mid} ${last}`,
-          source: "assisted_signup",
-          createdByAdminUid: callerAuth.uid,
-          startedAt: now, updatedAt: now,
-          ...(alreadyRegistered ? { alreadyRegistered: true, idNumber: effectiveIdNumber } : {}),
-          ...(status === "cancelled" ? { cancelledAt: now } : {}),
-          ...(status === "completed_claimed" ? { claimedAt: now } : {}),
-        });
-        ncscRecorded = true;
-      } catch (err) {
-        logger.error("createAssistedSeniorAccount ncsc write failed:", err.message);
-        ncscRecorded = false;
-      }
+    try {
+      // Role/barangay come from the admin's CURRENT record, never from the form.
+      return await createAssistedAccountCore({
+        data: formData,
+        callerUid: session.adminUid,
+        callerRole: adminNow.role,
+        callerBarangay: adminNow.barangay,
+      });
+    } catch (err) {
+      // Nothing was created (validation or duplicate ID), so give the slot back.
+      await ref.update({ uses: admin.firestore.FieldValue.increment(-1) }).catch(() => {});
+      throw err;
     }
-
-    // The ONLY time the temp password is ever visible — it is never stored.
-    return { uid, idNumber: effectiveIdNumber, tempPassword, ncscRecorded };
   }
 );
 
@@ -587,6 +720,11 @@ exports.onIdRequestStatusChange = require("./idRequestNotifications").onIdReques
 // ── Inactivity monitor (50-min "are you safe?" push, 60-min SMS to guardians + barangay) ──
 exports.monitorInactivity = require("./inactivityMonitor").monitorInactivity;
 exports.onEmergencyCreated = require("./sosRouting").onEmergencyCreated;
+
+// Digital ID: senior taps "Claim" in the app -> onDigitalIdRequested issues it;
+// issueDigitalId is the OSCA dashboard's "Issue" button. See digitalId.js.
+exports.onDigitalIdRequested = require("./digitalId").onDigitalIdRequested;
+exports.issueDigitalId = require("./digitalId").issueDigitalId;
 
 // Super admin lock/unlock + password reset, and the senior Forgot Password OTP flow.
 const accountControls = require("./accountControls");

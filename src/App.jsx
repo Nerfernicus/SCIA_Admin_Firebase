@@ -1,5 +1,5 @@
 import './App.css';
-import { createBrowserRouter, Outlet, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, Navigate, Outlet, RouterProvider } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { LangProvider } from './context/LangContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -17,7 +17,7 @@ import IDManagement   from './pages/IDManagement';   // unified module
 import Analytics      from './pages/Analytics';
 import DigitalID      from './pages/DigitalID';
 import EventCheckIn from './pages/EventCheckIn';
-import AssistedSignup from './pages/AssistedSignup';
+import AssistedKiosk from './pages/AssistedKiosk';
 import AdminAccounts from './pages/AdminAccounts';
 import NcscRegistrations from './pages/NcscRegistrations';
 
@@ -33,6 +33,9 @@ function Layout() {
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
   { path: '/unauthorized', element: <AccessDenied /> },
+  // Public on purpose: opened by the sidebar's Assisted Sign-up after the admin is logged out.
+  // Access is controlled by the session token, not by a login.
+  { path: '/assisted-kiosk', element: <AssistedKiosk /> },
   {
     path: '/',
     element: (
@@ -116,12 +119,9 @@ const router = createBrowserRouter([
         ),
       },
       {
+        // Old in-dashboard page: the sidebar now opens the separate sign-up tab instead.
         path: 'assisted-signup',
-        element: (
-          <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
-            <AssistedSignup />
-          </ProtectedRoute>
-        ),
+        element: <Navigate to="/" replace />,
       },
       {
         path: 'ncsc-registrations',

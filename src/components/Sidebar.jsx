@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Map, Megaphone, Users,
   Building2, LogOut, Crown, User2, CreditCard,
   PanelLeftClose, PanelLeftOpen, FileText, Contact,
-  QrCode, UserPlus, ClipboardCheck, ShieldCheck,
+  QrCode, UserPlus, ClipboardCheck, ShieldCheck, ExternalLink,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +12,7 @@ import { useLang } from '../context/LangContext';
 import { useTheme } from '../context/ThemeContext';
 import GenerateReportModal from './GenerateReportModal';
 import Header from './Header';
+import { startAssistedSession } from '../lib/assistedKiosk';
 
 export default function Sidebar({ children }) {
   const location = useLocation();
@@ -22,6 +23,40 @@ export default function Sidebar({ children }) {
   const [expanded, setExpanded] = useState(true);
   const [reportOpen, setReportOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [kioskBusy, setKioskBusy] = useState(false);
+
+  // Assisted Sign-up opens in its own tab and logs this admin out, so a senior
+  // using this PC cannot reach the dashboard. The sign-up is still saved under
+  // this admin because the new tab carries a short-lived session token that is
+  // issued here, BEFORE the logout.
+  const launchAssistedKiosk = async () => {
+    if (kioskBusy) return;
+    const ok = window.confirm(
+      'Assisted Sign-up opens in a new tab and signs you out of the dashboard on this computer, '
+      + 'so the senior cannot reach it. Their sign-up is still saved under your account.\n\n'
+      + 'Sign in again here when you are done.\n\nContinue?',
+    );
+    if (!ok) return;
+    // The tab has to be opened now, inside the click, or browsers block it as a pop-up.
+    const tab = window.open('about:blank', '_blank');
+    if (!tab) {
+      window.alert('Your browser blocked the new tab. Allow pop-ups for this site and try again.');
+      return;
+    }
+    tab.opener = null;
+    setKioskBusy(true);
+    try {
+      const { data } = await startAssistedSession();
+      tab.location.href = `${window.location.origin}/assisted-kiosk#${data.token}`;
+      setMobileOpen(false);
+      await logout();
+    } catch (err) {
+      tab.close();
+      window.alert(err?.message || 'Could not start the sign-up. Please try again.');
+    } finally {
+      setKioskBusy(false);
+    }
+  };
 
   const superAdminItems = [
     { key: 'dashboard',      icon: LayoutDashboard, path: '/' },
@@ -135,6 +170,29 @@ export default function Sidebar({ children }) {
             const isActive = item.path === '/'
               ? location.pathname === '/'
               : location.pathname.startsWith(item.path);
+            if (item.key === 'assistedSignup') {
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={launchAssistedKiosk}
+                  disabled={kioskBusy}
+                  title={!expanded ? (t[item.key] || item.key) : 'Opens in a new tab and signs you out'}
+                  style={{
+                    padding: expanded ? '10px 16px' : '10px',
+                    justifyContent: expanded ? 'flex-start' : 'center',
+                    transition: 'padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}
+                  className={`w-full flex items-center gap-3 rounded-xl text-sm font-medium transition-colors duration-150 disabled:opacity-60 ${
+                    dark ? 'text-[#aeada6] hover:bg-white/5 hover:text-[#f0efec]' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  <Icon size={18} className={`shrink-0 ${dark ? 'text-[#7a7970]' : 'text-gray-400'}`} />
+                  <span style={labelStyle(expanded)}>{t[item.key] || item.key}</span>
+                  {expanded && <ExternalLink size={14} className="ml-auto shrink-0 opacity-50" />}
+                </button>
+              );
+            }
             return (
               <Link
                 key={item.key}

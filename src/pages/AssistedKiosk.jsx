@@ -35,7 +35,7 @@ export default function AssistedKiosk() {
 
   if (state.status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-dvh flex items-center justify-center bg-gray-50">
         <Loader2 size={28} className="animate-spin text-[#0f52ba]" />
       </div>
     );
@@ -43,7 +43,7 @@ export default function AssistedKiosk() {
 
   if (state.status === 'invalid') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 font-sans">
+      <div className="min-h-dvh flex items-center justify-center bg-gray-50 p-6 font-sans">
         <div className="max-w-md bg-white rounded-3xl border border-gray-100 shadow-sm p-8 text-center">
           <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <ShieldAlert size={26} className="text-amber-600" />
@@ -58,7 +58,7 @@ export default function AssistedKiosk() {
   const endsAt = new Date(state.expiresAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-dvh bg-gray-50">
       <header className="bg-[#0f52ba] text-white px-6 py-4 flex items-center gap-3">
         <UserPlus size={22} />
         <div>

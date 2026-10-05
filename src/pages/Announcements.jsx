@@ -261,26 +261,26 @@ export default function Announcements() {
   };
 
   return (
-    <div className="flex-1 bg-[#f8f9fa] min-h-screen p-8 font-sans">
+    <div className="flex-1 min-w-0 bg-[#f8f9fa] min-h-full p-3 sm:p-6 lg:p-8 font-sans">
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl text-sm font-semibold shadow-lg ${toast.type === 'error' ? 'bg-red-500 text-white' : 'bg-gray-900 text-white'}`}>
+        <div className={`fixed bottom-4 right-4 left-4 sm:left-auto sm:bottom-6 sm:right-6 z-50 px-5 py-3 rounded-2xl text-sm font-semibold shadow-lg ${toast.type === 'error' ? 'bg-red-500 text-white' : 'bg-gray-900 text-white'}`}>
           {toast.msg}
         </div>
       )}
 
-      <div className="flex justify-between items-end mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t.announcements}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{t.announcements}</h1>
           <p className="text-gray-500">{t.announcementsPageSubtitle}</p>
         </div>
-        <button onClick={handleNewAnnouncement} className="bg-[#0f52ba] hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-medium flex items-center gap-2 transition-colors shadow-sm">
+        <button onClick={handleNewAnnouncement} className="bg-[#0f52ba] hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-medium flex items-center justify-center gap-2 transition-colors shadow-sm self-start sm:self-auto">
           <Plus size={18} /> {t.newAnnouncement}
         </button>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-6">
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center gap-2 mb-6 text-gray-800 font-bold text-lg">
               <AlignLeft size={20} className="text-[#0f52ba]" /> {t.eventDetails}
             </div>
@@ -353,7 +353,7 @@ export default function Announcements() {
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2 text-gray-800 font-bold text-lg">
                 <QrCode size={20} className="text-[#0f52ba]" /> {t.joinableEvent}
@@ -474,7 +474,7 @@ export default function Announcements() {
             )}
           </div>
 
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-bold text-gray-900 text-lg">{t.recentActivity}</h3>
               <button className="text-sm font-semibold text-[#0f52ba] hover:underline">{t.viewArchive}</button>
@@ -486,7 +486,7 @@ export default function Announcements() {
               {recentActivity.map((doc) => {
                 const { icon: Icon, iconColor, iconBg, badgeClass } = statusStyle(doc.Status);
                 return (
-                  <div key={doc.id} className="flex items-center justify-between p-4 rounded-2xl border border-gray-50 bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                  <div key={doc.id} className="flex items-center justify-between gap-3 p-3 sm:p-4 rounded-2xl border border-gray-50 bg-gray-50/50 hover:bg-gray-50 transition-colors">
                     <div className="flex items-center gap-4">
                       <div className={`p-2.5 rounded-full ${iconBg} ${iconColor}`}><Icon size={18} /></div>
                       <div>
@@ -503,7 +503,7 @@ export default function Announcements() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-gray-100 shadow-sm">
             <h3 className="font-bold text-gray-900 mb-3">{t.audienceTitle}</h3>
             <div className="flex items-center gap-3 p-3.5 rounded-xl bg-blue-50 border-2 border-[#0f52ba]">
               <div className="w-8 h-8 rounded-full bg-[#0f52ba] flex items-center justify-center text-white text-sm">👴</div>
@@ -516,7 +516,7 @@ export default function Announcements() {
             </p>
           </div>
 
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-gray-100 shadow-sm">
             <h3 className="font-bold text-gray-900 mb-4">{t.schedulingTitle}</h3>
             <div className="space-y-4 mb-6">
               {myBarangay ? (

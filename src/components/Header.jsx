@@ -298,7 +298,7 @@ function SettingsToggle({ label, icon: Icon, storageKey, defaultOn = true, check
             width: 14, height: 14,
             transform: on ? 'translateX(18px)' : 'translateX(3px)',
           }}
-          className="absolute top-[3px] bg-white rounded-full shadow transition-transform duration-200 block"
+          className="absolute top-0.75 bg-white rounded-full shadow transition-transform duration-200 block"
         />
       </button>
     </div>
@@ -424,14 +424,14 @@ function AdminProfileModal({ onClose }) {
   const avatarSeed = adminData?.name || user?.email || 'admin';
 
   // Rendered into document.body with a z-index above every page layer (the SOS
-  // Map page uses z-[2000] for its header and z-[1000] for its panels), so this
+  // Map page uses z-2000 for its header and z-1000 for its panels), so this
   // modal and its blurred backdrop always cover the whole screen.
   return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-10000 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md z-10 overflow-hidden">
 
-        <div className="h-24 bg-gradient-to-r from-[#0f52ba] to-blue-400 relative">
+        <div className="h-24 bg-linear-to-r from-[#0f52ba] to-blue-400 relative">
           <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors">
             <X size={20} />
           </button>
@@ -448,7 +448,7 @@ function AdminProfileModal({ onClose }) {
           </div>
         </div>
 
-        <div className="px-6 pb-6 max-h-[65vh] overflow-y-auto space-y-5">
+        <div className="px-4 sm:px-6 pb-6 max-h-[65dvh] overflow-y-auto space-y-5">
           <div className="text-center">
             <span className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full ${
               adminData?.role === 'super_admin' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'

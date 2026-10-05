@@ -191,7 +191,7 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-lg w-full max-h-[92vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-8 max-w-lg w-full max-h-[92dvh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -282,7 +282,7 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-8 max-w-lg w-full max-h-[90dvh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -419,7 +419,7 @@ function ReleaseModal({ record, office, onClose, onRelease, processing }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-lg w-full max-h-[92vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-8 max-w-lg w-full max-h-[92dvh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -539,7 +539,7 @@ function RescheduleModal({ record, office, onClose, onConfirm, processing }) {
   const unchanged = ready && record.pickup?.date === pickup.date && record.pickup?.time === pickup.time;
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-lg w-full max-h-[92vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-8 max-w-lg w-full max-h-[92dvh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -570,7 +570,7 @@ function RequestDetailModal({ record, onClose, onApprove, onReject, processing }
   const name = record.seniorName || record.fullName || t.unknownLabel;
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-8 max-w-lg w-full max-h-[90dvh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><FileText size={18} className="text-[#0f52ba]" /> {t.physicalIdReqTitle}</h3>
@@ -1026,7 +1026,7 @@ export default function IDManagement() {
   );
 
   return (
-    <div className="p-8 max-w-5xl mx-auto relative">
+    <div className="p-4 sm:p-8 max-w-5xl mx-auto relative">
 
       {/* Toast */}
       {toast.msg && (
@@ -1336,7 +1336,7 @@ export default function IDManagement() {
                       <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.rejectedSection} ({relRejected.length})</h2>
                       <div className="space-y-2">
                         {relRejected.map(r => (
-                          <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between opacity-60">
+                          <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 opacity-60">
                             <div>
                               <p className="font-medium text-gray-800">{r.seniorName || r.fullName || t.unknownLabel}</p>
                               <p className="text-xs text-gray-400">{r.seniorId ? `${t.oscaIdPrefix}: ${r.seniorId}` : ''}</p>
@@ -1355,7 +1355,7 @@ export default function IDManagement() {
                       <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{L(t, 'cancelledSection', 'Cancelled')} ({relCancelled.length})</h2>
                       <div className="space-y-2">
                         {relCancelled.map(r => (
-                          <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between opacity-60">
+                          <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 opacity-60">
                             <div>
                               <p className="font-medium text-gray-800">{r.seniorName || r.fullName || t.unknownLabel}</p>
                               <p className="text-xs text-gray-400">

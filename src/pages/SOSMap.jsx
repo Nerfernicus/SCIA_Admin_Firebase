@@ -82,7 +82,7 @@ const myLocationIcon = L.divIcon({
 
 function DeleteConfirmModal({ alert, onClose, onConfirm }) {
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 z-10 text-center">
         <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -204,7 +204,7 @@ function AlertsList({
               <div className="flex justify-between items-start mb-2 pr-9 sm:pr-7">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-bold text-base break-words">{alert.name}</h3>
+                    <h3 className="font-bold text-base wrap-break-word">{alert.name}</h3>
                     {repeat && (
                       <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
                         alert.status === 'pending' ? 'bg-orange-400 text-white' : 'bg-orange-500 text-white'
@@ -224,7 +224,7 @@ function AlertsList({
                 }`}>{alert.status}</span>
               </div>
 
-              <div className={`text-sm mb-3 break-words ${alert.status === "pending" ? "text-red-100" : "text-gray-600"}`}>
+              <div className={`text-sm mb-3 wrap-break-word ${alert.status === "pending" ? "text-red-100" : "text-gray-600"}`}>
                 <p>
                   <span className="font-semibold">Current location: </span>
                   {alert.barangay ? `Brgy. ${alert.barangay}, ` : ''}{alert.currentAddress || alert.address}
@@ -393,7 +393,7 @@ export default function SOSMap() {
     <div className="flex-1 flex flex-col h-dvh overflow-hidden font-sans bg-white">
 
       {toast && (
-        <div className={`fixed top-4 inset-x-4 sm:inset-x-auto sm:top-6 sm:right-6 z-[9999] text-white text-sm font-medium px-4 sm:px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 ${
+        <div className={`fixed top-4 inset-x-4 sm:inset-x-auto sm:top-6 sm:right-6 z-9999 text-white text-sm font-medium px-4 sm:px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 ${
           toastType === 'error' ? 'bg-red-600' : 'bg-gray-900'
         }`}>
           {toastType === 'error'
@@ -413,7 +413,7 @@ export default function SOSMap() {
         />
       )}
 
-      <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3 sm:py-4 flex-none z-[2000]">
+      <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3 sm:py-4 flex-none z-2000">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">SOS Map</h1>
         <p className="text-xs sm:text-sm text-gray-500">
           {myBarangay
@@ -470,7 +470,7 @@ export default function SOSMap() {
           </MapContainer>
         </div>
 
-        <div className={`absolute bottom-24 left-4 sm:bottom-8 sm:left-6 flex flex-col gap-3 z-[1000] ${sheetOpen ? 'max-sm:hidden' : ''}`}>
+        <div className={`absolute bottom-24 left-4 sm:bottom-8 sm:left-6 flex flex-col gap-3 z-1000 ${sheetOpen ? 'max-sm:hidden' : ''}`}>
           <button onClick={handleLocateMe} disabled={isLocating}
             className={`bg-white/90 backdrop-blur p-3 rounded-2xl shadow-lg border border-gray-100 transition-colors ${
               isLocating ? 'text-gray-400 cursor-not-allowed' : 'text-[#0f52ba] hover:bg-gray-50'
@@ -480,12 +480,12 @@ export default function SOSMap() {
         </div>
 
         {/* Desktop: floating panel */}
-        <div className="absolute top-6 right-6 w-100 max-h-[calc(100vh-200px)] overflow-y-auto bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border border-white p-5 z-[1000] hidden sm:block hide-scrollbar">
+        <div className="absolute top-4 right-4 sm:top-6 sm:right-6 w-[min(25rem,calc(100%-2rem))] max-h-[calc(100dvh-200px)] overflow-y-auto bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border border-white p-5 z-1000 hidden sm:block hide-scrollbar">
           <AlertsList {...listProps} showHeader />
         </div>
 
         {/* Mobile: bottom sheet with the same actions */}
-        <div className="sm:hidden absolute inset-x-0 bottom-0 z-[1000] bg-white rounded-t-3xl shadow-[0_-8px_30px_rgba(0,0,0,0.15)] border-t border-gray-100">
+        <div className="sm:hidden absolute inset-x-0 bottom-0 z-1000 bg-white rounded-t-3xl shadow-[0_-8px_30px_rgba(0,0,0,0.15)] border-t border-gray-100">
           <button
             onClick={() => setSheetOpen(o => !o)}
             aria-expanded={sheetOpen}

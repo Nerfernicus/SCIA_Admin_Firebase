@@ -256,7 +256,7 @@ function DetailModal({ type, onClose, isSuperAdmin, myBarangay, period, periodMe
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85dvh] overflow-y-auto p-4 sm:p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${meta.iconBg}`}>
@@ -513,7 +513,7 @@ export default function Analytics() {
     : 'Activity overview across all barangays';
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-6xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
@@ -541,7 +541,7 @@ export default function Analytics() {
       ) : (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-            <div className="lg:col-span-2 rounded-2xl p-6 text-white shadow-lg bg-gradient-to-br from-[#0f52ba] to-[#1a6fd4]">
+            <div className="lg:col-span-2 rounded-2xl p-6 text-white shadow-lg bg-linear-to-br from-[#0f52ba] to-[#1a6fd4]">
               <div className="flex items-start justify-between mb-1">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-white/70">Total Activity</p>
@@ -555,7 +555,7 @@ export default function Analytics() {
               </div>
               <p className="text-xs text-white/60 mb-4">SOS reports + announcements &middot; {periodMeta.sub}</p>
               {trendLoading ? (
-                <div className="h-[100px] flex items-center justify-center">
+                <div className="h-25 flex items-center justify-center">
                   <Loader2 size={20} className="animate-spin text-white/70" />
                 </div>
               ) : (
@@ -589,7 +589,7 @@ export default function Analytics() {
               label="Announcements"
               value={stats?.announcements}
               sub={activitySub}
-              gradient="bg-gradient-to-br from-[#3d74c9] to-[#5b8fdb]"
+              gradient="bg-linear-to-br from-[#3d74c9] to-[#5b8fdb]"
               onClick={() => setActiveDetail('announcements')}
             />
             <GradientStatCard
@@ -597,7 +597,7 @@ export default function Analytics() {
               label="SOS Events"
               value={stats?.sosEvents}
               sub={activitySub}
-              gradient="bg-gradient-to-br from-red-500 to-red-600"
+              gradient="bg-linear-to-br from-red-500 to-red-600"
               onClick={() => setActiveDetail('sos')}
             />
             <GradientStatCard
@@ -605,7 +605,7 @@ export default function Analytics() {
               label="Health Centers"
               value={stats?.healthCenters}
               sub="Listed facilities"
-              gradient="bg-gradient-to-br from-[#0a2f6b] to-[#0f52ba]"
+              gradient="bg-linear-to-br from-[#0a2f6b] to-[#0f52ba]"
               onClick={() => setActiveDetail('health')}
             />
             {isSuperAdmin ? (
@@ -614,7 +614,7 @@ export default function Analytics() {
                 label="Active Users"
                 value={stats?.activeUsers}
                 sub={activeUserPercent !== null ? `${activeUserPercent}% of total` : undefined}
-                gradient="bg-gradient-to-br from-amber-400 to-amber-500"
+                gradient="bg-linear-to-br from-amber-400 to-amber-500"
                 onClick={() => setActiveDetail('users')}
               />
             ) : (
@@ -623,7 +623,7 @@ export default function Analytics() {
                 label="Barangay"
                 value={myBarangay ?? 'All'}
                 sub="Your assigned area"
-                gradient="bg-gradient-to-br from-amber-400 to-amber-500"
+                gradient="bg-linear-to-br from-amber-400 to-amber-500"
               />
             )}
           </div>

@@ -4,23 +4,33 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
+  max-width: 100%;
   padding: 8px 0;
   perspective: 1200px;
 }
+
+/* Sized from JS to 540x340 * scale so the layout box matches the scaled card. */
+.osca-scale-box { position: relative; max-width: 100%; }
 
 /* Faces are absolutely positioned inset:0, so both stay the same size;
    overflow:hidden below keeps back content from ever forcing a scrollbar. */
 .osca-flip-container {
   width: 540px;
   height: 340px; /* ID-1 card ratio, ~1.586:1 */
-  position: relative;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin-left: -270px;
+  margin-top: -170px;
+  transform: scale(var(--osca-scale, 1)); /* scales AND flips around the centre */
   transform-style: preserve-3d;
   transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
 }
 
 .osca-flip-container.flipped {
-  transform: rotateY(180deg);
+  transform: scale(var(--osca-scale, 1)) rotateY(180deg);
 }
 
 /* flex column so each face's flex:1 body fills remaining space and
@@ -41,9 +51,6 @@
   font-family: "Courier New", Courier, monospace;
 }
 
-.osca-card-front {
-  /* Faces forward by default */
-}
 
 .osca-card-back {
   transform: rotateY(180deg);
@@ -455,20 +462,4 @@
   font-size: 7px;
   font-family: Arial, sans-serif;
   margin-top: 2px;
-}
-
-/* Card is a fixed 540×340px block; scale it down as one unit below that
-   width instead of reflowing internals, so text/photo proportions hold.
-   Wrapper width/height are set to the scaled footprint (540/340 × factor)
-   so the layout doesn't reserve the original, unscaled box size. */
-@media (max-width: 560px) {
-  .osca-id-wrapper { width: 443px; height: 279px; overflow: hidden; }
-  .osca-flip-container { transform: scale(0.82); transform-origin: top left; }
-  .osca-flip-container.flipped { transform: scale(0.82) rotateY(180deg); }
-}
-
-@media (max-width: 460px) {
-  .osca-id-wrapper { width: 351px; height: 221px; }
-  .osca-flip-container { transform: scale(0.65); }
-  .osca-flip-container.flipped { transform: scale(0.65) rotateY(180deg); }
 }

@@ -1,5 +1,5 @@
 import './Sidebar.css';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Map, Megaphone, Users,
   Building2, LogOut, Crown, User2, CreditCard,
@@ -20,7 +20,19 @@ export default function Sidebar({ children }) {
   const { t } = useLang();
   // Read theme from context directly so the sidebar flips instantly on toggle
   const { dark } = useTheme();
-  const [expanded, setExpanded] = useState(true);
+  // The collapsed icon rail is a desktop-only feature. On phones the sidebar is a drawer
+  // that must always show labels at full width, whatever the desktop toggle was left at.
+  const [expandedPref, setExpandedPref] = useState(true);
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const onChange = (e) => { setIsDesktop(e.matches); if (e.matches) setMobileOpen(false); };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  const expanded = isDesktop ? expandedPref : true;
   const [reportOpen, setReportOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [kioskBusy, setKioskBusy] = useState(false);
@@ -57,6 +69,8 @@ export default function Sidebar({ children }) {
       setKioskBusy(false);
     }
   };
+
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
   const superAdminItems = [
     { key: 'dashboard',      icon: LayoutDashboard, path: '/' },
@@ -95,7 +109,7 @@ export default function Sidebar({ children }) {
   const platformLabel = isSuperAdmin ? t.oscaPlatform : t.barangayPlatform;
 
   return (
-    <div className={dark ? 'flex min-h-screen bg-[#17181b]' : 'flex min-h-screen bg-gray-50'}>
+    <div className={dark ? 'flex h-dvh overflow-hidden bg-[#17181b]' : 'flex h-dvh overflow-hidden bg-gray-50'}>
       {mobileOpen && (
         <div
           className="md:hidden fixed inset-0 bg-black/40 z-30"
@@ -103,12 +117,12 @@ export default function Sidebar({ children }) {
         />
       )}
       <aside
-        style={{ width: expanded ? '256px' : '68px', transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}
+        style={{ width: expanded ? '256px' : '68px', maxWidth: '85vw', transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}
         className={
           (dark
             ? 'bg-[#202124] border-white/10'
             : 'bg-white border-gray-100'
-          ) + ` fixed md:sticky top-0 h-screen z-40 border-r flex flex-col py-6 font-sans overflow-hidden shrink-0 transition-transform duration-300 md:translate-x-0 ${
+          ) + ` fixed md:sticky top-0 h-dvh z-40 border-r flex flex-col py-6 font-sans overflow-hidden shrink-0 transition-transform duration-300 md:translate-x-0 ${
             mobileOpen ? 'translate-x-0' : '-translate-x-full'
           }`
         }
@@ -126,8 +140,8 @@ export default function Sidebar({ children }) {
             <p className={dark ? 'text-sm text-[#96958d] mt-0.5' : 'text-sm text-gray-500 mt-0.5'}>{platformLabel}</p>
           </div>
           <button
-            onClick={() => setExpanded(!expanded)}
-            title={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+            onClick={() => (isDesktop ? setExpandedPref((v) => !v) : setMobileOpen(false))}
+            title={!isDesktop ? 'Close menu' : expanded ? 'Collapse sidebar' : 'Expand sidebar'}
             className={
               dark
                 ? 'flex items-center justify-center w-8 h-8 rounded-lg text-[#7a7970] hover:text-[#ddd9d2] hover:bg-white/5 transition-colors duration-150 shrink-0'
@@ -162,7 +176,7 @@ export default function Sidebar({ children }) {
           </div>
         </div>
 
-        <nav className="flex-1 space-y-0.5 px-2">
+        <nav className="flex-1 min-h-0 overflow-y-auto space-y-0.5 px-2">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = item.path === '/'
@@ -255,7 +269,7 @@ export default function Sidebar({ children }) {
 
       <main className="flex-1 overflow-y-auto flex flex-col min-w-0">
         <Header onMenuClick={() => setMobileOpen(true)} />
-        <div className="flex-1">{children}</div>
+        <div className="flex-1 min-w-0">{children}</div>
       </main>
 
       <GenerateReportModal

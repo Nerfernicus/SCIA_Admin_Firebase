@@ -95,7 +95,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex font-sans">
+    <div className="min-h-dvh flex font-sans">
       {/* Styled like an ID card face */}
       <div className="hidden lg:flex lg:flex-col relative w-1/2 bg-[#0a2140]">
         <img src={mapOfValenzuela} alt="Map of Valenzuela" className="absolute inset-0 w-full h-full object-cover opacity-40" />

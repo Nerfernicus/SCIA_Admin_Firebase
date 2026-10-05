@@ -37,7 +37,7 @@ function AnnouncementBanner({ announcements }) {
   const a = announcements[current];
 
   return (
-    <div className="relative bg-gradient-to-r from-[#0f52ba] to-blue-500 rounded-2xl px-5 py-4 shadow-md shadow-blue-500/20 flex items-start gap-4 overflow-hidden">
+    <div className="relative bg-linear-to-r from-[#0f52ba] to-blue-500 rounded-2xl px-5 py-4 shadow-md shadow-blue-500/20 flex items-start gap-4 overflow-hidden">
       <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
       <div className="absolute -right-2 -bottom-6 w-20 h-20 bg-white/5 rounded-full pointer-events-none" />
       <div className="bg-white/20 rounded-xl p-2.5 shrink-0 mt-0.5">
@@ -295,7 +295,7 @@ export default function Dashboard() {
   const activePercent = totalUserCount > 0 ? Math.round((activeUserCount / totalUserCount) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans text-gray-900">
+    <div className="min-h-full bg-gray-50 p-4 md:p-8 font-sans text-gray-900">
       {editTarget && <EditModal announcement={editTarget} onClose={() => setEditTarget(null)} onSaved={handleSaved} />}
       {deleteTarget && <DeleteModal announcement={deleteTarget} onClose={() => setDeleteTarget(null)} onDeleted={handleDeleted} />}
 

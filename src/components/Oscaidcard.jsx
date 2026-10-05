@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import valLogo from "../assets/vallogo.png";
 import ncscLogo from "../assets/ncsclogo.png";
@@ -16,6 +16,9 @@ import "./Oscaidcard.css";
  *   controlNo   : string
  *   photoUrl    : string  (URL or base64)
  */
+const CARD_W = 540;
+const CARD_H = 340;
+
 const OSCAIdCard = ({
   mode = "digital",
   name = "",
@@ -27,12 +30,36 @@ const OSCAIdCard = ({
   photoUrl = null,
 }) => {
   const [flipped, setFlipped] = useState(false);
+  const wrapRef = useRef(null);
+  const [scale, setScale] = useState(1);
+
+  // Fit the 540px-wide card to the space it is given (page, modal, phone...).
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return undefined;
+    const fit = () => {
+      const w = el.clientWidth;
+      if (w > 0) setScale(Math.max(0.3, Math.min(1, w / CARD_W)));
+    };
+    fit();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", fit);
+      return () => window.removeEventListener("resize", fit);
+    }
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const isDigital = mode === "digital";
 
   return (
-    <div className="osca-id-wrapper">
+    <div className="osca-id-wrapper" ref={wrapRef}>
+      {/* The card is designed at 540x340. This box takes the SCALED size so it
+          fits whatever width the page/modal gives it (no fixed phone breakpoints). */}
+      <div className="osca-scale-box" style={{ width: CARD_W * scale, height: CARD_H * scale }}>
       <div
         className={`osca-flip-container${flipped ? " flipped" : ""}`}
+        style={{ "--osca-scale": scale }}
         onClick={() => setFlipped((f) => !f)}
         title={flipped ? "Click to see front" : "Click to see back (benefits)"}
       >
@@ -186,6 +213,7 @@ const OSCAIdCard = ({
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       <p style={{ fontSize: "11px", color: "#9ca3af", marginTop: "6px", userSelect: "none" }}>

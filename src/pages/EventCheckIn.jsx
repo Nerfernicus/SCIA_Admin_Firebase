@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   QrCode, Camera, CameraOff, CheckCircle2, XCircle, Search,
-  Clock, Users2, RotateCcw, ListChecks, AlertCircle, Loader2,
+  Clock, Users2, RotateCcw, ListChecks, AlertCircle, Loader2, SwitchCamera,
 } from "lucide-react";
 import { db, auth, COLLECTIONS, EVENT_ATTENDEES_SUBCOLLECTION } from "../lib/firebase";
 import {
@@ -11,7 +11,7 @@ import {
 
 // html5-qrcode drives the camera + decode loop. Add it once:
 //   npm install html5-qrcode
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { useAuth } from "../context/AuthContext";
 
 const READER_ELEMENT_ID = "scia-qr-reader";
@@ -58,6 +58,40 @@ function formatFieldValue(field, value) {
   return String(value);
 }
 
+const isPermissionError = (err) =>
+  /NotAllowed|Permission|denied/i.test(`${err?.name || ""} ${err?.message || err || ""}`);
+
+const BACK_RE  = /back|rear|environment|trasera|arri[eè]re|traseira|world/i;
+const FRONT_RE = /front|user|facetime|selfie|delantera|avant/i;
+
+// Square viewfinder that always fits the video, even on a 320px phone.
+const qrboxFn = (w, h) => {
+  const size = Math.max(150, Math.min(300, Math.floor(Math.min(w, h) * 0.7)));
+  return { width: size, height: size };
+};
+
+// Ordered list of cameras to try. `prefer` is "environment" (back, default) or "user" (front).
+// The first two are cheap facingMode requests (work on nearly every phone without enumerating);
+// the rest come from the device list, which is only read if those fail.
+async function buildCameraCandidates(prefer) {
+  const back  = [
+    { label: "Back camera", cfg: { facingMode: { exact: "environment" } } },
+    { label: "Back camera", cfg: { facingMode: "environment" } },
+  ];
+  const front = [{ label: "Front camera", cfg: { facingMode: "user" } }];
+
+  let cams = [];
+  try { cams = await Html5Qrcode.getCameras(); } catch { /* no list available */ }
+  const namedBack  = cams.filter((c) => BACK_RE.test(c.label || ""))
+    .map((c) => ({ label: "Back camera", cfg: { deviceId: { exact: c.id } } }));
+  const others = cams.filter((c) => !BACK_RE.test(c.label || ""))
+    .map((c) => ({ label: FRONT_RE.test(c.label || "") ? "Front camera" : "Camera", cfg: { deviceId: { exact: c.id } } }));
+
+  return prefer === "user"
+    ? [...front, ...others, ...back, ...namedBack]
+    : [...back, ...namedBack, ...front, ...others];
+}
+
 export default function EventCheckIn() {
   const { adminData } = useAuth();
   const myBarangay = adminData?.barangay || null; // null for OSCA + the generic sub_admin
@@ -72,8 +106,14 @@ export default function EventCheckIn() {
   const [lookingUp, setLookingUp] = useState(false);
   const [result, setResult] = useState(null); // { status, name, uid, attendee }
   const [manualCode, setManualCode] = useState("");
+  const [cameraLabel, setCameraLabel] = useState("");
   const scannerRef = useRef(null);
   const busyRef = useRef(false); // guards against double-processing while camera keeps firing
+  const startTokenRef = useRef(0);        // cancels a start() that finishes after Stop/unmount/tab change
+  const scanningRef = useRef(false);
+  const wantScanRef = useRef(false);      // user intent: keep scanning when the page comes back
+  const preferRef = useRef("environment");
+  const handleDecodedRef = useRef(() => {}); // always points at the latest handler (current event)
 
   // Attendees tab state
   const [attendees, setAttendees] = useState([]);
@@ -206,8 +246,24 @@ export default function EventCheckIn() {
     setTimeout(() => { busyRef.current = false; }, 1500);
   }, [checkInUid]);
 
+  handleDecodedRef.current = handleDecodedText;
+
   // Camera lifecycle
-  const startScanning = async () => {
+  // Back camera first; if it can't start, fall back to the front camera, then any other camera.
+  const stopScanning = async ({ keepIntent = false } = {}) => {
+    startTokenRef.current += 1; // cancel any start() still in flight
+    if (!keepIntent) wantScanRef.current = false;
+    const instance = scannerRef.current;
+    scannerRef.current = null;
+    if (instance) {
+      try { await instance.stop(); } catch { /* already stopped */ }
+      try { instance.clear(); } catch { /* nothing to clear */ }
+    }
+    scanningRef.current = false;
+    setScanning(false);
+  };
+
+  const startScanning = async (prefer = preferRef.current) => {
     setScanError("");
     setResult(null);
 
@@ -215,55 +271,100 @@ export default function EventCheckIn() {
       setScanError("Camera access needs HTTPS, or localhost. This page is loaded over an insecure connection.");
       return;
     }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScanError("This browser can't use the camera. Use manual entry below, or open this page in Chrome or Safari.");
+      return;
+    }
 
-    const config = { fps: 10, qrbox: 260 };
-    const onDecoded = (decodedText) => { handleDecodedText(decodedText); };
-    const onDecodeMiss = () => { /* per-frame decode miss, ignore, this fires constantly */ };
+    preferRef.current = prefer;
+    wantScanRef.current = true;
+    await stopScanning({ keepIntent: true });
+    const token = startTokenRef.current;
 
-    let instance;
-    try {
-      instance = new Html5Qrcode(READER_ELEMENT_ID);
-      scannerRef.current = instance;
+    const config = {
+      fps: 10,
+      qrbox: qrboxFn,
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+    };
+    const onDecoded = (text) => { handleDecodedRef.current(text); };
+    const onMiss = () => { /* per-frame decode miss, ignore */ };
 
+    const candidates = await buildCameraCandidates(prefer);
+    let lastErr = null;
+    let started = false;
+
+    for (const cand of candidates) {
+      if (token !== startTokenRef.current) return; // cancelled while trying cameras
+      const instance = new Html5Qrcode(READER_ELEMENT_ID, { verbose: false });
       try {
-        // Preferred: rear/environment camera (phones, tablets)
-        await instance.start({ facingMode: "environment" }, config, onDecoded, onDecodeMiss);
-      } catch (envErr) {
-        // Desktops have no rear camera; fall back to whatever camera is available
-        console.warn("Rear camera unavailable, falling back to any camera:", envErr);
-        const cameras = await Html5Qrcode.getCameras();
-        if (!cameras || cameras.length === 0) throw envErr;
-        await instance.start({ deviceId: { exact: cameras[0].id } }, config, onDecoded, onDecodeMiss);
+        await instance.start(cand.cfg, config, onDecoded, onMiss);
+        if (token !== startTokenRef.current) {      // user pressed Stop / left the page meanwhile
+          try { await instance.stop(); instance.clear(); } catch { /* ignore */ }
+          return;
+        }
+        scannerRef.current = instance;
+        scanningRef.current = true;
+        setCameraLabel(cand.label);
+        setScanning(true);
+        started = true;
+        break;
+      } catch (err) {
+        lastErr = err;
+        console.warn(`Camera "${cand.label}" failed:`, err);
+        try { await instance.stop(); } catch { /* never started */ }
+        try { instance.clear(); } catch { /* ignore */ }
+        if (isPermissionError(err)) break; // no point trying other cameras
       }
+    }
 
-      setScanning(true);
-    } catch (err) {
-      console.error(err);
-      const detail = err?.message || String(err);
-      setScanError(`Couldn't access the camera (${detail}). Check browser permissions, make sure no other app/tab is using the camera, or use manual entry below.`);
+    if (!started && token === startTokenRef.current) {
+      wantScanRef.current = false;
       setScanning(false);
-      if (scannerRef.current) {
-        try { await scannerRef.current.clear(); } catch { /* already stopped */ }
-        scannerRef.current = null;
-      }
+      setCameraLabel("");
+      const denied = lastErr && isPermissionError(lastErr);
+      setScanError(
+        denied
+          ? "Camera permission was blocked. Allow camera access for this site in your browser settings, then press Start again."
+          : `Couldn't start any camera${lastErr?.message ? ` (${lastErr.message})` : ""}. Close other apps or tabs using the camera, or use manual entry below.`
+      );
     }
   };
 
-  const stopScanning = async () => {
-    const instance = scannerRef.current;
-    if (instance) {
-      try {
-        await instance.stop();
-        await instance.clear();
-      } catch {
-        // already stopped
-      }
-      scannerRef.current = null;
-    }
-    setScanning(false);
+  const switchCamera = () => startScanning(cameraLabel === "Front camera" ? "environment" : "user");
+
+  const changeTab = async (next) => {
+    if (next !== "scan") await stopScanning(); // the video element is unmounted with the Scan tab
+    setTab(next);
   };
 
-  useEffect(() => () => { stopScanning(); }, []); // stop camera on unmount
+  // Release the camera when leaving the page.
+  useEffect(() => () => { stopScanning(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Phone locked / app switched / rotated: the stream dies or the preview distorts,
+  // so release it and come back automatically.
+  useEffect(() => {
+    let rotateTimer;
+    const onVisibility = () => {
+      if (document.hidden) {
+        if (scanningRef.current) stopScanning({ keepIntent: true });
+      } else if (wantScanRef.current && !scanningRef.current) {
+        startScanning(preferRef.current);
+      }
+    };
+    const onRotate = () => {
+      clearTimeout(rotateTimer);
+      rotateTimer = setTimeout(() => {
+        if (scanningRef.current) startScanning(preferRef.current);
+      }, 400);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("orientationchange", onRotate);
+    return () => {
+      clearTimeout(rotateTimer);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("orientationchange", onRotate);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleManualSubmit = async (e) => {
     e.preventDefault();
@@ -286,15 +387,15 @@ export default function EventCheckIn() {
   const checkedInCount = attendees.filter((a) => a.checkedIn).length;
 
   return (
-    <div className="flex-1 bg-[#f8f9fa] min-h-screen p-8 font-sans">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+    <div className="flex-1 min-w-0 bg-[#f8f9fa] min-h-dvh p-3 sm:p-6 lg:p-8 font-sans">
+      <div className="mb-5 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
           <QrCode className="text-[#0f52ba]" size={30} /> Event Check-In
         </h1>
-        <p className="text-gray-500">Scan a senior's account QR to check them in to a joinable event.</p>
+        <p className="text-sm sm:text-base text-gray-500">Scan a senior's account QR to check them in to a joinable event.</p>
       </div>
 
-      <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm mb-6">
+      <div className="bg-white rounded-3xl p-4 sm:p-6 border border-gray-100 shadow-sm mb-6">
         <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Event</label>
         {events.length === 0 ? (
           <p className="text-sm text-gray-400">
@@ -304,7 +405,7 @@ export default function EventCheckIn() {
           <select
             value={selectedEventId}
             onChange={(e) => { setSelectedEventId(e.target.value); setResult(null); }}
-            className="w-full bg-gray-50 rounded-xl py-3 px-4 text-sm text-gray-800 border border-gray-100 outline-none"
+            className="w-full min-w-0 bg-gray-50 rounded-xl py-3 px-4 text-base sm:text-sm text-gray-800 border border-gray-100 outline-none"
           >
             {events.map((ev) => (
               <option key={ev.id} value={ev.id}>{ev.Title} · {ev.Date}</option>
@@ -312,22 +413,22 @@ export default function EventCheckIn() {
           </select>
         )}
         {selectedEvent && (
-          <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-xs text-gray-500">
             <span className="flex items-center gap-1"><Users2 size={13} /> {attendees.length} registered</span>
             <span className="flex items-center gap-1"><CheckCircle2 size={13} /> {checkedInCount} checked in</span>
           </div>
         )}
       </div>
 
-      <div className="flex gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-4 sm:mb-6">
         <button
-          onClick={() => setTab("scan")}
+          onClick={() => changeTab("scan")}
           className={`px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-2 ${tab === "scan" ? "bg-[#0f52ba] text-white" : "bg-white text-gray-500 border border-gray-100"}`}
         >
           <Camera size={15} /> Scan
         </button>
         <button
-          onClick={() => setTab("attendees")}
+          onClick={() => changeTab("attendees")}
           className={`px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-2 ${tab === "attendees" ? "bg-[#0f52ba] text-white" : "bg-white text-gray-500 border border-gray-100"}`}
         >
           <ListChecks size={15} /> Attendees
@@ -336,20 +437,34 @@ export default function EventCheckIn() {
 
       {tab === "scan" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-gray-900">Camera Scanner</h3>
-              {!scanning ? (
-                <button onClick={startScanning} disabled={!selectedEventId}
-                  className="bg-[#0f52ba] disabled:opacity-40 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full flex items-center gap-2">
-                  <Camera size={15} /> Start
-                </button>
-              ) : (
-                <button onClick={stopScanning}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-full flex items-center gap-2">
-                  <CameraOff size={15} /> Stop
-                </button>
-              )}
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-gray-100 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <div className="min-w-0">
+                <h3 className="font-bold text-gray-900">Camera Scanner</h3>
+                {scanning && cameraLabel && (
+                  <p className="text-xs text-gray-400 mt-0.5">Using: {cameraLabel}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {scanning && (
+                  <button onClick={switchCamera}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-full flex items-center gap-2"
+                    title="Switch between back and front camera">
+                    <SwitchCamera size={15} /> <span className="hidden sm:inline">Switch</span>
+                  </button>
+                )}
+                {!scanning ? (
+                  <button onClick={() => startScanning("environment")} disabled={!selectedEventId}
+                    className="bg-[#0f52ba] disabled:opacity-40 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full flex items-center gap-2">
+                    <Camera size={15} /> Start
+                  </button>
+                ) : (
+                  <button onClick={() => stopScanning()}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-full flex items-center gap-2">
+                    <CameraOff size={15} /> Stop
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* IMPORTANT: html5-qrcode injects video/canvas nodes directly into
@@ -358,8 +473,8 @@ export default function EventCheckIn() {
                 library's own DOM mutations fight over the same nodes and throw
                 "Failed to execute 'removeChild' ... not a child of this node."
                 The placeholder text lives in a sibling overlay instead. */}
-            <div className="relative rounded-2xl overflow-hidden bg-gray-900 min-h-[280px] flex items-center justify-center">
-              <div id={READER_ELEMENT_ID} className="w-full" />
+            <div className="relative rounded-2xl overflow-hidden bg-gray-900 min-h-60 sm:min-h-70 max-h-[70vh] flex items-center justify-center">
+              <div id={READER_ELEMENT_ID} className="w-full [&_video]:w-full [&_video]:max-h-[70vh] [&_video]:object-cover" />
               {!scanning && (
                 <p className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm pointer-events-none">
                   Camera preview will appear here
@@ -377,22 +492,22 @@ export default function EventCheckIn() {
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                 Or enter code manually
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   value={manualCode}
                   onChange={(e) => setManualCode(e.target.value)}
                   placeholder="Paste QR text or OSCA ID number"
-                  className="flex-1 bg-gray-50 rounded-xl py-2.5 px-4 text-sm border border-gray-100 outline-none"
+                  className="flex-1 min-w-0 bg-gray-50 rounded-xl py-2.5 px-4 text-base sm:text-sm border border-gray-100 outline-none"
                 />
-                <button type="submit" className="bg-gray-900 hover:bg-black text-white px-4 rounded-xl flex items-center gap-2 text-sm font-semibold">
+                <button type="submit" className="bg-gray-900 hover:bg-black text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold">
                   <Search size={15} /> Look up
                 </button>
               </div>
             </form>
           </div>
 
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-gray-100 shadow-sm">
             <h3 className="font-bold text-gray-900 mb-4">Result</h3>
 
             {lookingUp && (
@@ -452,7 +567,7 @@ export default function EventCheckIn() {
       )}
 
       {tab === "attendees" && (
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+        <div className="bg-white rounded-3xl p-4 sm:p-6 border border-gray-100 shadow-sm">
           <h3 className="font-bold text-gray-900 mb-4">Registered Attendees</h3>
           {attendeesLoading && <p className="text-sm text-gray-400">Loading…</p>}
           {!attendeesLoading && attendees.length === 0 && (
@@ -460,11 +575,11 @@ export default function EventCheckIn() {
           )}
           <div className="space-y-3">
             {attendees.map((a) => (
-              <div key={a.id} className="flex items-center justify-between p-4 rounded-2xl border border-gray-50 bg-gray-50/50">
+              <div key={a.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 rounded-2xl border border-gray-50 bg-gray-50/50">
                 <div className="min-w-0">
                   <p className="font-bold text-gray-900 text-sm">{a.name || a.id}</p>
                   {a.formResponses && Object.keys(a.formResponses).length > 0 && (
-                    <p className="text-xs text-gray-500 mt-0.5 truncate">
+                    <p className="text-xs text-gray-500 mt-0.5 wrap-break-word sm:truncate">
                       {Object.entries(a.formResponses).map(([k, v]) => `${k}: ${formatFieldValue(k, v)}`).join(" • ")}
                     </p>
                   )}

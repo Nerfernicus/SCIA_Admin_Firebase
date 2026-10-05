@@ -14,7 +14,7 @@ const fmt = (t) => {
 function ConfirmModal({ admin, busy, error, onClose, onConfirm }) {
   const locking = !admin.locked;
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-10000 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={busy ? undefined : onClose} />
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 z-10 text-center">
         <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${locking ? 'bg-red-100' : 'bg-green-100'}`}>
@@ -125,7 +125,7 @@ export default function AdminAccounts() {
       )}
 
       {toast && (
-        <div className="fixed top-6 right-6 z-[10001] bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3">
+        <div className="fixed top-6 right-6 z-10001 bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3">
           <CheckCircle2 size={16} className="text-green-400" /> {toast}
           <button onClick={() => setToast('')}><X size={14} className="text-white/60 hover:text-white" /></button>
         </div>

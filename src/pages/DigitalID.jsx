@@ -255,11 +255,11 @@ export default function DigitalID() {
   const invalidated = filtered.filter(r => r.status === 'invalidated');
 
   return (
-    <div className="p-8 max-w-5xl mx-auto relative">
+    <div className="p-4 sm:p-8 max-w-5xl mx-auto relative">
 
       {/* Toast */}
       {toast && (
-        <div className="fixed top-6 right-6 z-50 bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-fade-in">
+        <div className="fixed top-4 right-4 left-4 sm:left-auto sm:top-6 sm:right-6 z-50 bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-fade-in">
           {toast}
           <button onClick={() => setToast('')}><X size={14} className="text-white/60 hover:text-white" /></button>
         </div>
@@ -268,7 +268,7 @@ export default function DigitalID() {
       {/* ID preview modal */}
       {previewID && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-2xl w-full max-h-[92vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-8 max-w-2xl w-full max-h-[92dvh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <CreditCard size={18} className="text-[#0f52ba]" /> {t.digitalId}
@@ -336,7 +336,7 @@ export default function DigitalID() {
           ) : (
             <div className="space-y-3">
               {readyToRelease.map(record => (
-                <div key={record.id} className="bg-white border border-gray-100 rounded-2xl p-5 flex items-center justify-between hover:border-green-200 transition-colors">
+                <div key={record.id} className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 hover:border-green-200 transition-colors">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center shrink-0">
                       <ShieldCheck size={18} className="text-green-600" />
@@ -373,7 +373,7 @@ export default function DigitalID() {
           </p>
           <div className="space-y-3">
             {needsDigitalId.map(p => (
-              <div key={p.id} className="bg-white border border-gray-100 rounded-2xl p-5 flex items-center justify-between hover:border-blue-200 transition-colors">
+              <div key={p.id} className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 hover:border-blue-200 transition-colors">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
                     <User2 size={18} className="text-blue-600" />
@@ -420,7 +420,7 @@ export default function DigitalID() {
               <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.activeDigitalIds} ({active.length})</h2>
               <div className="space-y-3">
                 {active.map(r => (
-                  <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-5 flex items-center justify-between hover:border-blue-200 transition-colors">
+                  <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 hover:border-blue-200 transition-colors">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
                         <User2 size={18} className="text-[#0f52ba]" />
@@ -453,7 +453,7 @@ export default function DigitalID() {
               <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.invalidatedIds} ({invalidated.length})</h2>
               <div className="space-y-2">
                 {invalidated.map(r => (
-                  <div key={r.id} className="bg-red-50/50 border border-red-100 rounded-2xl p-4 flex items-center justify-between opacity-60">
+                  <div key={r.id} className="bg-red-50/50 border border-red-100 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 opacity-60">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-red-100 rounded-xl flex items-center justify-center">
                         <XCircle size={15} className="text-red-500" />

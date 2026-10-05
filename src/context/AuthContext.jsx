@@ -204,7 +204,7 @@ export function AuthProvider({ children }) {
       {idleSecondsLeft > 0 && (
         <div
           role="alert"
-          className="fixed top-4 left-1/2 -translate-x-1/2 z-[10002] bg-amber-500 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-10002 bg-amber-500 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3"
         >
           <span>Locking due to inactivity in {idleSecondsLeft}s. Move the mouse or press a key to stay signed in.</span>
         </div>

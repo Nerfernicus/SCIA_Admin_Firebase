@@ -8,7 +8,7 @@ export default function Unauthorized() {
   const { role } = useAuth();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+    <div className="min-h-dvh bg-gray-50 flex items-center justify-center p-6">
       <div className="bg-white rounded-3xl shadow-xl p-12 max-w-md w-full text-center">
         <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
           <ShieldOff size={28} className="text-red-500" />

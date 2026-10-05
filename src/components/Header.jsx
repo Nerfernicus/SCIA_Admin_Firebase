@@ -52,7 +52,7 @@ function useNotifState(uid) {
   };
 }
 
-function useNotifications(myBarangay) {
+function useNotifications(myBarangay, isSuperAdmin) {
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
   const mounted = useRef(true);
@@ -66,15 +66,16 @@ function useNotifications(myBarangay) {
   const refresh = React.useCallback(async () => {
     try {
       // Security rule requires server-side where() filtering for barangay-scoped admins
-      const releasedIdsQuery = myBarangay
-        ? query(collection(db, 'released_ids'), where('barangay', '==', myBarangay), orderBy('releasedAt', 'desc'), limit(8))
+      // Only the OSCA admin handles IDs, so barangay sub-admins get no ID notices.
+      const releasedIdsQuery = !isSuperAdmin
+        ? null
         : query(collection(db, 'released_ids'), orderBy('releasedAt', 'desc'), limit(10));
 
       const [sosSnap, annSnap, idSnap] = await Promise.all([
         getDocs(query(collection(db, 'emergencies'), orderBy('createdAt', 'desc'), limit(10))),
         // Fetch a few extra so filtering out other barangays' posts doesn't leave us short
         getDocs(query(collection(db, 'editorial_health'), orderBy('createdAt', 'desc'), limit(12))),
-        getDocs(releasedIdsQuery),
+        releasedIdsQuery ? getDocs(releasedIdsQuery) : Promise.resolve({ docs: [] }),
       ]);
       if (!mounted.current) return;
 
@@ -100,7 +101,7 @@ function useNotifications(myBarangay) {
           time: d.createdAt?.toDate?.() || new Date(),
         }));
 
-      // Notifies the barangay sub-admin when OSCA releases an ID for their area
+      // OSCA: IDs recently marked ready to claim at City Hall
       const idReleases = idSnap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .filter((d) => !myBarangay || d.barangay === myBarangay)
@@ -108,8 +109,8 @@ function useNotifications(myBarangay) {
         .map((d) => ({
           id: d.id,
           type: 'id_release',
-          title: 'ID Released',
-          body: `${d.seniorName || 'Senior citizen'}, Brgy. ${d.barangay || 'Unassigned'}`,
+          title: 'ID Ready to Claim',
+          body: `${d.seniorName || 'Senior citizen'}${d.pickup?.date ? ` - pickup ${d.pickup.date} ${d.pickup.time || ''}` : ''}`.trim(),
           time: d.releasedAt?.toDate?.() || new Date(),
         }));
 
@@ -119,16 +120,16 @@ function useNotifications(myBarangay) {
     } finally {
       if (mounted.current) setLoading(false);
     }
-  }, [myBarangay]);
+  }, [myBarangay, isSuperAdmin]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
   return { notifs, loading, refresh };
 }
 
-// OSCA Super Admin only: live feed of physical-ID events reported by barangays
-// (ID received / claimed), written by the onIdRequestStatusChange Cloud Function
-// into /admin_notifications. One listener, real time, no polling.
+// OSCA Super Admin only: live feed of physical-ID events (a senior booked or
+// changed their City Hall pickup time), written by the bookIdPickup Cloud
+// Function into /admin_notifications. One listener, real time, no polling.
 function useOscaIdNotifications(enabled) {
   const [items, setItems] = useState([]);
   useEffect(() => {
@@ -530,7 +531,7 @@ export default function Header({ onMenuClick }) {
   const settingsRef = useRef(null);
 
   const navigate = useNavigate();
-  const { notifs, loading: notifsLoading, refresh: refreshNotifs } = useNotifications(adminData?.barangay || null);
+  const { notifs, loading: notifsLoading, refresh: refreshNotifs } = useNotifications(adminData?.barangay || null, !!isSuperAdmin);
   const oscaIdNotifs = useOscaIdNotifications(!!isSuperAdmin);
   const notifState = useNotifState(user?.uid);
   const isRead = (n) => !!notifState.state.read[notifKey(n)];

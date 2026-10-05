@@ -262,23 +262,35 @@ service cloud.firestore {
     }
 
     // ── /id_requests ─────────────────────────────────────────────────────
-    // Sub-admins now need read+update here too: IDManagement.jsx's barangay-
-    // scoped listener (where barangay == myBarangay) requires every matched
-    // doc to pass the read rule, and handleReceived/handleCollected update
-    // this doc via syncRequestStatus() when a barangay marks an ID
-    // received/claimed.
+    // Physical ID requests are handled by the OSCA admin only (super_admin).
+    // Barangay sub-admins cannot read or touch them. The senior who filed a
+    // request can read their own, to follow its progress in the app.
     match /id_requests/{docId} {
       allow create: if request.auth != null;
 
       allow read: if request.auth != null
-        && (isOwner()
-            || isSuperAdmin()
-            || (adminRole() == 'sub_admin' && canSeeBarangay(resource.data.get('barangay', null))));
+        && (isOwner() || isSuperAdmin());
 
-      allow update: if isSuperAdmin()
-        || (adminRole() == 'sub_admin' && canSeeBarangay(resource.data.get('barangay', null)));
+      allow update: if isSuperAdmin();
 
       allow delete: if isSuperAdmin();
+    }
+
+    // ── /osca_office ─────────────────────────────────────────────────────
+    // settings: office hours + live status (open / break / closed). Everyone signed
+    // in can read it (the app shows it when booking a pickup); only OSCA edits it.
+    match /osca_office/{docId} {
+      allow read: if request.auth != null;
+      allow write: if isSuperAdmin();
+    }
+
+    // ── /pickup_slots ────────────────────────────────────────────────────
+    // pickup_slots/{YYYY-MM-DD} = { counts: { "08:00": 2 } }. Read-only for
+    // clients; the bookIdPickup Cloud Function is the only writer, so a full
+    // time slot cannot be overbooked from the app.
+    match /pickup_slots/{day} {
+      allow read: if request.auth != null;
+      allow write: if false;
     }
 
     // ── /health_centers ──────────────────────────────────────────────────
@@ -310,10 +322,11 @@ service cloud.firestore {
     }
 
     // ── /released_ids ────────────────────────────────────────────────────
+    // Record of physical IDs the OSCA admin handed out. OSCA admin only.
     match /released_ids/{docId} {
-      allow read: if request.auth != null && canSeeBarangay(resource.data.get('barangay', null));
+      allow read: if isSuperAdmin();
       allow create: if isSuperAdmin();
-      allow update: if isSubOrSuperAdmin();
+      allow update: if isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 
@@ -372,10 +385,9 @@ service cloud.firestore {
     // the NCSC registration form, then whether they finished or cancelled.
     // Admins verify or reject after checking.
     match /ncsc_registrations/{uid} {
+      // The senior reads their own record; only the OSCA admin reads the rest.
       allow read: if request.auth != null
-        && (request.auth.uid == uid
-            || isSuperAdmin()
-            || (adminRole() == 'sub_admin' && canSeeBarangay(resource.data.get('barangay', null))));
+        && (request.auth.uid == uid || isSuperAdmin());
 
       allow create: if request.auth != null
         && request.auth.uid == uid
@@ -389,9 +401,8 @@ service cloud.firestore {
         && resource.data.status in ['started', 'cancelled', 'completed_claimed']
         && request.resource.data.status in ['started', 'cancelled', 'completed_claimed'];
 
-      // Admins can only verify or reject
-      allow update: if (isSuperAdmin()
-            || (adminRole() == 'sub_admin' && canSeeBarangay(resource.data.get('barangay', null))))
+      // Only the OSCA admin can verify or reject (barangay sub-admins cannot)
+      allow update: if isSuperAdmin()
         && request.resource.data.status in ['verified', 'rejected'];
 
       allow delete: if isSuperAdmin();

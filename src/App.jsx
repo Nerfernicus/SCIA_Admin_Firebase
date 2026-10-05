@@ -46,10 +46,11 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       {
-        // Unified ID Management: Verification + Release in one page
+        // Unified ID Management: Verification + Release in one page.
+        // OSCA admin (super_admin) only: barangay sub-admins have no part in IDs.
         path: 'id-management',
         element: (
-          <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
+          <ProtectedRoute allowedRoles={['super_admin']}>
             <IDManagement />
           </ProtectedRoute>
         ),
@@ -57,7 +58,7 @@ const router = createBrowserRouter([
       {
         path: 'digital-id',
         element: (
-          <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
+          <ProtectedRoute allowedRoles={['super_admin']}>
             <DigitalID />
           </ProtectedRoute>
         ),
@@ -126,7 +127,7 @@ const router = createBrowserRouter([
       {
         path: 'ncsc-registrations',
         element: (
-          <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
+          <ProtectedRoute allowedRoles={['super_admin']}>
             <NcscRegistrations />
           </ProtectedRoute>
         ),

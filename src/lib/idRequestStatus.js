@@ -1,6 +1,14 @@
-// Physical-ID-request lifecycle, shared by the OSCA page, barangay page, and mobile app
-// pending → processing → delivered → received → done
-//                └───────────┴──→ cancelled
+// Physical-ID-request lifecycle, shared by the OSCA page and the mobile app.
+//
+// Only the OSCA office at City Hall releases physical IDs (no more barangay
+// delivery), so the senior comes to City Hall once, at a time they booked:
+//
+//   pending → processing → ready (claim at OSCA, City Hall) → done
+//        └───────┴──────────┴──→ cancelled
+//
+// 'approved' is kept for older requests. 'delivered' / 'received' / 'released'
+// are the old barangay steps; requests still sitting there are treated as
+// 'ready' (see normalizeStatus) so nothing is stranded.
 
 import {
   doc,
@@ -14,43 +22,37 @@ import {
 export const ID_STATUS = {
   PENDING: "pending",
   PROCESSING: "processing", // OSCA is processing / printing
-  DELIVERED: "delivered", //   OSCA delivered it to the barangay
-  RECEIVED: "received", //     barangay confirmed it received the ID
-  DONE: "done", //             senior claimed it (final)
+  READY: "ready", //           printed; the senior claims it at OSCA, City Hall
+  DONE: "done", //             senior claimed it at City Hall (final)
   CANCELLED: "cancelled",
 };
 
 export const STATUS_LABEL = {
   pending: "Pending",
   processing: "Processing",
-  delivered: "Delivered to Barangay",
-  received: "Received by Barangay",
+  ready: "Ready to claim at OSCA",
   done: "Claimed",
   cancelled: "Cancelled",
 };
+
+/** Old barangay-delivery statuses count as "ready to claim at OSCA". */
+export const normalizeStatus = (status) =>
+  ["delivered", "received", "released"].includes(status) ? ID_STATUS.READY : status || ID_STATUS.PENDING;
 
 // What OSCA can move a request to from each status ('approved' kept for legacy requests)
 export const OSCA_NEXT = {
   pending: ["processing", "cancelled"],
   approved: ["processing", "cancelled"],
-  processing: ["delivered", "cancelled"],
-  delivered: ["cancelled"],
-  received: [],
+  processing: ["ready", "cancelled"],
+  ready: ["done", "cancelled"],
   done: [],
   cancelled: [],
-};
-
-// What the barangay (sub_admin) can do. Must match firestore.rules.
-export const BARANGAY_NEXT = {
-  delivered: ["received"],
-  received: ["done"],
 };
 
 // Which timestamp field each status stamps.
 const STAMP_FIELD = {
   processing: "processedAt",
-  delivered: "deliveredAt",
-  received: "receivedAt",
+  ready: "readyAt",
   done: "claimedAt",
   cancelled: "cancelledAt",
 };
@@ -59,12 +61,11 @@ const STAMP_FIELD = {
  * Build the Firestore update payload for a status transition, without
  * writing it. Used directly by callers that need to fold this into a larger
  * batch/transaction (e.g. IDManagement's "mark delivered" batch, which also
- * creates a released_ids doc in the same atomic write).
+ * creates a released_ids record in the same atomic write).
  *
  * @param newStatus  one of ID_STATUS
  * @param actor      { uid, role } of the signed-in admin ("super_admin" | "sub_admin")
- * @param extra      extra fields, e.g. { cancelReason } for OSCA, or
- *                   { barangay, releasedAt } for a delivery.
+ * @param extra      extra fields, e.g. { cancelReason } or { controlNumber, dateIssued }.
  */
 export function buildStatusPayload(newStatus, actor, extra = {}) {
   const payload = {
@@ -83,8 +84,6 @@ export function buildStatusPayload(newStatus, actor, extra = {}) {
   const stamp = STAMP_FIELD[newStatus];
   if (stamp) payload[stamp] = serverTimestamp();
 
-  // Who did it (matches the fields the barangay rule allows)
-  if (newStatus === ID_STATUS.RECEIVED) payload.receivedBy = actor.uid;
   if (newStatus === ID_STATUS.DONE) payload.claimedBy = actor.uid;
 
   return payload;
@@ -98,10 +97,8 @@ export function buildStatusPayload(newStatus, actor, extra = {}) {
  * @param db         Firestore instance
  * @param requestId  id_requests doc id
  * @param newStatus  one of ID_STATUS
- * @param actor      { uid, role } of the signed-in admin ("super_admin" | "sub_admin")
- * @param extra      extra fields, e.g. { cancelReason } for OSCA.
- *                   Barangay writes are limited by the rules to the tracking
- *                   fields, so don't pass anything else from the barangay page.
+ * @param actor      { uid, role } of the signed-in OSCA admin
+ * @param extra      extra fields, e.g. { cancelReason }.
  */
 export async function setIdRequestStatus(db, requestId, newStatus, actor, extra = {}) {
   const payload = buildStatusPayload(newStatus, actor, extra);
@@ -111,7 +108,7 @@ export async function setIdRequestStatus(db, requestId, newStatus, actor, extra 
 /**
  * MOBILE APP: senior follows up on their own request.
  * Rules allow this once per 24h, and only while the request is still in
- * progress (pending / processing / delivered).
+ * progress (pending / processing / ready).
  */
 export async function sendFollowUp(db, requestId, note = "") {
   await updateDoc(doc(db, "id_requests", requestId), {
@@ -120,7 +117,3 @@ export async function sendFollowUp(db, requestId, note = "") {
     lastFollowUpNote: note.trim().slice(0, 200),
   });
 }
-
-// Example queries: BARANGAY page filters where("barangay","==",myBarangay) +
-// where("status","in",["delivered","received"]); OSCA page queries the whole
-// collection and badges by STATUS_LABEL[status]; SENIOR app filters by uid.

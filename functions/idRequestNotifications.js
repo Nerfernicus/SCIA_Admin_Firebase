@@ -6,29 +6,32 @@
 //
 // Wire it up in functions/index.js:
 //   exports.onIdRequestStatusChange = require("./idRequestNotifications").onIdRequestStatusChange;
+//   exports.onIdRequestDeleted = require("./idRequestNotifications").onIdRequestDeleted;
 //
 // Uses firebase-functions v2 + CommonJS. If your functions folder uses ESM
 // ("type": "module"), swap the require() lines for import statements.
 
-const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onDocumentUpdated, onDocumentDeleted } = require("firebase-functions/v2/firestore");
 const { initializeApp, getApps } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const { freePickupSlot, formatPickup } = require("./pickup");
 
 if (!getApps().length) initializeApp();
 
 // Which statuses notify the senior, and what the message says.
-// `received` is intentionally not here (it's a barangay-side confirmation).
-// If you'd rather tell the senior "ready for pick-up" only AFTER the barangay
-// confirms, move the `delivered` message to `received`.
+// Only OSCA at City Hall releases physical IDs now, so there is no "delivered
+// to barangay" step: the ID goes processing -> ready (claim at OSCA) -> done.
 const MESSAGES = {
   processing: () => ({
     title: "Your ID request is being processed",
     body: "OSCA has started processing your Senior Citizen ID.",
   }),
-  delivered: (r) => ({
-    title: "Your Senior Citizen ID is ready for pick-up",
-    body: `Your physical ID has been delivered to ${r.barangay || "your barangay"}. You may claim it there.`,
+  ready: (r) => ({
+    title: "Your Senior Citizen ID is ready to claim",
+    body: r.pickup && r.pickup.date
+      ? `Please go to the OSCA Office at Valenzuela City Hall on ${formatPickup(r.pickup)}. Bring a valid ID.`
+      : "Please contact the OSCA Office at Valenzuela City Hall to set your pickup time.",
   }),
   done: () => ({
     title: "ID claimed",
@@ -42,20 +45,6 @@ const MESSAGES = {
   }),
 };
 
-// Which statuses notify the OSCA Super Admin (the master admin). These are the
-// two steps that happen out in the barangays, so without this OSCA never learns
-// that a printed ID reached its barangay or ended up in the senior's hands.
-const OSCA_MESSAGES = {
-  received: (r, who) => ({
-    title: "Physical ID received",
-    body: `${who} — Brgy. ${r.barangay || "n/a"} confirmed it received the ID from OSCA.`,
-  }),
-  done: (r, who) => ({
-    title: "Physical ID claimed",
-    body: `${who} — Brgy. ${r.barangay || "n/a"} marked the ID as claimed by the senior.`,
-  }),
-};
-
 exports.onIdRequestStatusChange = onDocumentUpdated(
   "id_requests/{requestId}",
   async (event) => {
@@ -66,24 +55,13 @@ exports.onIdRequestStatusChange = onDocumentUpdated(
     const requestId = event.params.requestId;
     const db = getFirestore();
 
-    // In-app notification for the OSCA Super Admin (read in the dashboard bell).
-    // Deterministic doc ID => a retried event overwrites instead of duplicating.
-    const oscaBuild = OSCA_MESSAGES[after.status];
-    if (oscaBuild) {
-      const who = after.name || after.fullName || after.seniorName || "A senior citizen";
-      const { title, body } = oscaBuild(after, who);
-      await db.doc(`admin_notifications/${requestId}_${after.status}`).set({
-        audience: "super_admin",
-        type: "id_request_status",
-        requestId,
-        uid: after.uid || null,
-        status: after.status,
-        barangay: after.barangay || null,
-        title,
-        body,
-        read: false,
-        createdAt: FieldValue.serverTimestamp(),
-      });
+    // A cancelled / rejected request gives its pickup seat back to someone else.
+    if ((after.status === "cancelled" || after.status === "rejected") && after.pickup) {
+      try {
+        await freePickupSlot(after.pickup);
+      } catch (err) {
+        console.error("freePickupSlot failed", err);
+      }
     }
 
     const build = MESSAGES[after.status];
@@ -128,3 +106,15 @@ exports.onIdRequestStatusChange = onDocumentUpdated(
     }
   }
 );
+
+// A deleted request that still held a pickup seat gives it back.
+exports.onIdRequestDeleted = onDocumentDeleted("id_requests/{requestId}", async (event) => {
+  const before = event.data && event.data.data();
+  if (!before || !before.pickup) return;
+  if (["done", "cancelled", "rejected"].includes(before.status)) return; // already freed or in the past
+  try {
+    await freePickupSlot(before.pickup);
+  } catch (err) {
+    console.error("freePickupSlot (delete) failed", err);
+  }
+});

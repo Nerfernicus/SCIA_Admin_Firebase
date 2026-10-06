@@ -22,7 +22,7 @@ const EMPTY_FORM = {
 
 const PH_MOBILE = /^(09\d{9}|\+639\d{9})$/;
 
-const INPUT_BASE = 'w-full text-gray-900 placeholder:text-gray-400 rounded-xl py-2.5 px-3 text-sm border outline-none focus:ring-2';
+const INPUT_BASE = 'w-full text-gray-900 placeholder:text-gray-500 rounded-xl py-2.5 px-3 text-sm border outline-none focus:ring-2';
 const INPUT_OK = 'bg-gray-50 border-gray-100 focus:ring-blue-100 focus:border-blue-200';
 const INPUT_BAD = 'bg-red-50 border-red-300 focus:ring-red-100 focus:border-red-400';
 const INPUT_CLS = `${INPUT_BASE} ${INPUT_OK}`;
@@ -30,14 +30,15 @@ const inputCls = (err) => `${INPUT_BASE} ${err ? INPUT_BAD : INPUT_OK}`;
 // Selected / unselected choice buttons (district, gender). dark: keeps the blue readable on the dark theme.
 const CHOICE_ON = 'border-[#0f52ba] bg-blue-50 text-[#0f52ba] dark:border-blue-400 dark:text-blue-300';
 const CHOICE_OFF = 'border-gray-200 text-gray-600 hover:bg-gray-50';
-const LABEL_CLS = 'block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5';
+// Darker than gray-400: NN/g flags light-grey, low-contrast text as hard for older eyes.
+const LABEL_CLS = 'block text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-1.5';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
   'August', 'September', 'October', 'November', 'December'];
 
 function FieldError({ msg }) {
   if (!msg) return null;
   return (
-    <p role="alert" className="mt-1 text-xs font-medium text-red-600 flex items-center gap-1">
+    <p role="alert" className="mt-1 text-sm font-medium text-red-600 flex items-center gap-1">
       <AlertCircle size={12} className="shrink-0" /> {msg}
     </p>
   );

@@ -10,6 +10,17 @@ import { clearKioskToken, getAssistedSession, readKioskToken } from '../lib/assi
 export default function AssistedKiosk() {
   const [state, setState] = useState({ status: 'loading' });
 
+  // This page is used by seniors themselves. NN/g's research with people 65+ found that
+  // tiny type and tiny tap targets keep coming up, so the whole page is scaled up 25%
+  // (all sizes are rem-based, so text, inputs and buttons grow together).
+  // https://www.nngroup.com/articles/usability-for-senior-citizens/
+  useEffect(() => {
+    const root = document.documentElement;
+    const previous = root.style.fontSize;
+    root.style.fontSize = '125%';
+    return () => { root.style.fontSize = previous; };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const token = readKioskToken();

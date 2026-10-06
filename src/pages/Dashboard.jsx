@@ -6,6 +6,7 @@ import { X, Megaphone, ChevronRight, Pencil, Trash2, Save, Loader2, AlertTriangl
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import mapOfValenzuela from '../assets/map_of_valenzuela.jpg';
+import { useCountUp, useSystemLoad } from '../lib/useDashboardLive';
 
 const COLLECTION_ID = 'editorial_health';
 
@@ -294,6 +295,28 @@ export default function Dashboard() {
   const recentPendingUsers = allUsers.filter((u) => (u.status ?? 'PENDING') === 'PENDING').slice(0, 3);
   const activePercent = totalUserCount > 0 ? Math.round((activeUserCount / totalUserCount) * 100) : 0;
 
+  // Animated numbers (count up on load, and again whenever the live value changes)
+  const sosShown     = useCountUp(activeSosCount,  { enabled: !sosLoading });
+  const pendingShown = useCountUp(pendingUserCount, { enabled: !usersLoading });
+  const totalShown   = useCountUp(totalUserCount,   { enabled: !usersLoading });
+
+  // Real, measured backend responsiveness (see lib/useDashboardLive.js)
+  const sys = useSystemLoad();
+  const sysBooting = sys.status === 'booting';
+  const sysOffline = sys.status === 'offline';
+  const loadShown  = useCountUp(sys.load ?? 0, { enabled: sys.load != null });
+  const loadTone =
+    sys.load == null ? 'bg-gray-300'
+    : sys.load < 40 ? 'bg-green-500'
+    : sys.load < 70 ? 'bg-amber-500'
+    : 'bg-red-500';
+  const sysBadge = {
+    booting: { cls: 'text-gray-500 bg-gray-100 animate-pulse', text: 'Booting…' },
+    online:  { cls: 'text-green-600 bg-green-50',  text: `Online · ${sys.latency} ms` },
+    slow:    { cls: 'text-amber-600 bg-amber-50',  text: `Slow · ${sys.latency} ms` },
+    offline: { cls: 'text-red-600 bg-red-50',      text: 'Offline' },
+  }[sys.status];
+
   return (
     <div className="min-h-full bg-gray-50 p-4 md:p-8 font-sans text-gray-900">
       {editTarget && <EditModal announcement={editTarget} onClose={() => setEditTarget(null)} onSaved={handleSaved} />}
@@ -319,22 +342,24 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div
-            className="bg-red-500 rounded-xl p-5 shadow-sm text-white flex flex-col justify-between cursor-pointer hover:bg-red-600 transition-colors"
+            className="stat-card-in bg-red-500 rounded-xl p-5 shadow-sm text-white flex flex-col justify-between cursor-pointer hover:bg-red-600 transition-colors"
+            style={{ animationDelay: '0ms' }}
             onClick={() => navigate('/sos')}
             title={t.goToLiveSosMap}
           >
             <div className="flex justify-between items-center mb-4">
-              <AlertTriangle size={18} className="text-red-200" />
+              <AlertTriangle size={18} className={'text-red-200' + (!sosLoading && activeSosCount > 0 ? ' animate-pulse' : '')} />
               <span className="bg-red-700 text-white px-2 py-0.5 rounded text-xs font-bold">{t.immediateBadge}</span>
             </div>
             <div className="text-red-100 text-sm font-medium">{t.activeSosAlerts}</div>
             {sosLoading ? (
-              <div className="text-4xl font-bold mt-1">
-                <Loader2 size={28} className="animate-spin text-white/70" />
+              <div className="mt-1 space-y-2" aria-busy="true">
+                <div className="h-10 w-14 rounded-lg bg-white/30 animate-pulse" />
+                <div className="h-2.5 w-28 rounded bg-white/20 animate-pulse" />
               </div>
             ) : (
               <>
-                <div className="text-4xl font-bold mt-1">{String(activeSosCount).padStart(2, '0')}</div>
+                <div className="text-4xl font-bold mt-1 tabular-nums">{sosShown.toLocaleString()}</div>
                 <div className="flex gap-3 mt-2">
                   <span className="text-[10px] text-red-200 font-semibold inline-flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
@@ -350,7 +375,8 @@ export default function Dashboard() {
           </div>
 
           <div
-            className="bg-yellow-100 rounded-xl p-5 shadow-sm flex flex-col justify-between border border-yellow-200 cursor-pointer hover:border-yellow-300 transition-colors"
+            className="stat-card-in bg-yellow-100 rounded-xl p-5 shadow-sm flex flex-col justify-between border border-yellow-200 cursor-pointer hover:border-yellow-300 transition-colors"
+            style={{ animationDelay: '80ms' }}
             onClick={() => navigate('/users')}
             title={t.userManagement}
           >
@@ -360,51 +386,76 @@ export default function Dashboard() {
             </div>
             <div className="text-yellow-800 text-sm font-medium">{t.pendingVerifications}</div>
             {usersLoading ? (
-              <div className="mt-1">
-                <Loader2 size={24} className="animate-spin text-yellow-600" />
+              <div className="mt-1 space-y-2" aria-busy="true">
+                <div className="h-10 w-14 rounded-lg bg-yellow-300/60 animate-pulse" />
+                <div className="h-2.5 w-24 rounded bg-yellow-300/50 animate-pulse" />
               </div>
             ) : (
               <>
-                <div className="text-4xl font-bold text-gray-900 mt-1">{pendingUserCount.toLocaleString()}</div>
+                <div className="text-4xl font-bold text-gray-900 mt-1 tabular-nums">{pendingShown.toLocaleString()}</div>
                 <div className="text-[10px] text-yellow-700 font-semibold mt-2">{t.ofPrefix} {totalUserCount.toLocaleString()} {t.totalUsersSuffix}</div>
               </>
             )}
           </div>
 
           <div
-            className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between cursor-pointer hover:border-blue-200 transition-colors"
+            className="stat-card-in bg-white rounded-xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between cursor-pointer hover:border-blue-200 transition-colors"
+            style={{ animationDelay: '160ms' }}
             onClick={() => navigate('/users')}
             title={t.userManagement}
           >
             <div className="flex justify-between items-center mb-4">
               <Users size={18} className="text-gray-400" />
               {usersLoading ? (
-                <Loader2 size={14} className="animate-spin text-gray-400" />
+                <span className="h-5 w-16 rounded bg-gray-100 animate-pulse" />
               ) : (
                 <span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded">{activePercent}% {t.activeSuffix}</span>
               )}
             </div>
             <div className="text-gray-500 text-sm font-medium">{t.liveUsers}</div>
             {usersLoading ? (
-              <div className="mt-1">
-                <Loader2 size={24} className="animate-spin text-gray-400" />
+              <div className="mt-1 space-y-2" aria-busy="true">
+                <div className="h-10 w-14 rounded-lg bg-gray-200 animate-pulse" />
+                <div className="h-2.5 w-24 rounded bg-gray-100 animate-pulse" />
               </div>
             ) : (
               <>
-                <div className="text-4xl font-bold text-gray-900 mt-1">{totalUserCount.toLocaleString()}</div>
+                <div className="text-4xl font-bold text-gray-900 mt-1 tabular-nums">{totalShown.toLocaleString()}</div>
                 <div className="text-[10px] text-gray-400 font-semibold mt-2">{activeUserCount.toLocaleString()} {t.verifiedActiveSuffix}</div>
               </>
             )}
           </div>
 
-          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between">
+          <div
+            className="stat-card-in bg-white rounded-xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between"
+            style={{ animationDelay: '240ms' }}
+            title="Measured live: how fast the database answers from this device (refreshes every 10 seconds)"
+          >
             <div className="flex justify-between items-center mb-4">
-              <Activity size={18} className="text-gray-400" />
-              <span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded">99.9% {t.upSuffix}</span>
+              <Activity size={18} className={'text-gray-400' + (sysBooting ? ' animate-pulse' : '')} />
+              <span className={`text-xs font-bold px-2 py-0.5 rounded ${sysBadge.cls}`}>{sysBadge.text}</span>
             </div>
             <div className="text-gray-500 text-sm font-medium">{t.systemLoad}</div>
-            <div className="text-4xl font-bold text-gray-900 mt-1">
-              14<span className="text-lg text-gray-500 ml-1">%</span>
+            {sysBooting ? (
+              <div className="mt-1" aria-busy="true">
+                <div className="h-10 w-14 rounded-lg bg-gray-200 animate-pulse" />
+              </div>
+            ) : (
+              <div className="text-4xl font-bold text-gray-900 mt-1 tabular-nums">
+                {sysOffline ? '—' : loadShown}
+                {!sysOffline && <span className="text-lg text-gray-500 ml-1">%</span>}
+              </div>
+            )}
+            <div className="mt-3 h-1.5 w-full rounded-full bg-gray-100 overflow-hidden" role="progressbar"
+              aria-label="System load" aria-valuemin={0} aria-valuemax={100} aria-valuenow={sys.load ?? undefined}>
+              {sysBooting ? (
+                <div className="boot-sweep h-full rounded-full bg-blue-400/70" />
+              ) : (
+                <div
+                  className={`h-full rounded-full transition-all duration-700 ease-out ${loadTone}`}
+                  style={{ width: `${sys.load ?? 0}%` }}
+                />
+              )}
             </div>
           </div>
         </div>

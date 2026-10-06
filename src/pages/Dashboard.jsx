@@ -300,22 +300,21 @@ export default function Dashboard() {
   const pendingShown = useCountUp(pendingUserCount, { enabled: !usersLoading });
   const totalShown   = useCountUp(totalUserCount,   { enabled: !usersLoading });
 
-  // Real, measured backend responsiveness (see lib/useDashboardLive.js)
-  const sys = useSystemLoad();
+  // Live workload score from the data above (see lib/useDashboardLive.js)
+  const sys = useSystemLoad({ users: allUsers, alerts: sosAlerts, ready: !usersLoading && !sosLoading });
   const sysBooting = sys.status === 'booting';
-  const sysOffline = sys.status === 'offline';
-  const loadShown  = useCountUp(sys.load ?? 0, { enabled: sys.load != null });
-  const loadTone =
-    sys.load == null ? 'bg-gray-300'
-    : sys.load < 40 ? 'bg-green-500'
-    : sys.load < 70 ? 'bg-amber-500'
-    : 'bg-red-500';
-  const sysBadge = {
-    booting: { cls: 'text-gray-500 bg-gray-100 animate-pulse', text: 'Booting…' },
-    online:  { cls: 'text-green-600 bg-green-50',  text: `Online · ${sys.latency} ms` },
-    slow:    { cls: 'text-amber-600 bg-amber-50',  text: `Slow · ${sys.latency} ms` },
-    offline: { cls: 'text-red-600 bg-red-50',      text: 'Offline' },
+  const loadShown  = useCountUp(sys.load ?? 0, { duration: 900, enabled: sys.load != null });
+  const loadTone = {
+    booting: 'bg-gray-300', low: 'bg-green-500', moderate: 'bg-amber-500', high: 'bg-orange-500', critical: 'bg-red-500',
   }[sys.status];
+  const sysBadge = {
+    booting:  { cls: 'text-gray-500 bg-gray-100 animate-pulse', text: 'Booting…' },
+    low:      { cls: 'text-green-600 bg-green-50',   text: 'Low' },
+    moderate: { cls: 'text-amber-600 bg-amber-50',   text: 'Moderate' },
+    high:     { cls: 'text-orange-600 bg-orange-50', text: 'High' },
+    critical: { cls: 'text-red-600 bg-red-50',       text: 'Very high' },
+  }[sys.status];
+  const sosOpen = sys.parts.sosPending + sys.parts.sosDispatched;
 
   return (
     <div className="min-h-full bg-gray-50 p-4 md:p-8 font-sans text-gray-900">
@@ -429,7 +428,7 @@ export default function Dashboard() {
           <div
             className="stat-card-in bg-white rounded-xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between"
             style={{ animationDelay: '240ms' }}
-            title="Measured live: how fast the database answers from this device (refreshes every 10 seconds)"
+            title="Live workload: active users, open SOS alerts and the verification queue. Low when quiet, spikes when many people are active and work piles up."
           >
             <div className="flex justify-between items-center mb-4">
               <Activity size={18} className={'text-gray-400' + (sysBooting ? ' animate-pulse' : '')} />
@@ -442,8 +441,8 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="text-4xl font-bold text-gray-900 mt-1 tabular-nums">
-                {sysOffline ? '—' : loadShown}
-                {!sysOffline && <span className="text-lg text-gray-500 ml-1">%</span>}
+                {loadShown}
+                <span className="text-lg text-gray-500 ml-1">%</span>
               </div>
             )}
             <div className="mt-3 h-1.5 w-full rounded-full bg-gray-100 overflow-hidden" role="progressbar"
@@ -456,6 +455,11 @@ export default function Dashboard() {
                   style={{ width: `${sys.load ?? 0}%` }}
                 />
               )}
+            </div>
+            <div className="text-[10px] text-gray-400 font-semibold mt-2">
+              {sysBooting
+                ? 'Checking system activity…'
+                : `${sys.parts.activeUsers} active · ${sosOpen} SOS · ${sys.parts.pendingVerifications} queued`}
             </div>
           </div>
         </div>

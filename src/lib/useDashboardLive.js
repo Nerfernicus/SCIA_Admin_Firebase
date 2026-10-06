@@ -1,8 +1,6 @@
 // lib/useDashboardLive.js
 // Small hooks for the dashboard's live stat cards.
-import { useEffect, useRef, useState } from 'react';
-import { doc, getDocFromServer } from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -40,86 +38,108 @@ export function useCountUp(target, { duration = 700, enabled = true } = {}) {
   return value;
 }
 
+// ── System load ──────────────────────────────────────────────────────────────
+// "Load" = how much the system is being asked to do RIGHT NOW, worked out from live data
+// the dashboard already receives. It is low when few people are using it and nothing is
+// happening, and it spikes when many users are active AND work is piling up (SOS alerts,
+// verification queue). It is a workload score, not CPU/RAM of the server (a web page can't
+// read those). Tune the numbers below to match your real-world scale.
+export const LOAD_MODEL = {
+  ACTIVE_WINDOW_MS: 15 * 60 * 1000, // "active user" = seen in the last 15 min (phone pings every ~5 min)
+  BURST_WINDOW_MS: 10 * 60 * 1000,  // an SOS created in the last 10 min counts extra (it's a spike)
+  UNITS: {
+    activeUser: 1,
+    sosPending: 6,
+    sosDispatched: 3,
+    sosNewBurst: 4,
+    pendingVerification: 0.5,
+  },
+  PENDING_QUEUE_CAP_UNITS: 10,      // a big backlog can't dominate by itself
+  CAPACITY_UNITS: 50,               // workload that counts as 100 %
+};
+
+const toMs = (t) =>
+  t?.toMillis ? t.toMillis() : t?.toDate ? t.toDate().getTime() : t ? new Date(t).getTime() || 0 : 0;
+
+export function computeSystemLoad(users = [], alerts = [], now = Date.now()) {
+  const M = LOAD_MODEL;
+  let activeUsers = 0;
+  let pendingVerifications = 0;
+  for (const u of users) {
+    const last = Math.max(toMs(u.last_active_timestamp), toMs(u.lastLoginAt), toMs(u.lastActivityAt));
+    if (last && now - last <= M.ACTIVE_WINDOW_MS) activeUsers += 1;
+    if ((u.status ?? 'PENDING') === 'PENDING') pendingVerifications += 1;
+  }
+  let sosPending = 0;
+  let sosDispatched = 0;
+  let sosNew = 0;
+  for (const a of alerts) {
+    if (a.status === 'pending') sosPending += 1;
+    else if (a.status === 'dispatched') sosDispatched += 1;
+    if (a.status !== 'resolved' && toMs(a.createdAt) && now - toMs(a.createdAt) <= M.BURST_WINDOW_MS) sosNew += 1;
+  }
+  const units =
+    activeUsers * M.UNITS.activeUser +
+    sosPending * M.UNITS.sosPending +
+    sosDispatched * M.UNITS.sosDispatched +
+    sosNew * M.UNITS.sosNewBurst +
+    Math.min(M.PENDING_QUEUE_CAP_UNITS, pendingVerifications * M.UNITS.pendingVerification);
+  const raw = Math.min(100, (units / M.CAPACITY_UNITS) * 100);
+  return { raw, parts: { activeUsers, sosPending, sosDispatched, sosNew, pendingVerifications } };
+}
+
+export const loadLevel = (load) =>
+  load < 30 ? 'low' : load < 60 ? 'moderate' : load < 85 ? 'high' : 'critical';
+
 /**
- * Live "system load" for the dashboard, measured, not a placeholder.
+ * Live system load for the dashboard.
+ *   users / alerts : the dashboard's live Firestore data
+ *   ready          : false until both have loaded (shows the "booting" state)
+ * Returns { status: 'booting'|'low'|'moderate'|'high'|'critical', load (0-100|null), parts }.
  *
- * Every `intervalMs` it times a real round trip to Firestore (a tiny server read) and turns
- * the latency into a load percentage: 0 ms -> 0 %, 2000 ms or slower -> 100 %, smoothed so the
- * number moves instead of jumping. It is a measure of how responsive the backend is right now
- * from this admin's connection, not CPU usage of the server (a browser can't see that).
- *
- * status: 'booting' (first reading pending) | 'online' | 'slow' | 'offline'
- * Pauses while the tab is hidden so it doesn't spend reads in the background.
+ * The shown value rises fast and falls slowly, so a burst of activity registers as a spike
+ * and then settles back down instead of flickering. It is recomputed whenever the data
+ * changes and every 15 s (so "active in the last 15 min" ages out on its own).
  */
-export function useSystemLoad({ intervalMs = 10000, timeoutMs = 8000, minBootMs = 1100 } = {}) {
-  const [state, setState] = useState({ status: 'booting', load: null, latency: null });
-  const emaRef = useRef(null);
+export function useSystemLoad({ users, alerts, ready, minBootMs = 1100 } = {}) {
+  const [tick, setTick] = useState(0);
+  const [bootDone, setBootDone] = useState(false);
+  const [shown, setShown] = useState(null);
+  const shownRef = useRef(null);
+  const mountedAt = useRef(performance.now());
 
   useEffect(() => {
-    let cancelled = false;
-    let timer;
-    let inFlight = false;
-    const mountedAt = performance.now();
-    let first = true;
+    const id = setInterval(() => setTick((n) => n + 1), 15000);
+    return () => clearInterval(id);
+  }, []);
 
-    const schedule = () => {
-      if (!cancelled) timer = setTimeout(measure, intervalMs);
-    };
+  useEffect(() => {
+    if (!ready) return undefined;
+    const wait = Math.max(0, minBootMs - (performance.now() - mountedAt.current));
+    const id = setTimeout(() => setBootDone(true), wait);
+    return () => clearTimeout(id);
+  }, [ready, minBootMs]);
 
-    async function measure() {
-      if (cancelled) return;
-      if (document.hidden || inFlight) { schedule(); return; }
-      inFlight = true;
-      const t0 = performance.now();
-      let ok = false;
-      try {
-        if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('offline');
-        const uid = auth.currentUser?.uid || '_probe';
-        await Promise.race([
-          getDocFromServer(doc(db, 'admins', uid)),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs)),
-        ]);
-        ok = true;
-      } catch (err) {
-        // The server answered, we just aren't allowed to read that doc: still a valid round trip.
-        if (err?.code === 'permission-denied') ok = true;
-      }
-      const ms = Math.round(performance.now() - t0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const { raw, parts } = useMemo(() => computeSystemLoad(users, alerts, Date.now()), [users, alerts, tick]);
 
-      // Let the "booting" animation play for a moment on first load.
-      if (first) {
-        const wait = minBootMs - (performance.now() - mountedAt);
-        if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-        first = false;
-      }
-      inFlight = false;
-      if (cancelled) return;
+  useEffect(() => {
+    if (!bootDone) return;
+    const prev = shownRef.current;
+    const next = prev == null ? raw : raw > prev ? prev + (raw - prev) * 0.6 : prev + (raw - prev) * 0.25;
+    const rounded = Math.round(next * 10) / 10;
+    shownRef.current = rounded;
+    setShown(rounded);
+  }, [raw, bootDone, tick]);
 
-      if (ok) {
-        const raw = Math.min(100, (ms / 2000) * 100);
-        emaRef.current = emaRef.current == null ? raw : emaRef.current * 0.6 + raw * 0.4;
-        setState({ status: ms < 800 ? 'online' : 'slow', load: Math.round(emaRef.current), latency: ms });
-      } else {
-        emaRef.current = null;
-        setState({ status: 'offline', load: null, latency: null });
-      }
-      schedule();
-    }
+  // While falling back down, keep easing toward the target even if no new data arrives.
+  useEffect(() => {
+    if (!bootDone || shown == null || Math.abs(shown - raw) < 0.5) return undefined;
+    const id = setTimeout(() => setTick((n) => n + 1), 1200);
+    return () => clearTimeout(id);
+  }, [shown, raw, bootDone]);
 
-    const onVisible = () => {
-      if (!document.hidden && !inFlight) { clearTimeout(timer); measure(); }
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('online', onVisible);
-    measure();
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('online', onVisible);
-    };
-  }, [intervalMs, timeoutMs, minBootMs]);
-
-  return state;
+  if (!bootDone || shown == null) return { status: 'booting', load: null, parts };
+  const load = Math.round(shown);
+  return { status: loadLevel(load), load, parts };
 }

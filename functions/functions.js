@@ -762,6 +762,7 @@ exports.assignOscaIdNumber = onCall(
 // that wiring). ──
 exports.onIdRequestStatusChange = require("./idRequestNotifications").onIdRequestStatusChange;
 exports.onIdRequestDeleted = require("./idRequestNotifications").onIdRequestDeleted;
+exports.onAppointmentConfirmedGuardians = require("./guardianAlerts").onAppointmentConfirmedGuardians;
 
 // City Hall pickup scheduling for physical IDs (senior picks a slot in the app,
 // OSCA can move it from the dashboard). See pickup.js.

@@ -21,6 +21,7 @@ export const DEFAULT_OFFICE = {
   status: 'open',
   statusNote: '',
   location: 'OSCA Office, Valenzuela City Hall',
+  phone: '',
   schedule: { days: [1, 2, 3, 4, 5], start: '08:00', end: '12:00', slotMinutes: 30, capacityPerSlot: 3 },
   closedDates: [],
   advanceDays: 30,
@@ -156,4 +157,3 @@ export async function bookPickup(requestId, date, time) {
   const res = await bookIdPickupFn({ requestId, date, time });
   return res.data;
 }
- 

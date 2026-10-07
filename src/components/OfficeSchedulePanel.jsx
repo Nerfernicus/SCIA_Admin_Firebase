@@ -79,10 +79,12 @@ export default function OfficeSchedulePanel({ idRequests, actorUid, onToast, onR
     if (!s.days.length) return onToast?.('Choose at least one office day.', 'error');
     if (!(s.start < s.end)) return onToast?.('The closing time must be after the opening time.', 'error');
     if (Number(s.slotMinutes) < 5 || Number(s.capacityPerSlot) < 1) return onToast?.('Check the minutes per slot and seniors per slot.', 'error');
+    if (draft.phone && !/^[0-9+()\s-]{7,20}$/.test(draft.phone.trim())) return onToast?.('Enter the office phone number using digits only (for example 0917 123 4567 or (02) 8123 4567).', 'error');
     setSaving(true);
     try {
       await saveOfficeSettings({
         location: draft.location.trim() || mergeOffice(null).location,
+        phone: (draft.phone || '').trim(),
         schedule: {
           days: [...s.days].sort(),
           start: s.start, end: s.end,
@@ -198,6 +200,11 @@ export default function OfficeSchedulePanel({ idRequests, actorUid, onToast, onR
         <div className="grid sm:grid-cols-2 gap-3 mb-4">
           <label className="text-xs font-semibold text-gray-500">Pickup location shown to seniors
             <input value={draft.location} onChange={e => setDraft(d => ({ ...d, location: e.target.value }))}
+              className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900" />
+          </label>
+          <label className="text-xs font-semibold text-gray-500">OSCA office phone (seniors tap Tulong to call this)
+            <input type="tel" value={draft.phone || ''} onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))}
+              placeholder="e.g. (02) 8123 4567"
               className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900" />
           </label>
           <label className="text-xs font-semibold text-gray-500">How many days ahead can they book?

@@ -16,6 +16,8 @@ const { initializeApp, getApps } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { freePickupSlot, formatPickup } = require("./pickup");
+const { SMS_API_KEY } = require("./sms");
+const { textGuardians } = require("./guardianSms");
 
 if (!getApps().length) initializeApp();
 
@@ -46,7 +48,7 @@ const MESSAGES = {
 };
 
 exports.onIdRequestStatusChange = onDocumentUpdated(
-  "id_requests/{requestId}",
+  { document: "id_requests/{requestId}", secrets: [SMS_API_KEY] },
   async (event) => {
     const before = event.data.before.data();
     const after = event.data.after.data();
@@ -81,6 +83,20 @@ exports.onIdRequestStatusChange = onDocumentUpdated(
       read: false,
       createdAt: FieldValue.serverTimestamp(),
     });
+
+    // Opted-in guardians get a text when the ID is ready to claim. A failed text
+    // must never stop the push below, so it is caught here.
+    if (after.status === "ready") {
+      try {
+        await textGuardians(after.uid, "idReady", (name) =>
+          `SCIA: ${name}'s Senior Citizen ID is ready to claim at the OSCA Office, Valenzuela City Hall.${
+            after.pickup && after.pickup.date ? ` Pickup: ${formatPickup(after.pickup)}.` : ""
+          }`,
+        );
+      } catch (err) {
+        console.error("guardian SMS (idReady) failed", err);
+      }
+    }
 
     // Push notification (optional — only if the app saved an fcmToken)
     const userSnap = await db.doc(`users/${after.uid}`).get();

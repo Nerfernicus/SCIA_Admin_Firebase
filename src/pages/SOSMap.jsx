@@ -10,6 +10,7 @@ import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from 'rea
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../context/AuthContext';
+import MaskedName from '../components/MaskedName';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -204,7 +205,7 @@ function AlertsList({
               <div className="flex justify-between items-start mb-2 pr-9 sm:pr-7">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-bold text-base wrap-break-word">{alert.name}</h3>
+                    <h3 className="font-bold text-base wrap-break-word"><MaskedName id={alert.userId || alert.uid || alert.id} name={alert.name} /></h3>
                     {repeat && (
                       <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
                         alert.status === 'pending' ? 'bg-orange-400 text-white' : 'bg-orange-500 text-white'
@@ -438,7 +439,7 @@ export default function SOSMap() {
                   icon={alert.status === 'pending' ? criticalIcon : dispatchedIcon}>
                   <Popup className="font-sans" minWidth={200} maxWidth={260}>
                     <div className="space-y-1">
-                      <p className="font-bold text-base">{alert.name}</p>
+                      <p className="font-bold text-base"><MaskedName id={alert.userId || alert.uid || alert.id} name={alert.name} /></p>
                       <p className="text-red-600 font-semibold text-sm">{alert.emergencyType}</p>
                       <p className="text-gray-600 text-sm">Now: Brgy. {alert.barangay}</p>
                       <p className="text-gray-500 text-xs">{alert.currentAddress || alert.address}</p>

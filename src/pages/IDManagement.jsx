@@ -20,6 +20,8 @@ import { setIdRequestStatus, buildStatusPayload, ID_STATUS, normalizeStatus } fr
 import { mergeOffice, bookPickup, formatPickup, formatDateLong, formatTime12 } from '../lib/pickupSlots';
 import OfficeSchedulePanel from '../components/OfficeSchedulePanel';
 import PickupSlotPicker from '../components/PickupSlotPicker';
+import MaskedName from '../components/MaskedName';
+import { referenceCode } from '../lib/referenceCode';
 
 // Server-side (Admin SDK) so the senior's login email can move with the ID number
 const approveIdVerificationFn = httpsCallable(functions, 'approveIdVerification');
@@ -545,7 +547,7 @@ function RescheduleModal({ record, office, onClose, onConfirm, processing }) {
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <CalendarDays size={18} className="text-[#0f52ba]" /> {record.pickup?.date ? L(t, 'rescheduleTitle', 'Reschedule pickup') : L(t, 'setPickupTitle', 'Set pickup time')}
             </h3>
-            <p className="text-xs text-gray-400 mt-0.5">{record.seniorName || record.fullName}{record.pickup?.date ? ` · ${L(t, 'currentlyLabel', 'now')}: ${formatPickup(record.pickup)}` : ''}</p>
+            <p className="text-xs text-gray-400 mt-0.5"><span className="font-mono">{referenceCode(record.uid || record.id)}</span>{record.pickup?.date ? ` · ${L(t, 'currentlyLabel', 'now')}: ${formatPickup(record.pickup)}` : ''}</p>
           </div>
           <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
@@ -632,7 +634,7 @@ function RequestRow({ r, status, sub, actions, tone = 'border-gray-100' }) {
     <div className={`bg-white border ${tone} rounded-2xl p-5 flex items-center justify-between`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="font-semibold text-gray-900">{r.seniorName || r.fullName || t.unknownLabel}</p>
+          <MaskedName className="font-semibold text-gray-900" id={r.uid || r.id} name={r.seniorName || r.fullName || t.unknownLabel} />
           <FollowUpBadge record={r} />
         </div>
         <p className="text-xs text-gray-500 mt-0.5">

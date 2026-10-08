@@ -5,6 +5,8 @@ import {
 import { ClipboardCheck, CheckCircle2, XCircle, Loader2, Trash2 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
+import MaskedName from '../components/MaskedName';
+import { referenceCode } from '../lib/referenceCode';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -170,8 +172,7 @@ export default function NcscRegistrations() {
             {visible.map((r) => (
               <tr key={r.id} className="border-t border-gray-100">
                 <td className="px-4 py-3">
-                  <div className="font-semibold text-gray-900">{r.fullName || 'Unknown'}</div>
-                  <div className="text-xs text-gray-400 font-mono">{r.id}</div>
+                  <MaskedName className="font-semibold text-gray-900" id={r.id} name={r.fullName || 'Unknown'} />
                   {r.alreadyRegistered && (
                     <div className="text-xs text-emerald-700 mt-0.5">
                       Already registered{r.idNumber ? ` · OSCA ID ${r.idNumber}` : ''}
@@ -233,7 +234,7 @@ export default function NcscRegistrations() {
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
             <h2 className="text-lg font-bold text-gray-900">Delete this record?</h2>
             <p className="mt-2 text-sm text-gray-600">
-              <span className="font-semibold">{toDelete.fullName || 'Unknown'}</span>
+              <span className="font-semibold font-mono">{referenceCode(toDelete.id)}</span>
               {toDelete.idNumber ? ` (OSCA ID ${toDelete.idNumber})` : ''} will be removed from NCSC
               Registrations. This cannot be undone.
             </p>

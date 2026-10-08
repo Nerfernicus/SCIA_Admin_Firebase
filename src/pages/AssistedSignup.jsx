@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import { DISTRICTS, barangaysOf, resolveBarangay } from '../lib/barangay';
 import IdCardCapture from '../components/IdCardCapture';
+import PrivacyConsent from '../components/PrivacyConsent';
 import { RULES, sanitize, validate, validateGender, validateDob, validateOption } from '../lib/validators';
 
 const createAssistedSeniorAccount = httpsCallable(functions, 'createAssistedSeniorAccount');
@@ -125,6 +126,8 @@ export default function AssistedSignup({ kiosk = null }) {
   // files); idPhotoLater = they didn't bring it and will send a photo from the app.
   const [idPhoto, setIdPhoto] = useState('');
   const [idPhotoLater, setIdPhotoLater] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+  const [consentError, setConsentError] = useState(false);
   const resetIdPhoto = () => { setIdPhoto(''); setIdPhotoLater(false); };
 
   const update = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -195,6 +198,12 @@ export default function AssistedSignup({ kiosk = null }) {
       return;
     }
 
+    if (!agreed) {
+      setConsentError(true);
+      setError('Please tick the box to confirm agreement with the Terms and Conditions and the Data Privacy Policy.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const ncscStatus = ['started', 'cancelled', 'completed_claimed', 'registered'].includes(ncscAnswer)
@@ -219,6 +228,8 @@ export default function AssistedSignup({ kiosk = null }) {
       setResult(res.data);
       setForm(EMPTY_FORM);
       setNcscAnswer(null);
+      setAgreed(false);
+      setConsentError(false);
       resetIdPhoto();
     } catch (err) {
       console.error(err);
@@ -572,6 +583,8 @@ export default function AssistedSignup({ kiosk = null }) {
               </div>
             )}
           </Section>
+
+          <PrivacyConsent checked={agreed} onChange={(v) => { setAgreed(v); if (v) setConsentError(false); }} error={consentError} />
 
           <button
             type="submit"

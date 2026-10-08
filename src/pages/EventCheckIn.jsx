@@ -13,6 +13,7 @@ import {
 //   npm install html5-qrcode
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { useAuth } from "../context/AuthContext";
+import MaskedName from '../components/MaskedName';
 
 const READER_ELEMENT_ID = "scia-qr-reader";
 
@@ -577,7 +578,7 @@ export default function EventCheckIn() {
             {attendees.map((a) => (
               <div key={a.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 rounded-2xl border border-gray-50 bg-gray-50/50">
                 <div className="min-w-0">
-                  <p className="font-bold text-gray-900 text-sm">{a.name || a.id}</p>
+                  <p className="font-bold text-gray-900 text-sm"><MaskedName id={a.uid || a.id} name={a.name || a.id} /></p>
                   {a.formResponses && Object.keys(a.formResponses).length > 0 && (
                     <p className="text-xs text-gray-500 mt-0.5 wrap-break-word sm:truncate">
                       {Object.entries(a.formResponses).map(([k, v]) => `${k}: ${formatFieldValue(k, v)}`).join(" • ")}

@@ -24,13 +24,29 @@ let ai = null;
 let appCheckReady = false;
 const models = {};
 
+// Running from this computer (Live Server, vite dev, a built copy opened on 127.0.0.1): reCAPTCHA
+// does not accept those addresses unless they are added to the key, so App Check would send an invalid
+// token and the AI answers 401. A debug token fixes that for local testing only. The first time, the
+// browser console prints "App Check debug token: ..." (also saved in this browser's localStorage).
+// Register it once in Firebase console > App Check > Apps > (web app) > Manage debug tokens.
+// To reuse a token you already registered, set VITE_APPCHECK_DEBUG_TOKEN in .env.
+const isLocalHost = () =>
+  typeof location !== 'undefined' && ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+
 function ensureAi() {
   if (!appCheckReady) {
     appCheckReady = true;
     const key = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-    if (key) {
+    if (isLocalHost()) {
+      // Must be set before initializeAppCheck runs.
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN || true;
+    }
+    if (key || isLocalHost()) {
       try {
-        initializeAppCheck(app, { provider: new ReCaptchaV3Provider(key), isTokenAutoRefreshEnabled: true });
+        initializeAppCheck(app, {
+          provider: new ReCaptchaV3Provider(key || 'debug-only-no-site-key'),
+          isTokenAutoRefreshEnabled: true,
+        });
       } catch (e) { console.warn('[guideAI] App Check not started:', e?.message || e); }
     }
   }

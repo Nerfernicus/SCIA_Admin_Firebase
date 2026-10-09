@@ -184,7 +184,8 @@ function describe(el, lang) {
   const w = WORDS[lang] || WORDS.en;
   const tag = el.tagName.toLowerCase();
   let kind = '';
-  if (tag === 'a') kind = w.link;
+  // Sidebar and menu links are just read by name; saying "link" every time is noise there.
+  if (tag === 'a') kind = el.closest('nav, aside') ? '' : w.link;
   else if (tag === 'button' || el.getAttribute('role') === 'button') kind = w.button;
   else if (tag === 'select') kind = w.select;
   else if (tag === 'textarea') kind = w.textarea;
@@ -342,6 +343,18 @@ export async function explainPage(lang = 'tl') {
       (outline.actions.length ? `You can use: ${outline.actions.slice(0, 8).join(', ')}.` : '');
     return text;
   }
-  const { explainPageInTagalog } = await import('./guideAI');
-  return explainPageInTagalog(outline);
+  try {
+    const { explainPageInTagalog } = await import('./guideAI');
+    return await explainPageInTagalog(outline);
+  } catch (e) {
+    // The AI could not be reached (App Check, offline, quota). Say something useful anyway, built
+    // only from the page's own headings and button names and the built-in Tagalog words.
+    console.warn('[guide] AI explanation unavailable, using the built-in walkthrough:', e?.message || e);
+    const tl = (x) => localTagalog(x) || x;
+    return (
+      `Ito po ang page na ${tl(outline.title || 'kasalukuyang page')}. ` +
+      (outline.headings.length ? `Ang mga bahagi nito ay: ${outline.headings.slice(0, 5).map(tl).join(', ')}. ` : '') +
+      (outline.actions.length ? `Maaari ninyong pindutin ang: ${outline.actions.slice(0, 8).map(tl).join(', ')}.` : '')
+    );
+  }
 }

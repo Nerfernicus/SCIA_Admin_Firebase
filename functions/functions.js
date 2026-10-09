@@ -791,3 +791,7 @@ exports.resetUserPassword = accountControls.resetUserPassword;
 exports.deactivateInactiveUser = accountControls.deactivateInactiveUser;
 exports.requestPasswordResetOtp = accountControls.requestPasswordResetOtp;
 exports.resetPasswordWithOtp = accountControls.resetPasswordWithOtp;
+
+   // Tagalog voice guide: Gemini on Vertex AI, called server-side so no browser needs App Check.
+   const guideAI = require("./guideAI");
+   exports.guideAI = guideAI.guideAI;

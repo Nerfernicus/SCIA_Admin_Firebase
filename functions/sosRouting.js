@@ -25,6 +25,7 @@ const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const { sendSms, normalizePhNumber, SMS_API_KEY } = require("./sms");
 const { locateBarangay, locateCity, resolveBarangay, barangayVariants } = require("./barangays");
+const { createTtlCache } = require("./ttlCache");
 
 const db = () => admin.firestore();
 
@@ -63,13 +64,27 @@ function outsideCityNote(city) {
 }
 
 // Office phone numbers of the barangay admins (sub_admins) for a barangay.
+//
+// Cached for 60 s per barangay in this instance's memory. The inactivity
+// monitor calls this once per inactive senior, so a run with many seniors in
+// the same barangay used to repeat the identical Firestore query for each one.
+// 60 s keeps that burst to a single read while an edited admin phone number
+// still reaches the SOS/alert path within a minute.
+const officePhoneCache = createTtlCache({ ttlMs: 60_000, maxEntries: 100 });
+
+async function loadBarangayOfficePhones(variants) {
+  const snap = await db().collection("admins")
+    .where("role", "==", "sub_admin").where("barangay", "in", variants).get();
+  return [...new Set(snap.docs.map((d) => normalizePhNumber(d.data().phone)).filter(Boolean))];
+}
+
 async function barangayOfficePhones(barangay) {
   if (!barangay) return [];
   const variants = barangayVariants(barangay);
   if (!variants.length) return [];
-  const snap = await db().collection("admins")
-    .where("role", "==", "sub_admin").where("barangay", "in", variants).get();
-  return [...new Set(snap.docs.map((d) => normalizePhNumber(d.data().phone)).filter(Boolean))];
+  const key = [...variants].sort().join("|");
+  // Hand back a copy so a caller can't change what other callers get.
+  return [...(await officePhoneCache.getOrLoad(key, () => loadBarangayOfficePhones(variants)))];
 }
 
 function mapLink(lat, lng) {
@@ -79,6 +94,7 @@ function mapLink(lat, lng) {
 exports.routeSos = routeSos;
 exports.outsideCityNote = outsideCityNote;
 exports.barangayOfficePhones = barangayOfficePhones;
+exports._officePhoneCache = officePhoneCache; // for tests
 
 exports.onEmergencyCreated = onDocumentCreated(
   { document: "emergencies/{emergencyId}", secrets: [SMS_API_KEY] },

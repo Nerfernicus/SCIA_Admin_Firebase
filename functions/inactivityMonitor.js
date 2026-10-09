@@ -13,6 +13,7 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const { routeSos, outsideCityNote, barangayOfficePhones } = require("./sosRouting");
+const { withMonitoring, logEvent } = require("./monitoring");
 const { sendSms, normalizePhNumber, SMS_API_KEY } = require("./sms");
 
 const MIN = 60 * 1000;
@@ -194,7 +195,7 @@ exports.monitorInactivity = onSchedule(
     timeoutSeconds: 120,
     secrets: [SMS_API_KEY],
   },
-  async () => {
+  withMonitoring("monitorInactivity", async () => {
     const now = Date.now();
     const snap = await db().collection("users")
       .where("safety_monitoring_enabled", "==", true)
@@ -203,9 +204,15 @@ exports.monitorInactivity = onSchedule(
       .get();
 
     await Promise.all(snap.docs.map((d) =>
-      processUser(d, now).catch((err) => logger.error(`inactivity check failed for ${d.id}:`, err.message)),
+      processUser(d, now).catch((err) => logEvent("error", "INACTIVITY_CHECK_FAILED", { uid: d.id, error: err.message })),
     ));
-  },
+
+    // Heartbeat: functions/health.js reports "stale" (HTTP 503) if this stops updating.
+    await db().collection("system").doc("monitor_heartbeat").set({
+      lastRunAt: admin.firestore.FieldValue.serverTimestamp(),
+      checked: snap.size,
+    });
+  }),
 );
 
 // Exposed for local tests only; functions.js re-exports monitorInactivity alone, so this is not deployed.

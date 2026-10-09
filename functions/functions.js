@@ -778,6 +778,7 @@ exports.bookIdPickup = require("./pickup").bookIdPickup;
 // ── Inactivity monitor (50-min "are you safe?" push, 60-min SMS to guardians + barangay) ──
 exports.monitorInactivity = require("./inactivityMonitor").monitorInactivity;
 exports.onEmergencyCreated = require("./sosRouting").onEmergencyCreated;
+exports.health = require("./health").health;
 
 // Digital ID: senior taps "Claim" in the app -> onDigitalIdRequested issues it;
 // issueDigitalId is the OSCA dashboard's "Issue" button. See digitalId.js.
@@ -792,6 +793,7 @@ exports.deactivateInactiveUser = accountControls.deactivateInactiveUser;
 exports.requestPasswordResetOtp = accountControls.requestPasswordResetOtp;
 exports.resetPasswordWithOtp = accountControls.resetPasswordWithOtp;
 
+
    // Tagalog voice guide: Gemini on Vertex AI, called server-side so no browser needs App Check.
-   const guideAI = require("./guideAI");
+const guideAI = require("./guideAI");
    exports.guideAI = guideAI.guideAI;

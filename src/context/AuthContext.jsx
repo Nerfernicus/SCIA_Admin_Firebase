@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { setMonitoringUser } from '../lib/monitoring';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
@@ -33,6 +34,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      setMonitoringUser(firebaseUser ? firebaseUser.uid : null); // uid only, no name/email
       if (firebaseUser) {
         // Fetch the admin document from Firestore to get their role
         try {

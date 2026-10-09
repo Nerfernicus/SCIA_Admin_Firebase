@@ -63,6 +63,14 @@ async function sendSms(numbers, message) {
     }
   }));
 
+  if (failed.length) {
+    // Counts and reasons only: no phone numbers, no message text.
+    require("./monitoring").logEvent("error", "SMS_SEND_FAILED", {
+      failed: failed.length,
+      total: unique.length,
+      reasons: [...new Set(failed.map((f) => String(f.error).slice(0, 40).replace(/(\+?63|0)9\d{9}/g, "[phone]")))],
+    });
+  }
   return { sent, failed };
 }
 

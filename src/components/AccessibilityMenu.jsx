@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Eye, X, Volume2, Check } from 'lucide-react';
-import { MODES, loadSettings, saveSettings, applyMode, startNarration, filterMatrixValues } from '../lib/accessibility';
+import { Eye, X, Volume2, Check, Languages, Sparkles, Square, Loader2 } from 'lucide-react';
+import { MODES, loadSettings, saveSettings, applyMode, startNarration, filterMatrixValues, hasFilipinoVoice, explainPage, say, stopSpeaking } from '../lib/accessibility';
 
 /**
  * Floating "Accessibility" button on every page (dashboard, login and the senior kiosk).
@@ -12,11 +12,31 @@ export default function AccessibilityMenu() {
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState(loadSettings);
   const speechOk = typeof window !== 'undefined' && 'speechSynthesis' in window;
+  const [filVoice, setFilVoice] = useState(true);
+  const [guide, setGuide] = useState({ state: 'idle', text: '', error: '' }); // idle | loading | speaking
+  const tl = settings.voiceLang === 'tl';
+
+  useEffect(() => { let alive = true; hasFilipinoVoice().then((ok) => { if (alive) setFilVoice(ok); }); return () => { alive = false; }; }, []);
 
   useEffect(() => { applyMode(settings.mode); saveSettings(settings); }, [settings]);
-  useEffect(() => (settings.narrate && speechOk ? startNarration() : undefined), [settings.narrate, speechOk]);
+  useEffect(() => (settings.narrate && speechOk ? startNarration({ lang: settings.voiceLang }) : undefined), [settings.narrate, settings.voiceLang, speechOk]);
 
   const set = (patch) => setSettings((s) => ({ ...s, ...patch }));
+
+  const runGuide = async () => {
+    if (guide.state !== 'idle') { stopSpeaking(); setGuide({ state: 'idle', text: guide.text, error: '' }); return; }
+    setGuide({ state: 'loading', text: '', error: '' });
+    try {
+      const text = await explainPage(settings.voiceLang);
+      if (!text) throw new Error('empty');
+      setGuide({ state: 'speaking', text, error: '' });
+      await say(text, settings.voiceLang);
+      setGuide((g) => ({ ...g, state: 'idle' }));
+    } catch (e) {
+      console.warn('[guide] explainPage failed:', e);
+      setGuide({ state: 'idle', text: '', error: tl ? 'Hindi po ma-load ang paliwanag ngayon. Pakisubukan ulit mamaya.' : 'Could not load the explanation right now. Please try again later.' });
+    }
+  };
 
   return createPortal(
     <>
@@ -89,6 +109,39 @@ export default function AccessibilityMenu() {
             <span>{settings.narrate ? 'On' : 'Off'}</span>
           </button>
           {!speechOk && <p className="mt-1 text-xs text-red-600">This browser has no text-to-speech.</p>}
+
+          <div className="mt-2 flex items-center gap-2" role="radiogroup" aria-label="Voice language">
+            <Languages size={16} className="shrink-0 text-gray-600" aria-hidden="true" />
+            {[['tl', 'Tagalog'], ['en', 'English']].map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={settings.voiceLang === id}
+                onClick={() => { stopSpeaking(); set({ voiceLang: id }); }}
+                className={`flex-1 rounded-xl border-2 px-3 py-2 text-sm font-semibold ${settings.voiceLang === id ? 'border-[#0f52ba] bg-blue-50 text-[#0f52ba]' : 'border-gray-200 hover:bg-gray-50'}`}
+              >{label}</button>
+            ))}
+          </div>
+          {tl && !filVoice && speechOk && (
+            <p className="mt-1 text-xs text-amber-700">
+              Walang Filipino na boses sa browser na ito, kaya may kakaibang tunog ang Tagalog. Mas maganda ang Microsoft Edge (may Filipino na boses), o mag-install ng Filipino voice sa Windows: Settings, Time &amp; language, Speech.
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={runGuide}
+            disabled={!speechOk || guide.state === 'loading'}
+            className="mt-2 flex w-full items-center justify-between rounded-xl border-2 border-gray-200 px-3 py-2.5 text-left text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"
+          >
+            <span className="flex items-center gap-2">
+              {guide.state === 'loading' ? <Loader2 size={18} className="animate-spin" /> : guide.state === 'speaking' ? <Square size={18} /> : <Sparkles size={18} />}
+              {guide.state === 'speaking' ? (tl ? 'Itigil ang paliwanag' : 'Stop explaining') : (tl ? 'Ipaliwanag ang page na ito' : 'Explain this page')}
+            </span>
+          </button>
+          {guide.text && <p className="mt-1 max-h-24 overflow-y-auto text-xs text-gray-700" aria-live="polite">{guide.text}</p>}
+          {guide.error && <p className="mt-1 text-xs text-red-600" role="alert">{guide.error}</p>}
           <p className="mt-3 text-xs text-gray-600">
             Colour-blind modes shift colours toward ones that are easier to tell apart. They are approximate.
           </p>

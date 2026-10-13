@@ -9,18 +9,23 @@
 //              were last seen in, plus an SOS entry for the dashboard.
 // Any new ping from the app (or tapping "I'm safe") changes last_active_timestamp,
 // which invalidates the pending state, so the countdown starts over.
+//
+// These minutes are AWAKE minutes. Rest hours (default 10 PM - 6 AM, plus a 60-minute
+// morning grace) are not counted, so a senior who is simply asleep is not flagged and is
+// never woken by the push. See restHours.js (and system/safety_settings to change it).
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const { routeSos, outsideCityNote, barangayOfficePhones } = require("./sosRouting");
 const { withMonitoring, logEvent } = require("./monitoring");
 const { sendSms, normalizePhNumber, SMS_API_KEY } = require("./sms");
+const { normalizeRest, isRestNow, awakeGapMs, DEFAULT_REST } = require("./restHours");
 
 const MIN = 60 * 1000;
 const WARN_AFTER_MS = 50 * MIN;
 const ESCALATE_AFTER_MS = 60 * MIN;
 const MIN_WARNING_WINDOW_MS = 5 * MIN; // the senior always gets this long to answer the push
-const LOOKBACK_MS = 6 * 60 * MIN;      // ignore accounts that have been quiet for 6h+ (already handled / abandoned)
+const LOOKBACK_MS = 36 * 60 * MIN;     // ignore accounts quiet for 36h+ (already handled / abandoned). Long enough to span a night of rest hours.
 const MAX_SMS_ATTEMPTS = 3;
 
 const db = () => admin.firestore();
@@ -86,7 +91,7 @@ function guardianPhonesOf(u) {
   return [...new Set([...fromList, ...legacy].map((p) => normalizePhNumber(p)).filter(Boolean))];
 }
 
-async function escalate(ref, u, lastMs, now, fromState) {
+async function escalate(ref, u, lastMs, now, fromState, rest = DEFAULT_REST) {
   const attempts = (u.safety_alert && u.safety_alert.basedOn === lastMs && u.safety_alert.smsAttempts) || 0;
   if (!(await claim(ref, lastMs, fromState, { state: "escalating", escalatingAt: now }))) return;
 
@@ -108,18 +113,35 @@ async function escalate(ref, u, lastMs, now, fromState) {
     ? ` Last known location is outside Valenzuela (${route.city || "another city"}); home Brgy. ${barangay || "n/a"}.`
     : (barangay ? ` Brgy. ${barangay}${route.hasLocation ? "" : " (home)"}.` : "");
   const escalationNote = route.outsideCity ? " Please coordinate with that area's barangay and call 911." : "";
+  // "Since 7:05 AM" (or "since Oct 13, 9:30 PM" across midnight). Rest hours are not counted
+  // towards the 60 minutes, so we say when the silence began instead of "60 min".
+  const sinceDay = new Date(lastMs).toLocaleDateString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric" });
+  const nowDay = new Date(now).toLocaleDateString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric" });
+  const since = sinceDay === nowDay ? fmtTime(lastMs) : `${sinceDay}, ${fmtTime(lastMs)}`;
+  const restSkippedMin = Math.max(0, Math.round((now - lastMs - awakeGapMs(lastMs, now, rest)) / MIN));
+  const restNote = restSkippedMin > 0 ? " (sleeping hours not counted)" : "";
   const message =
-    `SCIA URGENT: ${fullName} has had no phone activity for 60 min and did not confirm they are safe.` +
+    `SCIA URGENT: ${fullName} has had no phone activity since ${since}${restNote} and did not confirm they are safe.` +
     `${where}${mapLink} Contact: ${u.conNumber || "n/a"}. Please check on them.${escalationNote}`;
 
   const guardianPhones = guardianPhonesOf(u);
   const officePhones = await barangayOfficePhones(barangay);
   const recipients = [...new Set([...guardianPhones, ...officePhones])];
 
-  // Same SOS record a manual SOS creates, so the dashboard's SOS Map shows it too.
-  if (lat !== null) {
+  // Same SOS record a manual SOS creates, so the dashboard and the barangay's SOS Map show
+  // it. It is recorded even when the phone never reported a location (latitude/longitude
+  // are then null and the alert is routed to the senior's home barangay), so a silent
+  // senior is never missing from the dashboard.
+  // lastActiveAt / lastLocationAt let the map say "last known location, captured at ...".
+  {
+    const locationMs = loc && Number(loc.captured_at) ? Number(loc.captured_at) : null;
     await db().collection("emergencies").add({
       name: fullName, latitude: lat, longitude: lng,
+      emergencyType: "Inactivity: no phone activity for 1 hour (awake time)",
+      isInactivity: true, inactiveMinutes: 60, hasLocation: lat !== null,
+      restMinutesSkipped: restSkippedMin, // sleeping hours that were not counted towards the 60 minutes
+      lastActiveAt: admin.firestore.Timestamp.fromMillis(lastMs),
+      lastLocationAt: locationMs ? admin.firestore.Timestamp.fromMillis(locationMs) : null,
       address: u.address || "", barangay: barangay || "",
       homeBarangay: route.homeBarangay || "", outsideCity: route.outsideCity,
       city: route.city || null, escalation: route.escalation,
@@ -160,20 +182,38 @@ async function escalate(ref, u, lastMs, now, fromState) {
   logger.info(`safety escalation for ${ref.id}: ${result.sent.length}/${recipients.length} SMS sent (${basis})`);
 }
 
-async function processUser(docSnap, now) {
+async function processUser(docSnap, now, rest = DEFAULT_REST) {
   const ref = docSnap.ref;
   const u = docSnap.data();
   const lastMs = u.last_active_timestamp && u.last_active_timestamp.toMillis();
   if (!lastMs) return;
-  const gap = now - lastMs;
+  if (isRestNow(now, rest)) return; // asleep: never alert or push during rest hours (the scheduler skips these runs too)
+  // Awake minutes only: rest hours (sleep) do not count as inactivity.
+  const gap = awakeGapMs(lastMs, now, rest);
   const cur = u.safety_alert && u.safety_alert.basedOn === lastMs ? u.safety_alert : null;
   const state = cur ? cur.state : null;
 
   if (state === "escalated" || state === "escalating") return;
 
   if (state === "warned") {
+    // The "Are you safe?" push may have gone out just before bedtime. If the senior has slept
+    // since it was sent, ask again once they are awake and give them the usual 5+ minutes
+    // before anyone is alerted (a push that arrived while they slept is not a real chance).
+    const sleptSinceWarning = now - cur.warnedAt - awakeGapMs(cur.warnedAt, now, rest) > 0;
+    if (sleptSinceWarning && !cur.wakeAskedAt && u.push_token) {
+      if (await claim(ref, lastMs, "warned", { wakeAskedAt: now, warnedAt: now })) {
+        const delivered = await pushToUser(
+          ref, u.push_token,
+          { title: "Are you safe?", body: "Good morning. We haven't detected activity from your phone yet. Tap to let us know you're OK." },
+          { type: "safety_check", uid: ref.id },
+        );
+        if (delivered) await ref.update({ "safety_alert.warningDelivered": true });
+        logger.info(`safety wake-up check for ${ref.id}, push delivered: ${delivered}`);
+      }
+      return;
+    }
     if (gap >= ESCALATE_AFTER_MS && now - cur.warnedAt >= MIN_WARNING_WINDOW_MS) {
-      await escalate(ref, u, lastMs, now, "warned");
+      await escalate(ref, u, lastMs, now, "warned", rest);
     }
     return;
   }
@@ -181,7 +221,7 @@ async function processUser(docSnap, now) {
   // Never warned for this stretch of silence.
   if (gap >= ESCALATE_AFTER_MS && !u.push_token) {
     // No way to ask them, so the 60-minute rule applies directly.
-    await escalate(ref, u, lastMs, now, null);
+    await escalate(ref, u, lastMs, now, null, rest);
   } else if (gap >= WARN_AFTER_MS) {
     await warn(ref, u, lastMs, now); // (a missed run that lands past 60 min still gets its warning window first)
   }
@@ -197,6 +237,25 @@ exports.monitorInactivity = onSchedule(
   },
   withMonitoring("monitorInactivity", async () => {
     const now = Date.now();
+
+    // Rest hours can be tuned without a deploy (system/safety_settings); defaults apply if missing.
+    let rest = DEFAULT_REST;
+    try {
+      const cfgSnap = await db().collection("system").doc("safety_settings").get();
+      if (cfgSnap.exists) rest = normalizeRest(cfgSnap.data());
+    } catch (err) {
+      logger.warn("safety_settings unreadable, using default rest hours:", err.message);
+    }
+
+    // During rest hours (plus the morning grace) the awake clock cannot move, so nothing can
+    // change for anyone: skip the work (and never push at night). Still write the heartbeat.
+    if (isRestNow(now, rest)) {
+      await db().collection("system").doc("monitor_heartbeat").set({
+        lastRunAt: admin.firestore.FieldValue.serverTimestamp(), checked: 0, resting: true,
+      });
+      return;
+    }
+
     const snap = await db().collection("users")
       .where("safety_monitoring_enabled", "==", true)
       .where("last_active_timestamp", "<=", admin.firestore.Timestamp.fromMillis(now - WARN_AFTER_MS))
@@ -204,13 +263,13 @@ exports.monitorInactivity = onSchedule(
       .get();
 
     await Promise.all(snap.docs.map((d) =>
-      processUser(d, now).catch((err) => logEvent("error", "INACTIVITY_CHECK_FAILED", { uid: d.id, error: err.message })),
+      processUser(d, now, rest).catch((err) => logEvent("error", "INACTIVITY_CHECK_FAILED", { uid: d.id, error: err.message })),
     ));
 
     // Heartbeat: functions/health.js reports "stale" (HTTP 503) if this stops updating.
     await db().collection("system").doc("monitor_heartbeat").set({
       lastRunAt: admin.firestore.FieldValue.serverTimestamp(),
-      checked: snap.size,
+      checked: snap.size, resting: false,
     });
   }),
 );

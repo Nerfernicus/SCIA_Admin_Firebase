@@ -4,9 +4,9 @@ import {
   doc, updateDoc, deleteDoc, serverTimestamp,
 } from "firebase/firestore";
 import React, { useState, useEffect } from 'react';
-import { MapPin, Crosshair, CheckCircle2, AlertTriangle, Trash2, X, History, ChevronUp } from 'lucide-react';
+import { MapPin, Crosshair, CheckCircle2, AlertTriangle, Trash2, X, History, ChevronUp, Clock } from 'lucide-react';
 import { sameBarangay } from '../lib/barangay';
-import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../context/AuthContext';
@@ -53,6 +53,54 @@ function LocationNotice({ alert }) {
   }
   return null;
 }
+
+// A senior with Safety Monitoring who showed no phone activity for 1 hour is recorded as an
+// SOS entry (functions/inactivityMonitor.js). These helpers show it as a warning with the
+// LAST KNOWN location (where the phone last reported from), not a live position.
+const isInactivity = (a) => a.type === 'inactivity' || a.isInactivity === true;
+const hasCoords = (a) => a.latitude != null && a.longitude != null;
+const toDate = (v) => {
+  if (!v) return null;
+  const d = v.toDate ? v.toDate() : new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+const fmtWhen = (v) => {
+  const d = toDate(v);
+  return d ? d.toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'unknown';
+};
+
+function InactivityNotice({ alert }) {
+  if (!isInactivity(alert)) return null;
+  return (
+    <div className="mt-2 rounded-xl p-2.5 text-xs bg-amber-100 border border-amber-300 text-amber-900">
+      <p className="font-bold flex items-center gap-1"><Clock size={12} /> No phone activity for 1 hour</p>
+      <p className="mt-0.5">Last active: <strong>{fmtWhen(alert.lastActiveAt)}</strong></p>
+      {alert.restMinutesSkipped > 0 && (
+        <p className="mt-0.5">
+          Sleeping hours were not counted ({Math.round(alert.restMinutesSkipped / 60)} h), so this is 1 hour of awake time with no phone activity.
+        </p>
+      )}
+      {hasCoords(alert) ? (
+        <p className="mt-0.5">
+          Last known location recorded <strong>{fmtWhen(alert.lastLocationAt || alert.lastActiveAt)}</strong>. The senior may no longer be there.
+        </p>
+      ) : (
+        <p className="mt-0.5">No location on record. Check the registered address{alert.barangay ? ` in Brgy. ${alert.barangay}` : ''}.</p>
+      )}
+    </div>
+  );
+}
+
+const inactivityIcon = L.divIcon({
+  className: 'custom-div-icon',
+  html: `<div style="position:relative;display:flex;align-items:center;justify-content:center;width:38px;height:38px;">
+           <div style="position:absolute;width:100%;height:100%;background:#f59e0b;border-radius:50%;opacity:0.35;"></div>
+           <div style="width:28px;height:28px;background:#b45309;border:2px solid white;border-radius:50%;z-index:10;box-shadow:0 2px 4px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;">
+             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+           </div>
+         </div>`,
+  iconSize: [38, 38], iconAnchor: [19, 19],
+});
 
 const criticalIcon = L.divIcon({
   className: 'custom-div-icon',
@@ -213,9 +261,14 @@ function AlertsList({
                         <AlertTriangle size={9} /> REPEAT
                       </span>
                     )}
+                    {isInactivity(alert) && (
+                      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap bg-amber-400 text-amber-950">
+                        <Clock size={9} /> INACTIVE 1 HR
+                      </span>
+                    )}
                   </div>
                   <p className={`text-xs font-medium ${alert.status === "pending" ? "text-red-200" : "text-gray-500"}`}>
-                    {alert.emergencyType}
+                    {alert.emergencyType || (isInactivity(alert) ? 'Inactivity: no phone activity for 1 hour' : '')}
                   </p>
                 </div>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ml-2 shrink-0 ${
@@ -227,16 +280,20 @@ function AlertsList({
 
               <div className={`text-sm mb-3 wrap-break-word ${alert.status === "pending" ? "text-red-100" : "text-gray-600"}`}>
                 <p>
-                  <span className="font-semibold">Current location: </span>
-                  {alert.barangay ? `Brgy. ${alert.barangay}, ` : ''}{alert.currentAddress || alert.address}
+                  <span className="font-semibold">{isInactivity(alert) ? 'Last known location: ' : 'Current location: '}</span>
+                  {alert.barangay ? `Brgy. ${alert.barangay}, ` : ''}
+                  {isInactivity(alert)
+                    ? (hasCoords(alert) ? `${Number(alert.latitude).toFixed(5)}, ${Number(alert.longitude).toFixed(5)}` : 'no location on record')
+                    : (alert.currentAddress || alert.address)}
                   {alert.barangayApproximate && <span className="opacity-70"> (barangay approximate)</span>}
                 </p>
-                {(alert.homeAddress || alert.homeBarangay) && (
+                {(alert.homeAddress || alert.homeBarangay || (isInactivity(alert) && alert.address)) && (
                   <p className="mt-0.5">
                     <span className="font-semibold">Registered address: </span>
-                    {alert.homeAddress || `Brgy. ${alert.homeBarangay}`}
+                    {alert.homeAddress || (isInactivity(alert) ? alert.address : null) || `Brgy. ${alert.homeBarangay}`}
                   </p>
                 )}
+                <InactivityNotice alert={alert} />
                 <LocationNotice alert={alert} />
                 {isResolved && alert.resolvedAt && (
                   <p className="text-xs text-gray-400 mt-0.5">
@@ -251,11 +308,14 @@ function AlertsList({
                     className="flex-1 bg-white hover:bg-gray-50 text-red-700 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors">
                     Dispatch Responder
                   </button>
-                  <a href={`https://maps.google.com/?q=${alert.latitude},${alert.longitude}`}
-                    target="_blank" rel="noreferrer"
-                    className="bg-red-800 hover:bg-red-900 w-12 flex items-center justify-center rounded-xl transition-colors">
-                    <MapPin size={18} className="text-white" />
-                  </a>
+                  {hasCoords(alert) && (
+                    <a href={`https://maps.google.com/?q=${alert.latitude},${alert.longitude}`}
+                      target="_blank" rel="noreferrer"
+                      title={isInactivity(alert) ? 'Open last known location' : 'Open in Google Maps'}
+                      className="bg-red-800 hover:bg-red-900 w-12 flex items-center justify-center rounded-xl transition-colors">
+                      <MapPin size={18} className="text-white" />
+                    </a>
+                  )}
                 </div>
               )}
 
@@ -307,6 +367,7 @@ export default function SOSMap() {
   const repeatKeys = (() => {
     const counts = {};
     liveAlerts.forEach(a => {
+      if (isInactivity(a)) return; // an inactivity warning is not a repeat SOS
       const key = a.userId || a.uid || a.name;
       if (key) counts[key] = (counts[key] || 0) + 1;
     });
@@ -415,7 +476,14 @@ export default function SOSMap() {
       )}
 
       <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3 sm:py-4 flex-none z-2000">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">SOS Map</h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">SOS Map</h1>
+          {liveAlerts.some(a => isInactivity(a) && a.status !== 'resolved') && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-400 px-2.5 py-1 text-xs font-bold text-amber-950">
+              <Clock size={12} /> {liveAlerts.filter(a => isInactivity(a) && a.status !== 'resolved').length} inactive 1 hr
+            </span>
+          )}
+        </div>
         <p className="text-xs sm:text-sm text-gray-500">
           {myBarangay
             ? `Real-time emergency alerts in Brgy. ${myBarangay}`
@@ -435,14 +503,33 @@ export default function SOSMap() {
             {liveAlerts
               .filter(a => a.status !== 'resolved' && a.latitude != null && a.longitude != null)
               .map(alert => (
-                <Marker key={alert.id} position={[alert.latitude, alert.longitude]}
-                  icon={alert.status === 'pending' ? criticalIcon : dispatchedIcon}>
+                <React.Fragment key={alert.id}>
+                {isInactivity(alert) && (
+                  // Dashed ring: the last known position, not a live fix.
+                  <Circle center={[alert.latitude, alert.longitude]} radius={150}
+                    pathOptions={{ color: '#b45309', weight: 2, dashArray: '6 6', fillColor: '#f59e0b', fillOpacity: 0.12 }} />
+                )}
+                <Marker position={[alert.latitude, alert.longitude]}
+                  icon={isInactivity(alert) ? inactivityIcon : alert.status === 'pending' ? criticalIcon : dispatchedIcon}>
                   <Popup className="font-sans" minWidth={200} maxWidth={260}>
                     <div className="space-y-1">
                       <p className="font-bold text-base"><MaskedName id={alert.userId || alert.uid || alert.id} name={alert.name} /></p>
-                      <p className="text-red-600 font-semibold text-sm">{alert.emergencyType}</p>
-                      <p className="text-gray-600 text-sm">Now: Brgy. {alert.barangay}</p>
-                      <p className="text-gray-500 text-xs">{alert.currentAddress || alert.address}</p>
+                      {isInactivity(alert) ? (
+                        <>
+                          <p className="text-amber-700 font-semibold text-sm">No phone activity for 1 hour</p>
+                          <p className="text-gray-700 text-sm font-semibold">Last known location</p>
+                          <p className="text-gray-600 text-xs">Brgy. {alert.barangay || 'unknown'} · recorded {fmtWhen(alert.lastLocationAt || alert.lastActiveAt)}</p>
+                          <p className="text-gray-500 text-xs">Last active: {fmtWhen(alert.lastActiveAt)}</p>
+                          {alert.restMinutesSkipped > 0 && <p className="text-gray-400 text-xs">Sleeping hours not counted ({Math.round(alert.restMinutesSkipped / 60)} h)</p>}
+                          {alert.address && <p className="text-gray-400 text-xs">Registered address: {alert.address}</p>}
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-red-600 font-semibold text-sm">{alert.emergencyType}</p>
+                          <p className="text-gray-600 text-sm">Now: Brgy. {alert.barangay}</p>
+                          <p className="text-gray-500 text-xs">{alert.currentAddress || alert.address}</p>
+                        </>
+                      )}
                       {alert.homeAddress && <p className="text-gray-400 text-xs mt-1">Home: {alert.homeAddress}</p>}
                       {alert.outsideCity && (
                         <p className="text-amber-700 text-xs font-semibold">
@@ -455,12 +542,13 @@ export default function SOSMap() {
                       <div className="flex gap-2 mt-2">
                         <a href={`https://maps.google.com/?q=${alert.latitude},${alert.longitude}`}
                           target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">
-                          Open in Google Maps
+                          {isInactivity(alert) ? 'Open last known location' : 'Open in Google Maps'}
                         </a>
                       </div>
                     </div>
                   </Popup>
                 </Marker>
+                </React.Fragment>
               ))}
             {myLocation && (
               <Marker position={myLocation} icon={myLocationIcon}>

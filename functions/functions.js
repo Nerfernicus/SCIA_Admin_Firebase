@@ -785,6 +785,9 @@ exports.health = require("./health").health;
 exports.onDigitalIdRequested = require("./digitalId").onDigitalIdRequested;
 exports.issueDigitalId = require("./digitalId").issueDigitalId;
 
+// Natural voice for the mobile app's read-aloud feature (see textToSpeech.js).
+exports.synthesizeSpeech = require("./textToSpeech").synthesizeSpeech;
+
 // Super admin lock/unlock + password reset, and the senior Forgot Password OTP flow.
 const accountControls = require("./accountControls");
 exports.setAdminLock = accountControls.setAdminLock;
@@ -797,3 +800,4 @@ exports.resetPasswordWithOtp = accountControls.resetPasswordWithOtp;
    // Tagalog voice guide: Gemini on Vertex AI, called server-side so no browser needs App Check.
 const guideAI = require("./guideAI");
    exports.guideAI = guideAI.guideAI;
+   

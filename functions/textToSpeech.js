@@ -24,6 +24,9 @@ const REGION = { region: "asia-southeast1", timeoutSeconds: 30, memory: "256MiB"
 
 const MAX_TEXT_CHARS = 400;        // one label or one sentence at a time
 const DAILY_CHAR_LIMIT = 8000;     // per signed-in user per day (the app also caches on the device)
+// SCIA opens as a guest ("Bisita") by default, so guests get the natural voice too, with smaller allowances:
+const GUEST_DAILY_CHAR_LIMIT = 3000;       // per phone (random install id the app sends)
+const GUEST_GLOBAL_DAILY_CHAR_LIMIT = 200000; // all guests together, so a bot cannot run up the bill
 
 const VOICES = {
   tl: [
@@ -51,28 +54,40 @@ const languageCodeOf = (voiceName) => voiceName.split("-").slice(0, 2).join("-")
 // Today's date in Philippine time (UTC+8), used to reset the daily allowance.
 const phDay = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, "");
 
-async function takeAllowance(uid, chars) {
-  const ref = admin.firestore().collection("tts_usage").doc(`${uid}_${phDay()}`);
-  await admin.firestore().runTransaction(async (tx) => {
+async function takeAllowance(key, chars, limit, extraKey, extraLimit) {
+  const db = admin.firestore();
+  const ref = db.collection("tts_usage").doc(`${key}_${phDay()}`);
+  const extraRef = extraKey ? db.collection("tts_usage").doc(`${extraKey}_${phDay()}`) : null;
+  await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
+    const extraSnap = extraRef ? await tx.get(extraRef) : null;
     const used = snap.exists ? Number(snap.data().chars) || 0 : 0;
-    if (used + chars > DAILY_CHAR_LIMIT) {
+    const extraUsed = extraSnap && extraSnap.exists ? Number(extraSnap.data().chars) || 0 : 0;
+    if (used + chars > limit || (extraRef && extraUsed + chars > extraLimit)) {
       throw new HttpsError("resource-exhausted", "Daily read-aloud limit reached.");
     }
-    tx.set(ref, { uid, chars: used + chars, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(ref, { key, chars: used + chars, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    if (extraRef) tx.set(extraRef, { key: extraKey, chars: extraUsed + chars, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
   });
 }
 
+exports.__takeAllowance = takeAllowance; // exported for tests only; not a deployed function
 exports.synthesizeSpeech = onCall(REGION, async (request) => {
+  // Signed-in users are counted by account. Guests are counted by the random install id the app
+  // sends (plus one shared guest total). No login is needed to hear the natural voice.
   const uid = request.auth && request.auth.uid;
-  if (!uid) throw new HttpsError("unauthenticated", "Please sign in.");
+  const deviceId = String((request.data && request.data.deviceId) || "");
+  if (!uid && !/^[a-f0-9]{16,48}$/.test(deviceId)) {
+    throw new HttpsError("unauthenticated", "Please sign in or update the app.");
+  }
 
   const lang = request.data && request.data.lang === "en" ? "en" : "tl";
   const text = String((request.data && request.data.text) || "").replace(/\s+/g, " ").trim();
   if (!text) throw new HttpsError("invalid-argument", "No text.");
   if (text.length > MAX_TEXT_CHARS) throw new HttpsError("invalid-argument", "Text is too long.");
 
-  await takeAllowance(uid, text.length);
+  if (uid) await takeAllowance(uid, text.length, DAILY_CHAR_LIMIT);
+  else await takeAllowance(`guest_${deviceId}`, text.length, GUEST_DAILY_CHAR_LIMIT, "guest_all", GUEST_GLOBAL_DAILY_CHAR_LIMIT);
 
   const order = [lastWorking[lang], ...VOICES[lang]].filter((v, i, a) => v && a.indexOf(v) === i);
   let lastError = null;

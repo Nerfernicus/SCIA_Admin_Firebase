@@ -80,6 +80,12 @@ exports.synthesizeSpeech = onCall(REGION, async (request) => {
   if (!uid && !/^[a-f0-9]{16,48}$/.test(deviceId)) {
     throw new HttpsError("unauthenticated", "Please sign in or update the app.");
   }
+  // A guest has no account, so the proof it is the real SCIA app is the Firebase App Check token
+  // (sent in the X-Firebase-AppCheck header; Firebase fills request.app when the token is valid).
+  // Made-up device ids from a script have no valid token and are refused.
+  if (!uid && !request.app) {
+    throw new HttpsError("unauthenticated", "App check failed.");
+  }
 
   const lang = request.data && request.data.lang === "en" ? "en" : "tl";
   const text = String((request.data && request.data.text) || "").replace(/\s+/g, " ").trim();
@@ -116,3 +122,4 @@ exports.synthesizeSpeech = onCall(REGION, async (request) => {
   logger.error("synthesizeSpeech: no voice could speak this text", lastError);
   throw new HttpsError("internal", "Could not generate speech.");
 });
+  

@@ -316,8 +316,17 @@ service cloud.firestore {
 
     // ── /user_lookup ─────────────────────────────────────────────────────
     match /user_lookup/{lookupKey} {
-      allow read: if true;
-      allow create, update: if request.auth != null;
+      // Login needs to read ONE key (ID number, phone or name) before the person is signed in,
+      // so a single get stays public. Listing is blocked: before, anyone could download the whole
+      // collection (every senior's name, phone, ID number and account id) with just the public API key.
+      allow get: if true;
+      allow list: if false;
+      // A signed-in person may only create a key that points at their own account, and may not
+      // overwrite an existing key (before, any signed-in user could re-point anyone's login name).
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['idNumber', 'uid'])
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if false;
       allow delete: if isSuperAdmin();
     }
 

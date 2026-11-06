@@ -13,6 +13,7 @@ import {
   X,
   ChevronDown,
   ThumbsUp,
+  Flag,
   ThumbsDown,
   KeyRound,
   Clock,
@@ -20,6 +21,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { httpsCallable } from "firebase/functions";
+import ReviewDecisionModal from "../components/ReviewDecisionModal";
+import { useLang } from "../context/LangContext";
 import { db, functions } from "../lib/firebase";
 import {
   collection,
@@ -37,12 +40,14 @@ const statusDot = (status) => {
   if (status === "ACTIVE") return "bg-green-500";
   if (status === "PENDING") return "bg-yellow-400";
   if (status === "SUSPENDED") return "bg-red-500";
+  if (status === "REJECTED") return "bg-rose-700";
   return "bg-gray-400";
 };
 const statusText = (status) => {
   if (status === "ACTIVE") return "text-green-600";
   if (status === "PENDING") return "text-yellow-600";
   if (status === "SUSPENDED") return "text-red-600";
+  if (status === "REJECTED") return "text-rose-700";
   return "text-gray-600";
 };
 
@@ -65,6 +70,8 @@ const fmtDate = (ms) => (ms ? new Date(ms).toLocaleDateString("en-US", { year: "
 
 const deactivateInactiveUser = httpsCallable(functions, "deactivateInactiveUser");
 const resetUserPassword = httpsCallable(functions, "resetUserPassword");
+// Approve / reject / flag. The server records who decided, when and why (collection admin_audit).
+const reviewSenior = httpsCallable(functions, "reviewSenior");
 const callError = (e) => e?.message?.replace(/^.*?:\s*/, "") || "Something went wrong. Please try again.";
 
 // ── Deactivate (one account, after review) ─────────────────────────────────
@@ -178,47 +185,6 @@ function ResetPasswordModal({ user, onClose }) {
   );
 }
 
-// ── Disapprove Confirm Modal ───────────────────────────────────────────────
-function DisapproveModal({ user, onClose, onConfirm }) {
-  const fullName = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 z-10 text-center">
-        <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <ThumbsDown size={24} className="text-red-500" />
-        </div>
-        <h2 className="text-lg font-bold text-gray-900 mb-1">
-          Disapprove User?
-        </h2>
-        <p className="text-sm text-gray-500 mb-1">
-          You are about to disapprove
-        </p>
-        <p className="text-sm font-bold text-gray-800 mb-4">"{fullName}"</p>
-        <p className="text-xs text-red-500 font-semibold bg-red-50 rounded-xl px-4 py-2 mb-6">
-          This will permanently remove the user from the system.
-        </p>
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
-          >
-            <ThumbsDown size={15} /> Disapprove
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
@@ -228,7 +194,8 @@ export default function UserManagement() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const [toastType, setToastType] = useState("success");
-  const [disapproveTarget, setDisapproveTarget] = useState(null);
+  const { t } = useLang();
+  const [review, setReview] = useState(null); // { user, action } while the confirmation dialog is open
   const [deactivateTarget, setDeactivateTarget] = useState(null);
   const [resetTarget, setResetTarget] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -262,23 +229,25 @@ export default function UserManagement() {
     setTimeout(() => setToastMsg(""), 3000);
   };
 
-  // ── Approve: PENDING → ACTIVE + set isVerified = true ─────────────────
-  const handleApprove = async (userId, userName) => {
-    await updateDoc(doc(db, "users", userId), {
-      status: "ACTIVE",
-      isVerified: true,
-    });
-    showToast(`${userName} approved and verified.`, "success");
-  };
-
-  // ── Disapprove: delete from Firestore ─────────────────────────────────
-  const handleDisapproveConfirm = async () => {
-    if (!disapproveTarget) return;
-    const name =
-      `${disapproveTarget.firstName ?? ""} ${disapproveTarget.lastName ?? ""}`.trim();
-    await deleteDoc(doc(db, "users", disapproveTarget.id));
-    setDisapproveTarget(null);
-    showToast(`${name} disapproved and removed.`, "error");
+  // ── Approve / Reject / Flag ───────────────────────────────────────────────
+  // Every decision is confirmed in a dialog and then saved by the reviewSenior Cloud Function,
+  // which stores the reviewer, the time and the reason, and writes an admin_audit record.
+  // Nothing is deleted any more: a rejected account stays in the list as REJECTED.
+  const handleReviewConfirm = async (reason) => {
+    if (!review) return;
+    const { user, action } = review;
+    const name = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
+    setBusy(true);
+    try {
+      await reviewSenior({ uid: user.id, action, reason });
+      setReview(null);
+      const msg = { approve: t.rvToastApproved, reject: t.rvToastRejected, flag: t.rvToastFlagged, unflag: t.rvToastUnflagged }[action];
+      showToast(msg.replace("{name}", name), action === "reject" ? "error" : "success");
+    } catch (e) {
+      showToast(callError(e), "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   // ── Other status actions ───────────────────────────────────────────────
@@ -383,7 +352,9 @@ export default function UserManagement() {
       statusFilter === "ALL" ||
       (statusFilter === "INACTIVE"
         ? isInactiveEligible(u)
-        : (u.status ?? "PENDING") === statusFilter);
+        : statusFilter === "FLAGGED"
+          ? !!u.flagged
+          : (u.status ?? "PENDING") === statusFilter);
     return matchesSearch && matchesStatus;
   });
   // Longest-inactive first when reviewing inactive accounts.
@@ -402,17 +373,22 @@ export default function UserManagement() {
     ACTIVE: "Active",
     PENDING: "Pending",
     SUSPENDED: "Suspended",
+    REJECTED: t.rvRejected,
+    FLAGGED: t.rvFlagged,
     INACTIVE: `Inactive ${INACTIVITY_DAYS}+ days`,
   };
 
   return (
     <div className="flex-1 min-w-0 bg-[#f8f9fa] min-h-full p-3 sm:p-6 lg:p-8 font-sans relative">
-      {/* Disapprove Confirm Modal */}
-      {disapproveTarget && (
-        <DisapproveModal
-          user={disapproveTarget}
-          onClose={() => setDisapproveTarget(null)}
-          onConfirm={handleDisapproveConfirm}
+      {/* Approve / Reject / Flag confirmation */}
+      {review && (
+        <ReviewDecisionModal
+          action={review.action}
+          user={review.user}
+          users={users}
+          busy={busy}
+          onClose={() => setReview(null)}
+          onConfirm={handleReviewConfirm}
         />
       )}
 
@@ -652,6 +628,7 @@ export default function UserManagement() {
                 const inactiveDays = daysInactive(user);
                 const eligible = isInactiveEligible(user);
                 const isPending = user.status === "PENDING" || !user.status;
+                const isRejected = user.status === "REJECTED";
                 const fullName =
                   `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
 
@@ -684,7 +661,15 @@ export default function UserManagement() {
                         >
                           {user.status ?? "PENDING"}
                         </span>
+                        {user.flagged && (
+                          <span title={user.flagNote || ""} className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-amber-800 bg-amber-100 rounded-full px-2 py-0.5">
+                            <Flag size={10} /> {t.rvFlagged}
+                          </span>
+                        )}
                       </div>
+                      {isRejected && user.rejectionReason && (
+                        <p className="text-xs text-gray-500 mt-1 max-w-64 truncate" title={user.rejectionReason}>{user.rejectionReason}</p>
+                      )}
                     </td>
                     <td className="py-4 px-6 text-sm text-gray-500">
                       {joined}
@@ -699,25 +684,32 @@ export default function UserManagement() {
                     {/* ── Actions ── */}
                     <td className="py-4 px-6">
                       <div className="flex items-center justify-end gap-2">
-                        {/* PENDING: Approve + Disapprove */}
-                        {isPending && (
-                          <>
-                            <button
-                              title="Approve"
-                              onClick={() => handleApprove(user.id, fullName)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold transition-colors border border-green-200"
-                            >
-                              <ThumbsUp size={13} /> Approve
-                            </button>
-                            <button
-                              title="Disapprove and remove"
-                              onClick={() => setDisapproveTarget(user)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-colors border border-red-200"
-                            >
-                              <ThumbsDown size={13} /> Disapprove
-                            </button>
-                          </>
+                        {/* Approve / Reject / Flag each open a confirmation dialog; nothing is saved until it is confirmed. */}
+                        {(isPending || isRejected) && (
+                          <button
+                            title={t.rvConfirmApprove}
+                            onClick={() => setReview({ user, action: "approve" })}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold transition-colors border border-green-200"
+                          >
+                            <ThumbsUp size={13} /> Approve
+                          </button>
                         )}
+                        {isPending && (
+                          <button
+                            title={t.rvRejectBtn}
+                            onClick={() => setReview({ user, action: "reject" })}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-colors border border-red-200"
+                          >
+                            <ThumbsDown size={13} /> {t.rvRejectBtn}
+                          </button>
+                        )}
+                        <button
+                          title={user.flagged ? t.rvUnflagBtn : t.rvFlagBtn}
+                          onClick={() => setReview({ user, action: user.flagged ? "unflag" : "flag" })}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold transition-colors border border-red-200"
+                        >
+                          <Flag size={13} /> {user.flagged ? t.rvUnflagBtn : t.rvFlagBtn}
+                        </button>
 
                         {/* ACTIVE: Deactivate (one at a time, only after 180+ inactive days) */}
                         {user.status === "ACTIVE" && (

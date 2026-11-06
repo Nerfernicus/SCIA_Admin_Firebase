@@ -123,12 +123,23 @@ service cloud.firestore {
               // Deactivation (status -> SUSPENDED) is only possible through the
               // deactivateInactiveUser function, which enforces the 180-day rule.
               && (request.resource.data.get('status', '') != 'SUSPENDED'
+                  || resource.data.get('status', '') == 'SUSPENDED')
+              // Approve, reject and flag go through the reviewSenior function, so every decision
+              // is recorded with its reviewer, time and reason (and an admin_audit entry). The
+              // dashboard itself may not write those fields, and may change status / isVerified
+              // only to reactivate a suspended account.
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                   'reviewedBy', 'reviewerName', 'reviewedAt', 'reviewDecision', 'reviewReason',
+                   'rejectionReason', 'flagged', 'flagNote', 'flaggedBy', 'flaggedByName', 'flaggedAt'])
+              && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'isVerified'])
                   || resource.data.get('status', '') == 'SUSPENDED'))
             || (request.auth.uid == userId
                 && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
                      'isVerified', 'status', 'idNumber', 'hasTempId', 'role',
                      'verifiedAt', 'previousIdNumber', 'tempIdReplacedAt',
-                     'safety_alert'])));
+                     'safety_alert',
+                     'reviewedBy', 'reviewerName', 'reviewedAt', 'reviewDecision', 'reviewReason',
+                     'rejectionReason', 'flagged', 'flagNote', 'flaggedBy', 'flaggedByName', 'flaggedAt'])));
 
       allow delete: if isSuperAdmin();
     }

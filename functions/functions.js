@@ -801,3 +801,6 @@ exports.resetPasswordWithOtp = accountControls.resetPasswordWithOtp;
 const guideAI = require("./guideAI");
    exports.guideAI = guideAI.guideAI;
    
+
+// ── Senior account review: approve / reject / flag, each with an audit record ──
+exports.reviewSenior = require("./seniorReview").reviewSenior;

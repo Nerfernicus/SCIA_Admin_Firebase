@@ -110,7 +110,7 @@ export default function AppDownload() {
 
   return (
     <main className="min-h-dvh bg-linear-to-b from-blue-50 to-white text-gray-900 font-sans">
-      <div className="mx-auto max-w-2xl px-4 pb-24 pt-5 sm:px-6 lg:max-w-5xl lg:px-8">
+      <div className="mx-auto w-full max-w-2xl px-4 pb-24 pt-5 sm:px-6 lg:max-w-[1600px] lg:px-10 xl:px-14">
         <header className="mb-8 flex flex-wrap items-center justify-between gap-x-3 gap-y-4">
           <div className="flex min-w-0 items-center gap-3">
             <img src={logo} alt="" className="h-12 w-12 shrink-0 object-contain" />
@@ -135,7 +135,7 @@ export default function AppDownload() {
         </header>
 
         {/* Phones and tablets: one column. Large screens (lg): download + QR on the left, steps on the right. */}
-        <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-8">
+        <div className="lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-start lg:gap-10 xl:gap-14">
           <div className="lg:sticky lg:top-6">
             <section className="mb-8 text-center">
               <h1 className="mb-3 text-4xl font-extrabold leading-tight sm:text-5xl">{t.title}</h1>
@@ -225,7 +225,7 @@ export default function AppDownload() {
           </section>
         </div>
 
-        <div className="lg:grid lg:grid-cols-2 lg:items-stretch lg:gap-8">
+        <div className="lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-stretch lg:gap-10 xl:gap-14">
           <section className="mb-8 flex items-start gap-3 rounded-3xl bg-blue-50 p-5 ring-1 ring-blue-200 lg:mb-0">
             <ShieldCheck className="mt-1 shrink-0 text-[#0f52ba]" size={26} />
             <div>

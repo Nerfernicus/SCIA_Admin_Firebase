@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Download, Smartphone, ShieldCheck, Phone, MapPin, AlertTriangle } from 'lucide-react';
+import { Download, Smartphone, ShieldCheck, Phone, MapPin, AlertTriangle, ScanLine, ExternalLink } from 'lucide-react';
 import { APP_DOWNLOAD } from '../lib/appDownload';
 import logo from '../assets/vallogo.png';
 
@@ -8,7 +8,8 @@ import logo from '../assets/vallogo.png';
  * Public page where seniors (or OSCA staff helping them) download the SCIA Android app.
  * Address: /SCIA-APP-DOWNLOAD. It is outside the admin dashboard: no login, no sidebar.
  * Written for seniors: large type, one big button, five short steps, Tagalog first.
- * The green button opens the Google Drive link set in src/lib/appDownload.js (driveUrl).
+ * The green button AND the QR code open the Google Drive link set in src/lib/appDownload.js (driveUrl).
+ * The QR is shown on every device (phone, tablet, desktop).
  */
 const TEXT = {
   fil: {
@@ -21,8 +22,10 @@ const TEXT = {
     soonBody: 'Hindi pa handa ang download link. Pumunta sa OSCA Office sa City Hall para matulungan kayong mag-install.',
     driveNote: 'Magbubukas ang Google Drive. Doon, pindutin ang "Download".',
     iosNote: 'Pang-Android na phone lamang ang app sa ngayon.',
-    desktopNote: 'Buksan ang pahinang ito sa inyong phone, o i-scan ang QR code gamit ang camera ng phone.',
+    qrTitle: 'I-scan ang QR code',
+    qrDesc: 'Gamitin ang camera ng ibang phone. Diretso itong magbubukas sa Google Drive kung nasaan ang SCIA.',
     qrCaption: 'I-scan gamit ang camera ng phone',
+    qrOpen: 'Buksan ang Google Drive',
     stepsTitle: 'Paano mag-install (6 hakbang)',
     steps: [
       'Pindutin ang berdeng button sa itaas. Magbubukas ang Google Drive.',
@@ -50,8 +53,10 @@ const TEXT = {
     soonBody: 'The download link is not ready yet. Please visit the OSCA Office at City Hall and the staff will help you install it.',
     driveNote: 'Google Drive will open. Tap "Download" there.',
     iosNote: 'The app is for Android phones only for now.',
-    desktopNote: 'Open this page on your phone, or scan the QR code with your phone camera.',
+    qrTitle: 'Scan the QR code',
+    qrDesc: 'Use the camera of another phone. It opens Google Drive directly, where SCIA is stored.',
     qrCaption: 'Scan with your phone camera',
+    qrOpen: 'Open Google Drive',
     stepsTitle: 'How to install (6 steps)',
     steps: [
       'Tap the green button above. Google Drive opens.',
@@ -79,6 +84,9 @@ export default function AppDownload() {
   });
   const t = TEXT[lang];
   const { driveUrl, version, sizeMb, released, pageUrl, oscaPhone } = APP_DOWNLOAD;
+
+  // The QR opens the Google Drive link directly (falls back to the page if no Drive link is set yet).
+  const qrTarget = driveUrl || pageUrl;
 
   const device = useMemo(() => {
     const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent || '';
@@ -160,15 +168,48 @@ export default function AppDownload() {
               )}
             </section>
 
-            {device === 'desktop' && (
-              <section className="mb-8 flex flex-col items-center gap-3 rounded-3xl bg-white p-6 text-center shadow-sm ring-1 ring-gray-200">
-                <p className="flex items-start gap-2 text-left text-lg font-semibold text-gray-800 sm:items-center sm:text-center"><Smartphone size={22} className="mt-1 shrink-0 sm:mt-0" /> {t.desktopNote}</p>
-                <div className="rounded-2xl border-4 border-[#0f52ba] bg-white p-3">
-                  <QRCodeSVG value={pageUrl} size={192} level="M" marginSize={1} title={t.qrCaption} />
+            {/* QR card: visible on ALL devices. Scanning opens the Google Drive link directly. */}
+            <section
+              className="mx-auto mb-8 w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-lg ring-1 ring-gray-200"
+              aria-labelledby="qr-title"
+            >
+              <div className="flex items-center justify-center gap-2 bg-[#0f52ba] px-4 py-3 text-white">
+                <ScanLine size={24} className="shrink-0" aria-hidden="true" />
+                <h2 id="qr-title" className="text-xl font-extrabold">{t.qrTitle}</h2>
+              </div>
+
+              <div className="flex flex-col items-center gap-4 px-5 pb-6 pt-5 text-center">
+                <p className="flex items-start gap-2 text-left text-base font-semibold leading-relaxed text-gray-800 sm:text-lg">
+                  <Smartphone size={22} className="mt-1 shrink-0 text-[#0f52ba]" aria-hidden="true" />
+                  {t.qrDesc}
+                </p>
+
+                <div className="w-full max-w-56 rounded-3xl border-4 border-[#0f52ba] bg-white p-3 shadow-inner">
+                  <QRCodeSVG
+                    value={qrTarget}
+                    size={224}
+                    level="H"
+                    marginSize={1}
+                    title={t.qrCaption}
+                    className="block h-auto w-full"
+                    imageSettings={{ src: logo, height: 44, width: 44, excavate: true }}
+                  />
                 </div>
-                <p className="text-base font-bold text-[#0f52ba]">{t.qrCaption}</p>
-              </section>
-            )}
+
+                <p className="text-base font-extrabold text-[#0f52ba] sm:text-lg">{t.qrCaption}</p>
+
+                {driveUrl && (
+                  <a
+                    href={driveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-12 items-center gap-2 rounded-2xl border-2 border-[#0f52ba] px-5 text-base font-bold text-[#0f52ba] hover:bg-blue-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-yellow-400"
+                  >
+                    <ExternalLink size={20} aria-hidden="true" /> {t.qrOpen}
+                  </a>
+                )}
+              </div>
+            </section>
           </div>
 
           <section className="mb-8 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-200 sm:p-6">

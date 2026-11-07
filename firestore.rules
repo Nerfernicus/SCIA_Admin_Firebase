@@ -247,6 +247,33 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    // ── /medicine_requests ───────────────────────────────────────────────
+    match /medicine_requests/{docId} {
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && (seniorBarangay() == null || seniorBarangay() == ''
+              ? request.resource.data.get('barangay', null) == null
+              : sameBarangay(request.resource.data.get('barangay', null), seniorBarangay()));
+
+      allow read: if request.auth != null
+        && (isOwner()
+            || (isSubOrSuperAdmin() && canManageBarangay(resource.data.get('barangay', null))));
+
+      allow update: if
+        // barangay admin reviews / releases (never moves barangay or owner)
+        (isSubOrSuperAdmin()
+          && canManageBarangay(resource.data.get('barangay', null))
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['barangay', 'uid']))
+        // senior may only cancel their own pending request
+        || (isOwner()
+          && resource.data.status == 'pending'
+          && request.resource.data.status == 'cancelled'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']));
+
+      allow delete: if isSuperAdmin();
+    }
+
     // ── /medications ─────────────────────────────────────────────────────
     match /medications/{docId} {
       allow read: if request.auth != null

@@ -101,12 +101,12 @@ export default function AppDownload() {
   const phoneDigits = String(oscaPhone || '').replace(/[^\d+]/g, '');
 
   return (
-    <main className="min-h-screen bg-linear-to-b from-blue-50 to-white text-gray-900 font-sans">
-      <div className="mx-auto max-w-2xl px-4 pb-16 pt-5 sm:px-6">
-        <header className="mb-8 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="" className="h-12 w-12 object-contain" />
-            <div>
+    <main className="min-h-dvh bg-linear-to-b from-blue-50 to-white text-gray-900 font-sans">
+      <div className="mx-auto max-w-2xl px-4 pb-24 pt-5 sm:px-6 lg:max-w-5xl lg:px-8">
+        <header className="mb-8 flex flex-wrap items-center justify-between gap-x-3 gap-y-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <img src={logo} alt="" className="h-12 w-12 shrink-0 object-contain" />
+            <div className="min-w-0">
               <p className="text-2xl font-extrabold leading-none text-[#0f52ba]">SCIA</p>
               <p className="text-xs leading-tight text-gray-600 sm:text-sm">{t.brand}</p>
             </div>
@@ -126,77 +126,84 @@ export default function AppDownload() {
           </div>
         </header>
 
-        <section className="mb-8 text-center">
-          <h1 className="mb-3 text-4xl font-extrabold leading-tight sm:text-5xl">{t.title}</h1>
-          <p className="mx-auto mb-6 max-w-xl text-xl leading-relaxed text-gray-800">{t.subtitle}</p>
+        {/* Phones and tablets: one column. Large screens (lg): download + QR on the left, steps on the right. */}
+        <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-8">
+          <div className="lg:sticky lg:top-6">
+            <section className="mb-8 text-center">
+              <h1 className="mb-3 text-4xl font-extrabold leading-tight sm:text-5xl">{t.title}</h1>
+              <p className="mx-auto mb-6 max-w-xl text-xl leading-relaxed text-gray-800">{t.subtitle}</p>
 
-          {device === 'ios' && (
-            <p className="mx-auto mb-5 flex max-w-md items-start gap-2 rounded-2xl bg-amber-50 p-4 text-left text-lg font-semibold text-amber-900">
-              <AlertTriangle className="mt-1 shrink-0" size={22} /> {t.iosNote}
-            </p>
-          )}
+              {device === 'ios' && (
+                <p className="mx-auto mb-5 flex max-w-md items-start gap-2 rounded-2xl bg-amber-50 p-4 text-left text-lg font-semibold text-amber-900">
+                  <AlertTriangle className="mt-1 shrink-0" size={22} /> {t.iosNote}
+                </p>
+              )}
 
-          {driveUrl ? (
-            <>
-              <a
-                href={driveUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-20 w-full items-center justify-center gap-3 rounded-3xl bg-green-700 px-6 py-4 text-xl font-extrabold text-white shadow-lg hover:bg-green-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-yellow-400 sm:w-auto sm:px-10"
-              >
-                <Download size={30} /> {t.button}
-              </a>
-              <p className="mt-3 text-lg font-semibold text-gray-800">{t.driveNote}</p>
-              {version && <p className="mt-1 text-base text-gray-700">{t.versionLine(version, sizeMb, released)}</p>}
-            </>
-          ) : (
-            <div className="mx-auto max-w-md rounded-3xl border-2 border-dashed border-[#0f52ba] bg-white p-6 text-left">
-              <p className="mb-1 text-2xl font-extrabold text-[#0f52ba]">{t.soonTitle}</p>
-              <p className="text-lg leading-relaxed text-gray-800">{t.soonBody}</p>
-            </div>
-          )}
-        </section>
+              {driveUrl ? (
+                <>
+                  <a
+                    href={driveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-20 w-full items-center justify-center gap-3 rounded-3xl bg-green-700 px-5 py-4 text-lg font-extrabold text-white shadow-lg sm:text-xl hover:bg-green-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-yellow-400 sm:w-auto sm:px-10"
+                  >
+                    <Download size={30} className="shrink-0" /> <span className="text-left sm:text-center">{t.button}</span>
+                  </a>
+                  <p className="mt-3 text-lg font-semibold text-gray-800">{t.driveNote}</p>
+                  {version && <p className="mt-1 text-base text-gray-700">{t.versionLine(version, sizeMb, released)}</p>}
+                </>
+              ) : (
+                <div className="mx-auto max-w-md rounded-3xl border-2 border-dashed border-[#0f52ba] bg-white p-6 text-left">
+                  <p className="mb-1 text-2xl font-extrabold text-[#0f52ba]">{t.soonTitle}</p>
+                  <p className="text-lg leading-relaxed text-gray-800">{t.soonBody}</p>
+                </div>
+              )}
+            </section>
 
-        {device === 'desktop' && (
-          <section className="mb-8 flex flex-col items-center gap-3 rounded-3xl bg-white p-6 text-center shadow-sm ring-1 ring-gray-200">
-            <p className="flex items-center gap-2 text-lg font-semibold text-gray-800"><Smartphone size={22} /> {t.desktopNote}</p>
-            <div className="rounded-2xl border-4 border-[#0f52ba] bg-white p-3">
-              <QRCodeSVG value={pageUrl} size={192} level="M" marginSize={1} title={t.qrCaption} />
-            </div>
-            <p className="text-base font-bold text-[#0f52ba]">{t.qrCaption}</p>
-          </section>
-        )}
-
-        <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
-          <h2 className="mb-4 text-2xl font-extrabold">{t.stepsTitle}</h2>
-          <ol className="space-y-5">
-            {t.steps.map((step, i) => (
-              <li key={step} className="flex items-start gap-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#0f52ba] text-xl font-extrabold text-white" aria-hidden="true">{i + 1}</span>
-                <p className="pt-1 text-xl leading-relaxed text-gray-900"><span className="sr-only">{i + 1}. </span>{step}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section className="mb-8 flex items-start gap-3 rounded-3xl bg-blue-50 p-5 ring-1 ring-blue-200">
-          <ShieldCheck className="mt-1 shrink-0 text-[#0f52ba]" size={26} />
-          <div>
-            <h2 className="mb-1 text-xl font-extrabold">{t.safeTitle}</h2>
-            <p className="text-lg leading-relaxed text-gray-800">{t.safeBody}</p>
-            <p className="mt-2 text-base leading-relaxed text-gray-700">{t.privacy}</p>
+            {device === 'desktop' && (
+              <section className="mb-8 flex flex-col items-center gap-3 rounded-3xl bg-white p-6 text-center shadow-sm ring-1 ring-gray-200">
+                <p className="flex items-start gap-2 text-left text-lg font-semibold text-gray-800 sm:items-center sm:text-center"><Smartphone size={22} className="mt-1 shrink-0 sm:mt-0" /> {t.desktopNote}</p>
+                <div className="rounded-2xl border-4 border-[#0f52ba] bg-white p-3">
+                  <QRCodeSVG value={pageUrl} size={192} level="M" marginSize={1} title={t.qrCaption} />
+                </div>
+                <p className="text-base font-bold text-[#0f52ba]">{t.qrCaption}</p>
+              </section>
+            )}
           </div>
-        </section>
 
-        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
-          <h2 className="mb-2 flex items-center gap-2 text-2xl font-extrabold"><MapPin size={24} /> {t.helpTitle}</h2>
-          <p className="mb-4 text-lg leading-relaxed text-gray-800">{t.helpBody}</p>
-          {phoneDigits && (
-            <a href={`tel:${phoneDigits}`} className="inline-flex min-h-14 items-center gap-2 rounded-2xl bg-[#0f52ba] px-6 text-lg font-extrabold text-white hover:bg-blue-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-yellow-400">
-              <Phone size={22} /> {t.call}: {oscaPhone}
-            </a>
-          )}
-        </section>
+          <section className="mb-8 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-200 sm:p-6">
+            <h2 className="mb-4 text-2xl font-extrabold">{t.stepsTitle}</h2>
+            <ol className="space-y-5">
+              {t.steps.map((step, i) => (
+                <li key={step} className="flex items-start gap-3 sm:gap-4">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#0f52ba] text-xl font-extrabold text-white" aria-hidden="true">{i + 1}</span>
+                  <p className="min-w-0 pt-1 text-lg leading-relaxed text-gray-900 sm:text-xl"><span className="sr-only">{i + 1}. </span>{step}</p>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </div>
+
+        <div className="lg:grid lg:grid-cols-2 lg:items-stretch lg:gap-8">
+          <section className="mb-8 flex items-start gap-3 rounded-3xl bg-blue-50 p-5 ring-1 ring-blue-200 lg:mb-0">
+            <ShieldCheck className="mt-1 shrink-0 text-[#0f52ba]" size={26} />
+            <div>
+              <h2 className="mb-1 text-xl font-extrabold">{t.safeTitle}</h2>
+              <p className="text-lg leading-relaxed text-gray-800">{t.safeBody}</p>
+              <p className="mt-2 text-base leading-relaxed text-gray-700">{t.privacy}</p>
+            </div>
+          </section>
+
+          <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-200 sm:p-6">
+            <h2 className="mb-2 flex items-start gap-2 text-2xl font-extrabold"><MapPin size={24} className="mt-1 shrink-0" /> {t.helpTitle}</h2>
+            <p className="mb-4 text-lg leading-relaxed text-gray-800">{t.helpBody}</p>
+            {phoneDigits && (
+              <a href={`tel:${phoneDigits}`} className="inline-flex min-h-14 items-center gap-2 rounded-2xl bg-[#0f52ba] px-6 text-lg font-extrabold text-white hover:bg-blue-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-yellow-400">
+                <Phone size={22} /> {t.call}: {oscaPhone}
+              </a>
+            )}
+          </section>
+        </div>
 
         <footer className="mt-10 text-center text-sm text-gray-600">SCIA · {t.brand}</footer>
       </div>

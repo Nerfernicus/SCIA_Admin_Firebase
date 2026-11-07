@@ -3,12 +3,12 @@ import {
     Building2, BriefcaseMedical, Package,
     MapPin, Calendar, Pill, Clock as ClockIcon, CheckCircle2,
     XCircle, User, Phone, ChevronDown, X, Check,
-    Loader2, AlertCircle
+    Loader2, AlertCircle, PackageCheck
 } from 'lucide-react';
 import {
     collection, onSnapshot, query, orderBy, where, doc, updateDoc, addDoc, serverTimestamp
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { RULES, sanitize, validate } from '../lib/validators';
 import { useAuth } from '../context/AuthContext';
 import { sameBarangay, barangayVariants, displayBarangay } from '../lib/barangay';
@@ -71,6 +71,7 @@ const GEN_T_CENTERS = [
 
 const APPOINTMENT_STATUSES = ['pending', 'confirmed', 'completed', 'cancelled'];
 const MEDICATION_STATUSES   = ['active', 'completed', 'discontinued'];
+const MEDICINE_REQ_STATUSES = ['pending', 'approved', 'rejected', 'released', 'cancelled'];
 
 function AppointmentRow({ appt, onUpdate }) {
     const [loading, setLoading] = useState(false);
@@ -134,6 +135,141 @@ function AppointmentRow({ appt, onUpdate }) {
                     <button onClick={() => updateStatus('completed')} disabled={loading}
                         className="text-xs bg-green-500 hover:bg-green-600 text-white px-2.5 py-1 rounded-lg font-semibold transition-colors">
                         {loading ? '…' : 'Done'}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// Approve (optional pickup note) / Reject (reason required) dialog
+function MedicineReviewModal({ request, decision, onClose }) {
+    const [remarks, setRemarks] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+    const approving = decision === 'approved';
+
+    const save = async () => {
+        if (!approving && !remarks.trim()) { setError('Please give a reason for rejecting.'); return; }
+        setSaving(true);
+        try {
+            await updateDoc(doc(db, 'medicine_requests', request.id), {
+                status: decision,
+                adminRemarks: remarks.trim(),
+                reviewedBy: auth.currentUser?.uid || null,
+                reviewedAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            });
+            onClose();
+        } catch (e) {
+            console.error(e);
+            setError('Could not save. Please try again.');
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-xl">
+                <h3 className="text-lg font-bold text-gray-900 mb-1">
+                    {approving ? 'Approve request' : 'Reject request'}
+                </h3>
+                <p className="text-sm text-gray-500 mb-4">
+                    {request.medicineName} × {request.quantity} · {request.seniorName}
+                </p>
+                <label className="text-xs font-bold text-gray-500 uppercase">
+                    {approving ? 'Pickup note (optional)' : 'Reason (required)'}
+                </label>
+                <textarea
+                    value={remarks}
+                    onChange={(e) => { setRemarks(e.target.value); setError(''); }}
+                    rows={3}
+                    placeholder={approving ? 'e.g. Claim at the 3S Center until Friday, 4 PM' : 'e.g. Out of stock, please see your doctor'}
+                    className="w-full mt-1 border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f52ba]/30"
+                />
+                {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+                <div className="flex gap-2 mt-4">
+                    <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm">
+                        Cancel
+                    </button>
+                    <button onClick={save} disabled={saving}
+                        className={`flex-1 py-2.5 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 ${approving ? 'bg-green-600 hover:bg-green-700' : 'bg-red-500 hover:bg-red-600'}`}>
+                        {saving && <Loader2 size={14} className="animate-spin" />}
+                        {approving ? 'Approve' : 'Reject'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function MedicineRequestRow({ r, onReview }) {
+    const [loading, setLoading] = useState(false);
+
+    const release = async () => {
+        setLoading(true);
+        try {
+            await updateDoc(doc(db, 'medicine_requests', r.id), {
+                status: 'released',
+                releasedBy: auth.currentUser?.uid || null,
+                updatedAt: serverTimestamp(),
+            });
+        } catch (e) { console.error(e); }
+        finally { setLoading(false); }
+    };
+
+    const badgeColor = {
+        pending:   'bg-yellow-100 text-yellow-700',
+        approved:  'bg-green-100 text-green-700',
+        rejected:  'bg-red-100 text-red-700',
+        released:  'bg-blue-100 text-blue-700',
+        cancelled: 'bg-gray-100 text-gray-600',
+    }[r.status] || 'bg-gray-100 text-gray-600';
+
+    return (
+        <div className="flex items-start justify-between gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100 hover:bg-white transition-colors">
+            <div className="flex items-start gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center shrink-0">
+                    <Pill size={16} className="text-green-600" />
+                </div>
+                <div className="min-w-0">
+                    <p className="font-bold text-gray-900 text-sm">{r.medicineName} × {r.quantity}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                        <User size={11} /> {r.seniorName || 'Unknown'}{r.seniorId ? ` · ID: ${r.seniorId}` : ''}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">{r.reason}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                        {r.hasPrescription ? 'Has prescription' : 'No prescription'}
+                        {r.createdAt?.toDate ? ` · ${r.createdAt.toDate().toLocaleString()}` : ''}
+                    </p>
+                    {r.adminRemarks && <p className="text-xs text-gray-400 mt-0.5 italic">Note: {r.adminRemarks}</p>}
+                    {r.barangay && (
+                        <span className="inline-block mt-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-[#0f52ba]/10 text-[#0f52ba]">
+                            Brgy. {displayBarangay(r.barangay)}
+                        </span>
+                    )}
+                </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+                <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-lg ${badgeColor}`}>
+                    {r.status}
+                </span>
+                {r.status === 'pending' && (
+                    <div className="flex gap-1">
+                        <button onClick={() => onReview(r, 'approved')} title="Approve"
+                            className="w-7 h-7 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 flex items-center justify-center transition-colors">
+                            <Check size={12} />
+                        </button>
+                        <button onClick={() => onReview(r, 'rejected')} title="Reject"
+                            className="w-7 h-7 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center transition-colors">
+                            <X size={12} />
+                        </button>
+                    </div>
+                )}
+                {r.status === 'approved' && (
+                    <button onClick={release} disabled={loading}
+                        className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1 transition-colors">
+                        {loading ? <Loader2 size={12} className="animate-spin" /> : <PackageCheck size={12} />} Released
                     </button>
                 )}
             </div>
@@ -505,6 +641,10 @@ export default function HealthCenters() {
     const [medCounts,  setMedCounts]          = useState({});
     const [filterBgy, setFilterBgy]           = useState('all');
     const [filterStatus, setFilterStatus]     = useState('pending');
+    const [medReqs, setMedReqs]               = useState([]);
+    const [medFilterStatus, setMedFilterStatus] = useState('pending');
+    const [medFilterBgy, setMedFilterBgy]     = useState('all');
+    const [medReview, setMedReview]           = useState(null); // { request, decision }
 
     // Appointments this admin may handle, routed automatically by the barangay
     // the senior filled in at sign-up:
@@ -528,7 +668,15 @@ export default function HealthCenters() {
             setMedCounts(counts);
         }, () => {});
 
-        return () => { unsubA(); unsubM(); };
+        // Medicine requests from seniors, same barangay routing as appointments
+        const qR = myBarangay
+            ? query(collection(db, 'medicine_requests'), where('barangay', 'in', barangayVariants(myBarangay)))
+            : query(collection(db, 'medicine_requests'), orderBy('createdAt', 'desc'));
+        const unsubR = onSnapshot(qR, snap => {
+            setMedReqs(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(newestFirst));
+        }, () => {});
+
+        return () => { unsubA(); unsubM(); unsubR(); };
     }, [myBarangay]);
 
     const pendingTotal = allAppts.filter(a => a.status === 'pending').length;
@@ -542,6 +690,13 @@ export default function HealthCenters() {
     const shownAppts = allAppts.filter(a =>
         (filterStatus === 'all' || a.status === filterStatus) &&
         (filterBgy === 'all' || (filterBgy === '' ? !a.barangay : sameBarangay(a.barangay, filterBgy)))
+    );
+
+    const pendingMedReqs = medReqs.filter(r => r.status === 'pending').length;
+    const medBarangayOptions = [...new Set(medReqs.map(r => (r.barangay ? displayBarangay(r.barangay) : '')))].sort();
+    const shownMedReqs = medReqs.filter(r =>
+        (medFilterStatus === 'all' || r.status === medFilterStatus) &&
+        (medFilterBgy === 'all' || (medFilterBgy === '' ? !r.barangay : sameBarangay(r.barangay, medFilterBgy)))
     );
 
     return (
@@ -622,6 +777,56 @@ export default function HealthCenters() {
                 ) : (
                     <div className="space-y-3">
                         {shownAppts.map(a => <AppointmentRow key={a.id} appt={a} />)}
+                    </div>
+                )}
+            </div>
+
+            {/* Medicine requests — routed by the senior's sign-up barangay */}
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-50 mb-8">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div>
+                        <h3 className="font-bold text-gray-900">
+                            Medicine Requests
+                            {pendingMedReqs > 0 && (
+                                <span className="ml-2 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-yellow-100 text-yellow-700">
+                                    {pendingMedReqs} pending
+                                </span>
+                            )}
+                        </h3>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                            {myBarangay
+                                ? `Seniors registered in Brgy. ${displayBarangay(myBarangay)}`
+                                : 'Sent automatically to the barangay each senior signed up in'}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {!myBarangay && (
+                            <select value={medFilterBgy} onChange={e => setMedFilterBgy(e.target.value)}
+                                className="text-sm bg-gray-50 border border-gray-200 rounded-xl py-1.5 px-3 text-gray-700">
+                                <option value="all">All barangays</option>
+                                {medBarangayOptions.map(b => (
+                                    <option key={b || 'none'} value={b}>{b ? `Brgy. ${b}` : 'No barangay'}</option>
+                                ))}
+                            </select>
+                        )}
+                        <select value={medFilterStatus} onChange={e => setMedFilterStatus(e.target.value)}
+                            className="text-sm bg-gray-50 border border-gray-200 rounded-xl py-1.5 px-3 text-gray-700">
+                            <option value="pending">Pending</option>
+                            {MEDICINE_REQ_STATUSES.filter(x => x !== 'pending').map(x => (
+                                <option key={x} value={x}>{x.charAt(0).toUpperCase() + x.slice(1)}</option>
+                            ))}
+                            <option value="all">All statuses</option>
+                        </select>
+                    </div>
+                </div>
+                {shownMedReqs.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-6">No medicine requests here.</p>
+                ) : (
+                    <div className="space-y-3">
+                        {shownMedReqs.map(r => (
+                            <MedicineRequestRow key={r.id} r={r}
+                                onReview={(request, decision) => setMedReview({ request, decision })} />
+                        ))}
                     </div>
                 )}
             </div>
@@ -711,6 +916,11 @@ export default function HealthCenters() {
 
             {selectedCenter && (
                 <CenterDetail center={selectedCenter} onClose={() => setSelectedCenter(null)} />
+            )}
+
+            {medReview && (
+                <MedicineReviewModal request={medReview.request} decision={medReview.decision}
+                    onClose={() => setMedReview(null)} />
             )}
         </div>
     );

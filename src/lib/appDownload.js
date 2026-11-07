@@ -9,7 +9,7 @@ export const APP_DOWNLOAD = {
   driveUrl: 'https://drive.google.com/drive/folders/1Apec8mAtJMhegMS6qG1ymxE5hW1GCi3c?usp=drive_link',
 
   version: '1.1.6',  // shown under the button (leave '' to hide)
-  sizeMb: '147',        // e.g. '78'  (leave '' to hide)
+  sizeMb: '154',        // e.g. '78'  (leave '' to hide)
   released: 'October 2026',      // e.g. 'Nobyembre 2026' (leave '' to hide)
 
   // The address the QR code opens. Keep it equal to the real page address.

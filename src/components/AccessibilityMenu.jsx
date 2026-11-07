@@ -67,84 +67,87 @@ export default function AccessibilityMenu() {
           id="a11y-panel"
           role="dialog"
           aria-label="Accessibility options"
-          className="fixed bottom-20 right-4 z-9999 w-[min(92vw,22rem)] rounded-2xl border border-gray-200 bg-white p-4 text-gray-900 shadow-2xl"
+          className="fixed bottom-20 right-4 z-9999 flex max-h-[calc(100dvh-6.5rem)] w-[min(92vw,22rem)] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white text-gray-900 shadow-2xl"
         >
-          <div className="mb-3 flex items-center justify-between">
+          {/* Header stays pinned; only the options below scroll */}
+          <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 pb-3 pt-4">
             <h2 className="text-base font-extrabold">Accessibility</h2>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="rounded-full p-2 hover:bg-gray-100">
               <X size={18} />
             </button>
           </div>
 
-          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-600">Colours</p>
-          <div className="space-y-1.5" role="radiogroup" aria-label="Colour mode">
-            {MODES.map((m) => {
-              const on = settings.mode === m.id;
-              return (
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-3 [scrollbar-color:#9ca3af_transparent] [scrollbar-width:thin]">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-600">Colours</p>
+            <div className="space-y-1.5" role="radiogroup" aria-label="Colour mode">
+              {MODES.map((m) => {
+                const on = settings.mode === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => set({ mode: m.id })}
+                    className={`flex w-full items-center justify-between rounded-xl border-2 px-3 py-2.5 text-left text-sm font-semibold ${on ? 'border-[#0f52ba] bg-blue-50 text-[#0f52ba]' : 'border-gray-200 hover:bg-gray-50'}`}
+                  >
+                    <span>{m.label}<span className="block text-xs font-normal text-gray-600">{m.hint}</span></span>
+                    {on && <Check size={18} />}
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="mb-2 mt-4 text-xs font-bold uppercase tracking-wider text-gray-600">Voice</p>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={settings.narrate}
+              disabled={!speechOk}
+              onClick={() => set({ narrate: !settings.narrate })}
+              className={`flex w-full items-center justify-between rounded-xl border-2 px-3 py-2.5 text-left text-sm font-semibold disabled:opacity-50 ${settings.narrate ? 'border-[#0f52ba] bg-blue-50 text-[#0f52ba]' : 'border-gray-200 hover:bg-gray-50'}`}
+            >
+              <span className="flex items-center gap-2"><Volume2 size={18} /> Read aloud on hover or focus</span>
+              <span>{settings.narrate ? 'On' : 'Off'}</span>
+            </button>
+            {!speechOk && <p className="mt-1 text-xs text-red-600">This browser has no text-to-speech.</p>}
+
+            <div className="mt-2 flex items-center gap-2" role="radiogroup" aria-label="Voice language">
+              <Languages size={16} className="shrink-0 text-gray-600" aria-hidden="true" />
+              {[['tl', 'Tagalog'], ['en', 'English']].map(([id, label]) => (
                 <button
-                  key={m.id}
+                  key={id}
                   type="button"
                   role="radio"
-                  aria-checked={on}
-                  onClick={() => set({ mode: m.id })}
-                  className={`flex w-full items-center justify-between rounded-xl border-2 px-3 py-2.5 text-left text-sm font-semibold ${on ? 'border-[#0f52ba] bg-blue-50 text-[#0f52ba]' : 'border-gray-200 hover:bg-gray-50'}`}
-                >
-                  <span>{m.label}<span className="block text-xs font-normal text-gray-600">{m.hint}</span></span>
-                  {on && <Check size={18} />}
-                </button>
-              );
-            })}
-          </div>
+                  aria-checked={settings.voiceLang === id}
+                  onClick={() => { stopSpeaking(); set({ voiceLang: id }); }}
+                  className={`flex-1 rounded-xl border-2 px-3 py-2 text-sm font-semibold ${settings.voiceLang === id ? 'border-[#0f52ba] bg-blue-50 text-[#0f52ba]' : 'border-gray-200 hover:bg-gray-50'}`}
+                >{label}</button>
+              ))}
+            </div>
+            {tl && !filVoice && speechOk && (
+              <p className="mt-1 text-xs text-amber-700">
+                Walang Filipino na boses sa browser na ito, kaya may kakaibang tunog ang Tagalog. Mas maganda ang Microsoft Edge (may Filipino na boses), o mag-install ng Filipino voice sa Windows: Settings, Time &amp; language, Speech.
+              </p>
+            )}
 
-          <p className="mb-2 mt-4 text-xs font-bold uppercase tracking-wider text-gray-600">Voice</p>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={settings.narrate}
-            disabled={!speechOk}
-            onClick={() => set({ narrate: !settings.narrate })}
-            className={`flex w-full items-center justify-between rounded-xl border-2 px-3 py-2.5 text-left text-sm font-semibold disabled:opacity-50 ${settings.narrate ? 'border-[#0f52ba] bg-blue-50 text-[#0f52ba]' : 'border-gray-200 hover:bg-gray-50'}`}
-          >
-            <span className="flex items-center gap-2"><Volume2 size={18} /> Read aloud on hover or focus</span>
-            <span>{settings.narrate ? 'On' : 'Off'}</span>
-          </button>
-          {!speechOk && <p className="mt-1 text-xs text-red-600">This browser has no text-to-speech.</p>}
-
-          <div className="mt-2 flex items-center gap-2" role="radiogroup" aria-label="Voice language">
-            <Languages size={16} className="shrink-0 text-gray-600" aria-hidden="true" />
-            {[['tl', 'Tagalog'], ['en', 'English']].map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="radio"
-                aria-checked={settings.voiceLang === id}
-                onClick={() => { stopSpeaking(); set({ voiceLang: id }); }}
-                className={`flex-1 rounded-xl border-2 px-3 py-2 text-sm font-semibold ${settings.voiceLang === id ? 'border-[#0f52ba] bg-blue-50 text-[#0f52ba]' : 'border-gray-200 hover:bg-gray-50'}`}
-              >{label}</button>
-            ))}
-          </div>
-          {tl && !filVoice && speechOk && (
-            <p className="mt-1 text-xs text-amber-700">
-              Walang Filipino na boses sa browser na ito, kaya may kakaibang tunog ang Tagalog. Mas maganda ang Microsoft Edge (may Filipino na boses), o mag-install ng Filipino voice sa Windows: Settings, Time &amp; language, Speech.
+            <button
+              type="button"
+              onClick={runGuide}
+              disabled={!speechOk || guide.state === 'loading'}
+              className="mt-2 flex w-full items-center justify-between rounded-xl border-2 border-gray-200 px-3 py-2.5 text-left text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"
+            >
+              <span className="flex items-center gap-2">
+                {guide.state === 'loading' ? <Loader2 size={18} className="animate-spin" /> : guide.state === 'speaking' ? <Square size={18} /> : <Sparkles size={18} />}
+                {guide.state === 'speaking' ? (tl ? 'Itigil ang paliwanag' : 'Stop explaining') : (tl ? 'Ipaliwanag ang page na ito' : 'Explain this page')}
+              </span>
+            </button>
+            {guide.text && <p className="mt-1 max-h-24 overflow-y-auto text-xs text-gray-700" aria-live="polite">{guide.text}</p>}
+            {guide.error && <p className="mt-1 text-xs text-red-600" role="alert">{guide.error}</p>}
+            <p className="mt-3 text-xs text-gray-600">
+              Colour-blind modes shift colours toward ones that are easier to tell apart. They are approximate.
             </p>
-          )}
-
-          <button
-            type="button"
-            onClick={runGuide}
-            disabled={!speechOk || guide.state === 'loading'}
-            className="mt-2 flex w-full items-center justify-between rounded-xl border-2 border-gray-200 px-3 py-2.5 text-left text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"
-          >
-            <span className="flex items-center gap-2">
-              {guide.state === 'loading' ? <Loader2 size={18} className="animate-spin" /> : guide.state === 'speaking' ? <Square size={18} /> : <Sparkles size={18} />}
-              {guide.state === 'speaking' ? (tl ? 'Itigil ang paliwanag' : 'Stop explaining') : (tl ? 'Ipaliwanag ang page na ito' : 'Explain this page')}
-            </span>
-          </button>
-          {guide.text && <p className="mt-1 max-h-24 overflow-y-auto text-xs text-gray-700" aria-live="polite">{guide.text}</p>}
-          {guide.error && <p className="mt-1 text-xs text-red-600" role="alert">{guide.error}</p>}
-          <p className="mt-3 text-xs text-gray-600">
-            Colour-blind modes shift colours toward ones that are easier to tell apart. They are approximate.
-          </p>
+          </div>
         </div>
       )}
     </>,

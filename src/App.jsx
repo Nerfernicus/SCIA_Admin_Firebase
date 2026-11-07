@@ -18,6 +18,7 @@ import Analytics      from './pages/Analytics';
 import DigitalID      from './pages/DigitalID';
 import EventCheckIn from './pages/EventCheckIn';
 import AssistedKiosk from './pages/AssistedKiosk';
+import AppDownload from './pages/AppDownload';
 import AdminAccounts from './pages/AdminAccounts';
 import NcscRegistrations from './pages/NcscRegistrations';
 
@@ -36,6 +37,9 @@ const router = createBrowserRouter([
   // Public on purpose: opened by the sidebar's Assisted Sign-up after the admin is logged out.
   // Access is controlled by the session token, not by a login.
   { path: '/assisted-kiosk', element: <AssistedKiosk /> },
+  // Public download page for seniors (no login, outside the dashboard layout). Matching is not
+  // case-sensitive, so /scia-app-download works too. Settings: src/lib/appDownload.js.
+  { path: '/SCIA-APP-DOWNLOAD', element: <AppDownload /> },
   {
     path: '/',
     element: (
@@ -147,4 +151,3 @@ export default function App() {
     </ThemeProvider>
   );
 }
-//Test

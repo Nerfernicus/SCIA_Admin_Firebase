@@ -455,6 +455,20 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    // ── /senior_records ──────────────────────────────────────────────────
+    // The Valenzuela local registry (source of truth). Written ONLY by the
+    // verifyAndIssueSeniorRecord / revokeSeniorRecord functions (Admin SDK).
+    // A senior may read their own record; OSCA staff read all.
+    match /senior_records/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isSubOrSuperAdmin());
+      allow write: if false;
+    }
+
+    // Record-number counter: server only.
+    match /counters/{id} {
+      allow read, write: if false;
+    }
+
     // ── /ai_usage ────────────────────────────────────────────────────────
     match /ai_usage/{uid} {
       allow read: if request.auth != null

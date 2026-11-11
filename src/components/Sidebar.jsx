@@ -76,7 +76,7 @@ export default function Sidebar({ children }) {
     { key: 'dashboard',      icon: LayoutDashboard, path: '/' },
     { key: 'idManagement',   icon: CreditCard,      path: '/id-management' },
     { key: 'assistedSignup', icon: UserPlus,        path: '/assisted-signup' },
-    { key: 'ncscRegistrations', icon: ClipboardCheck, path: '/ncsc-registrations' },
+    { key: 'seniorRecords', icon: ClipboardCheck, path: '/senior-records' },
     { key: 'digitalId',      icon: Contact,         path: '/digital-id' },
     { key: 'userManagement', icon: Users,           path: '/users' },
     { key: 'adminAccounts',  icon: ShieldCheck,     path: '/admin-accounts' },
@@ -88,6 +88,7 @@ export default function Sidebar({ children }) {
   // ID Management, NCSC Registrations and Digital ID are OSCA-admin only (see App.jsx + firestore.rules).
   const subAdminItems = [
    { key: 'dashboard',     icon: LayoutDashboard, path: '/' },
+   { key: 'seniorRecords', icon: ClipboardCheck, path: '/senior-records' },
    { key: 'assistedSignup',icon: UserPlus,        path: '/assisted-signup' },
    { key: 'analytics',     icon: LayoutDashboard, path: '/analytics' },
    { key: 'announcements', icon: Megaphone,       path: '/announcements' },

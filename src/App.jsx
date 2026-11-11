@@ -20,7 +20,7 @@ import EventCheckIn from './pages/EventCheckIn';
 import AssistedKiosk from './pages/AssistedKiosk';
 import AppDownload from './pages/AppDownload';
 import AdminAccounts from './pages/AdminAccounts';
-import NcscRegistrations from './pages/NcscRegistrations';
+import SeniorRecords from './pages/SeniorRecords';
 
 
 function Layout() {
@@ -129,13 +129,15 @@ const router = createBrowserRouter([
         element: <Navigate to="/" replace />,
       },
       {
-        path: 'ncsc-registrations',
+        // Local OSCA Valenzuela registry: verify, issue record number, print ID, scan to verify.
+        path: 'senior-records',
         element: (
-          <ProtectedRoute allowedRoles={['super_admin']}>
-            <NcscRegistrations />
+          <ProtectedRoute allowedRoles={['sub_admin', 'super_admin']}>
+            <SeniorRecords />
           </ProtectedRoute>
         ),
       },
+      { path: 'ncsc-registrations', element: <Navigate to="/senior-records" replace /> },
     ],
   },
 ]);

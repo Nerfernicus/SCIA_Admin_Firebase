@@ -28,10 +28,10 @@ const PRIMARY_ID_TYPES = [
 ];
 const DOC_TYPES = [...PRIMARY_ID_TYPES, "birth_certificate"];
 
-// Record number: VAL-OSCA-2026-000001. The counter is per year-less (global) so numbers
-// never repeat; the year is only the year of issue.
-const RECORD_RE = /^VAL-OSCA-\d{4}-\d{6}$/;
-const formatRecordNo = (year, n) => `VAL-OSCA-${year}-${String(n).padStart(6, "0")}`;
+// Record number: the plain 6-digit OSCA number (000001, 000002, ...). One global counter, so a
+// number is never reused. Numbers already taken by a legacy account are skipped (see below).
+const RECORD_RE = /^\d{6}$/;
+const formatRecordNo = (n) => String(n).padStart(6, "0");
 
 async function requireStaff(auth, roles) {
   if (!auth) throw new HttpsError("unauthenticated", "Sign in as an OSCA staff account first.");
@@ -92,8 +92,21 @@ exports.verifyAndIssueSeniorRecord = onCall(REGION, async ({ auth, data }) => {
     if (!["PENDING", "REJECTED"].includes(status)) {
       throw new HttpsError("failed-precondition", `This account is already ${status.toLowerCase()}.`);
     }
-    const next = ((cnt.exists && cnt.data().next) || 0) + 1;
-    const recordNo = formatRecordNo(new Date().getFullYear(), next);
+    // Next free number. Skip any that a legacy account already uses (as idNumber or login key),
+    // so issuing can never overwrite someone else's login lookup.
+    let next = (cnt.exists && cnt.data().next) || 0;
+    let recordNo = null;
+    for (let i = 0; i < 50 && !recordNo; i++) {
+      next += 1;
+      if (next > 999999) break;
+      const cand = formatRecordNo(next);
+      const [lk, used] = await Promise.all([
+        tx.get(db().collection("user_lookup").doc(cand)),
+        tx.get(db().collection("users").where("idNumber", "==", cand).limit(1)),
+      ]);
+      if (!lk.exists && used.empty) recordNo = cand;
+    }
+    if (!recordNo) throw new HttpsError("resource-exhausted", "Could not find a free OSCA number. Try again.");
 
     tx.set(counterRef, { next }, { merge: true });
     tx.create(recordRef, {
@@ -143,7 +156,7 @@ exports.verifyAndIssueSeniorRecord = onCall(REGION, async ({ auth, data }) => {
 exports.lookupSeniorRecord = onCall(REGION, async ({ auth, data }) => {
   await requireStaff(auth, ["sub_admin", "super_admin"]);
   const code = String((data && data.code) || "").trim().toUpperCase();
-  if (!RECORD_RE.test(code)) throw new HttpsError("invalid-argument", "This is not an OSCA Valenzuela record code.");
+  if (!RECORD_RE.test(code)) throw new HttpsError("invalid-argument", "Enter the 6-digit OSCA number.");
   const q = await db().collection("senior_records").where("recordNo", "==", code).limit(1).get();
   if (q.empty) return { found: false };
   const r = q.docs[0].data();

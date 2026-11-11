@@ -9,4 +9,4 @@ export const ID_TYPES = [
   { value: 'birth_certificate', label: 'Birth Certificate (PSA)' },
 ];
 export const idTypeLabel = (v) => ID_TYPES.find((t) => t.value === v)?.label || v;
-export const RECORD_RE = /^VAL-OSCA-\d{4}-\d{6}$/;
+export const RECORD_RE = /^\d{6}$/;

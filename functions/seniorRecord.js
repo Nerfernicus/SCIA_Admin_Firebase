@@ -111,6 +111,13 @@ exports.verifyAndIssueSeniorRecord = onCall(REGION, async ({ auth, data }) => {
       printCount: 0,
       source: "osca_valenzuela_local",
     });
+    // Login: the Auth email is built from the SIGN-UP id (TEMP######), not the record number.
+    // This lookup lets the senior type VAL-OSCA-... on the login screen (key = lower-case, same
+    // normalisation the app uses) and still resolve to the real sign-up id. Admin SDK bypasses rules.
+    const signupId = String(usr.data().idNumber || "").trim();
+    if (signupId && signupId !== recordNo) {
+      tx.set(db().collection("user_lookup").doc(recordNo.toLowerCase()), { idNumber: signupId, uid });
+    }
     tx.update(userRef, {
       status: "ACTIVE", isVerified: true, verifiedAt: FV.serverTimestamp(),
       idNumber: recordNo, hasTempId: false,

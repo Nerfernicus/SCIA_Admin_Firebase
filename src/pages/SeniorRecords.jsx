@@ -5,13 +5,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
 import {
-  ClipboardCheck, CheckCircle2, XCircle, Loader2, Printer, Ban, Search, QrCode, Plus, X, Download,
+  ClipboardCheck, CheckCircle2, XCircle, Loader2, Printer, Ban, Search, QrCode, Plus, X, Download, Eye,
 } from 'lucide-react';
 import { db, functions } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { ID_TYPES, idTypeLabel, RECORD_RE } from '../lib/seniorRecord';
 import Code39 from '../components/Code39';
 import MaskedName from '../components/MaskedName';
+import SeniorProfileModal from '../components/SeniorProfileModal';
 import vallogo from '../assets/vallogo.png';
 
 const call = (name) => httpsCallable(functions, name);
@@ -27,6 +28,7 @@ const FILTERS = [
 const BADGE = { active: 'bg-green-100 text-green-800', revoked: 'bg-red-100 text-red-800' };
 
 const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f52ba]/30 focus:border-[#0f52ba]';
+const viewBtn = 'px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-bold flex items-center gap-1';
 const primaryBtn = 'px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-bold flex items-center gap-1 disabled:opacity-50';
 const ghostBtn = 'px-4 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50';
 
@@ -85,7 +87,16 @@ function VerifyModal({ user, onClose, onDone }) {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [photos, setPhotos] = useState(null);   // documents the senior sent from the app
   const set = (i, patch) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+
+  useEffect(() => {
+    getDocs(query(collection(db, 'senior_documents'), where('uid', '==', user.id))).then((snap) => {
+      const list = snap.docs.map((d) => d.data());
+      setPhotos(list);
+      if (list.length) setRows(list.map((d) => ({ type: d.kind === 'birth_certificate' ? 'birth_certificate' : 'philsys', number: '' })));
+    }).catch(() => setPhotos([]));
+  }, [user.id]);
 
   const submit = async () => {
     setBusy(true); setErr('');
@@ -100,6 +111,19 @@ function VerifyModal({ user, onClose, onDone }) {
         <MaskedName id={user.id} name={nameOf(user)} /> · {user.barangay || 'No barangay'} · Birthdate {user.dob || '?'}
       </p>
       <p className="mt-1 text-xs text-gray-500">Check the original document in person and record every ID you checked.</p>
+
+      {photos === null && <p className="mt-3 flex items-center gap-2 text-sm text-gray-500"><Loader2 size={14} className="animate-spin" /> Loading documents…</p>}
+      {photos && photos.length === 0 && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">This senior has not sent any documents. Check the originals in person, or ask them to send them.</p>}
+      {photos && photos.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-3">
+          {photos.map((p, i) => (
+            <a key={i} href={`data:image/jpeg;base64,${p.imageBase64}`} target="_blank" rel="noreferrer" className="block w-36">
+              <img src={`data:image/jpeg;base64,${p.imageBase64}`} alt={`Document ${i + 1}`} className="h-24 w-full rounded-lg border border-gray-200 object-cover" />
+              <span className="text-xs font-semibold text-gray-600">{p.kind === 'birth_certificate' ? 'Birth Certificate' : 'Valid ID'}</span>
+            </a>
+          ))}
+        </div>
+      )}
 
       <div className="mt-4 space-y-2">
         {rows.map((r, i) => (
@@ -309,6 +333,7 @@ export default function SeniorRecords() {
   const [verifiedUsers, setVerifiedUsers] = useState([]);
   const [apps, setApps] = useState([]);
   const [reviewTarget, setReviewTarget] = useState(null);
+  const [profileTarget, setProfileTarget] = useState(null);   // { uid } | { applicationId }
   const [importing, setImporting] = useState(false);
   const [search, setSearch] = useState('');
   const [verifyTarget, setVerifyTarget] = useState(null);
@@ -441,7 +466,10 @@ export default function SeniorRecords() {
                   <td className="px-4 py-3">{u._app ? 'Assisted sign-up' : 'Mobile app'}</td>
                   <td className="px-4 py-3">{fmt(u.createdAt)}</td>
                   <td className="px-4 py-3">
-                    <button className={primaryBtn} onClick={() => (u._app ? setReviewTarget(u) : setVerifyTarget(u))}><CheckCircle2 size={13} /> {u._app ? 'Review documents' : 'Verify'}</button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button className={viewBtn} onClick={() => setProfileTarget(u._app ? { applicationId: u.id } : { uid: u.id })}><Eye size={13} /> View</button>
+                      <button className={primaryBtn} onClick={() => (u._app ? setReviewTarget(u) : setVerifyTarget(u))}><CheckCircle2 size={13} /> {u._app ? 'Review documents' : 'Verify'}</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -479,15 +507,18 @@ export default function SeniorRecords() {
                   <td className="px-4 py-3">{fmt(r.issuedAt)}</td>
                   <td className="px-4 py-3">{r.printCount || 0}×</td>
                   <td className="px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button className={viewBtn} onClick={() => setProfileTarget({ uid: r.id })}><Eye size={13} /> View</button>
                     {r.status === 'active' ? (
-                      <div className="flex flex-wrap items-center gap-2">
+                      <>
                         <button onClick={() => print(r)} className="px-3 py-1.5 rounded-lg bg-[#0f52ba] hover:bg-[#0c3f91] text-white text-xs font-bold flex items-center gap-1">
                           <Printer size={13} /> Print ID
                         </button>
                         <button onClick={() => setRevokeTarget(r)} title="Revoke this record"
                           className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><Ban size={14} /></button>
-                      </div>
-                    ) : <span className="text-gray-300">-</span>}
+                      </>
+                    ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -526,7 +557,10 @@ export default function SeniorRecords() {
                     <td className="px-4 py-3">{u.barangay || '-'}</td>
                     <td className="px-4 py-3 font-mono">{u.idNumber || '-'}</td>
                     <td className="px-4 py-3">
-                      <button disabled={importing} className={primaryBtn} onClick={() => importUsers([u])}><Download size={13} /> Import</button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button className={viewBtn} onClick={() => setProfileTarget({ uid: u.id })}><Eye size={13} /> View</button>
+                        <button disabled={importing} className={primaryBtn} onClick={() => importUsers([u])}><Download size={13} /> Import</button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -545,6 +579,7 @@ export default function SeniorRecords() {
             setNotice({ ok: true, text: `OSCA No. ${d.recordNo} issued${d.digitalIdIssued ? '.' : '. The digital ID is not issued yet; use the Digital ID page.'}` });
           }} />
       )}
+      {profileTarget && <SeniorProfileModal target={profileTarget} onClose={() => setProfileTarget(null)} />}
       {reviewTarget && (
         <ReviewModal app={reviewTarget} onClose={() => setReviewTarget(null)}
           onDone={(d) => {

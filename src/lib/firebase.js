@@ -23,7 +23,7 @@ export const db = initializeFirestore(app, {
 });
 export const storage = getStorage(app);
 export const auth = getAuth(app);
-// Use the same region as the deployed ncscVerify function
+// Same region as the deployed Cloud Functions
 export const functions = getFunctions(app, 'asia-southeast1');
 
 let analytics = null;
@@ -49,4 +49,3 @@ export default app;
 // Event join/check-in subcollection: editorial_health/{eventId}/attendees/{uid}
 // Written by the mobile app on Join; flipped to checkedIn: true by EventCheckIn.jsx
 export const EVENT_ATTENDEES_SUBCOLLECTION = "attendees";
-

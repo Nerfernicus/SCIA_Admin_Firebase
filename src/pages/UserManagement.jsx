@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import AccountCreationPanel from "../components/AccountCreationPanel";
+import SeniorProfileModal from "../components/SeniorProfileModal";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   Users,
@@ -20,6 +22,7 @@ import {
   Clock,
   Copy,
   Loader2,
+  Eye,
 } from "lucide-react";
 import { httpsCallable } from "firebase/functions";
 import ReviewDecisionModal from "../components/ReviewDecisionModal";
@@ -188,6 +191,8 @@ function ResetPasswordModal({ user, onClose }) {
 
 
 export default function UserManagement() {
+  const navigate = useNavigate();
+  const [profileUid, setProfileUid] = useState(null);
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -381,6 +386,7 @@ export default function UserManagement() {
 
   return (
     <div className="flex-1 min-w-0 bg-[#f8f9fa] min-h-full p-3 sm:p-6 lg:p-8 font-sans relative">
+      {profileUid && <SeniorProfileModal target={{ uid: profileUid }} onClose={() => setProfileUid(null)} />}
       {/* Approve / Reject / Flag confirmation */}
       {review && (
         <ReviewDecisionModal
@@ -689,13 +695,21 @@ export default function UserManagement() {
                     <td className="py-4 px-6">
                       <div className="flex items-center justify-end gap-2">
                         {/* Approve / Reject / Flag each open a confirmation dialog; nothing is saved until it is confirmed. */}
-                        {(isPending || isRejected) && (
+                        <button
+                          title="View senior profile"
+                          onClick={() => setProfileUid(user.id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold transition-colors border border-gray-200"
+                        >
+                          <Eye size={13} /> View
+                        </button>
+                        {/* Approval happens in Senior Records (it issues the OSCA number); it is not done here. */}
+                        {isPending && (
                           <button
-                            title={t.rvConfirmApprove}
-                            onClick={() => setReview({ user, action: "approve" })}
+                            title="Verify this senior's documents in Senior Records"
+                            onClick={() => navigate("/senior-records")}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold transition-colors border border-green-200"
                           >
-                            <ThumbsUp size={13} /> Approve
+                            <ThumbsUp size={13} /> Verify
                           </button>
                         )}
                         {isPending && (

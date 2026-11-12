@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { UserPlus, Loader2, Copy, Printer, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { UserPlus, Loader2, Copy, Printer, CheckCircle2, ShieldCheck, Eye } from 'lucide-react';
 import { db, functions } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import MaskedName from './MaskedName';
+import SeniorProfileModal from './SeniorProfileModal';
 import { referenceCode } from '../lib/referenceCode';
 
 const create = httpsCallable(functions, 'createAccountFromApplication');
@@ -33,6 +34,7 @@ export default function AccountCreationPanel() {
   const { isSuperAdmin } = useAuth();
   const [apps, setApps] = useState([]);
   const [target, setTarget] = useState(null);
+  const [profileId, setProfileId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [creds, setCreds] = useState(null); // { app, idNumber, tempPassword }
@@ -86,10 +88,14 @@ export default function AccountCreationPanel() {
                 <td className="px-4 py-3 font-mono font-semibold text-gray-900">{a.recordNo}</td>
                 <td className="px-4 py-3">{a.reviewerName || '-'}</td>
                 <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                  <button onClick={() => setProfileId(a.id)}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-bold flex items-center gap-1"><Eye size={13} /> View</button>
                   <button onClick={() => { setErr(''); setTarget(a); }}
                     className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-bold flex items-center gap-1">
                     <UserPlus size={13} /> Create account
                   </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -97,6 +103,7 @@ export default function AccountCreationPanel() {
         </table>
       </div>
 
+      {profileId && <SeniorProfileModal target={{ applicationId: profileId }} onClose={() => setProfileId(null)} />}
       {target && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">

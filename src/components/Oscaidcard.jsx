@@ -1,7 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import valLogo from "../assets/vallogo.png";
-import ncscLogo from "../assets/ncsclogo.png";
 import "./Oscaidcard.css";
 
 /**
@@ -74,9 +73,7 @@ const OSCAIdCard = ({
               <p className="header-osca">Office of the Senior Citizens Affairs (OSCA)</p>
               {isDigital && <span className="digital-badge">DIGITAL ID</span>}
             </div>
-            <div className="front-header-logo">
-              <img src={ncscLogo} alt="NCSC Logo" />
-            </div>
+            <div className="front-header-logo" aria-hidden="true" />
           </div>
 
           <div className="front-body">

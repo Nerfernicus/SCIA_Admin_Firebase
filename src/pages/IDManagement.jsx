@@ -762,7 +762,7 @@ export default function IDManagement() {
     try {
       // Verifying an uploaded ID: one server call approves it, replaces the senior's
       // temporary OSCA ID with the number on the card (login + lookup move with it),
-      // marks them verified, counts them in NCSC and issues the digital ID.
+      // marks them verified and issues the digital ID.
       if (decision === 'approved' && collectionName === 'id_verifications') {
         try {
           const res = await approveIdVerificationFn({ verificationId: id });

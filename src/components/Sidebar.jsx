@@ -85,7 +85,7 @@ export default function Sidebar({ children }) {
     { key: 'eventCheckIn', icon: QrCode, path: '/event-check-in' },
   ];
 
-  // ID Management, NCSC Registrations and Digital ID are OSCA-admin only (see App.jsx + firestore.rules).
+  // ID Management, Senior Records and Digital ID are OSCA-admin only (see App.jsx + firestore.rules).
   const subAdminItems = [
    { key: 'dashboard',     icon: LayoutDashboard, path: '/' },
    { key: 'seniorRecords', icon: ClipboardCheck, path: '/senior-records' },

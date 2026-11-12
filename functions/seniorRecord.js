@@ -85,7 +85,7 @@ exports.verifyAndIssueSeniorRecord = onCall(REGION, async ({ auth, data }) => {
   const counterRef = db().collection("counters").doc("senior_records");
 
   // Server-side eligibility (age 60+, Valenzuela resident). ID-photo / duplicate-number
-  // checks of the old NCSC flow no longer apply: OSCA now issues the number itself.
+  // OSCA issues the number itself, so there is no card-number or duplicate-ID check.
   const userSnap = await userRef.get();
   if (!userSnap.exists) throw new HttpsError("not-found", "That account no longer exists.");
   const u = userSnap.data();

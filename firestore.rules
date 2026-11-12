@@ -284,6 +284,22 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    // ── /senior_documents ────────────────────────────────────────────────
+    // Photos of the valid ID / birth certificate a senior provides at sign-up (one image per doc,
+    // under the 1 MiB Firestore limit). The senior creates their own; OSCA staff review them in
+    // Senior Records. Nobody edits them: only OSCA (super_admin) can delete.
+    match /senior_documents/{docId} {
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['uid', 'kind', 'imageBase64', 'submittedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.kind in ['id', 'birth_certificate', 'barangay_certificate']
+        && request.resource.data.imageBase64 is string
+        && request.resource.data.imageBase64.size() < 700000;
+      allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isSuperAdmin());
+      allow update: if false;
+      allow delete: if isSuperAdmin();
+    }
+
     // ── /id_verifications ────────────────────────────────────────────────
     match /id_verifications/{docId} {
       // A senior can only submit for themselves, and only as "pending";
@@ -425,34 +441,6 @@ service cloud.firestore {
       allow read: if isSubOrSuperAdmin()
         && canSeeBarangay(resource.data.get('barangay', null));
       allow write: if false;
-    }
-
-    // ── /ncsc_registrations ──────────────────────────────────────────────
-    // One doc per user (doc id = uid). The app records that the senior opened
-    // the NCSC registration form, then whether they finished or cancelled.
-    // Admins verify or reject after checking.
-    match /ncsc_registrations/{uid} {
-      // The senior reads their own record; only the OSCA admin reads the rest.
-      allow read: if request.auth != null
-        && (request.auth.uid == uid || isSuperAdmin());
-
-      allow create: if request.auth != null
-        && request.auth.uid == uid
-        && request.resource.data.uid == uid
-        && request.resource.data.status == 'started';
-
-      // The senior can only move between started / cancelled / completed_claimed
-      allow update: if request.auth != null
-        && request.auth.uid == uid
-        && request.resource.data.uid == uid
-        && resource.data.status in ['started', 'cancelled', 'completed_claimed']
-        && request.resource.data.status in ['started', 'cancelled', 'completed_claimed'];
-
-      // Only the OSCA admin can verify or reject (barangay sub-admins cannot)
-      allow update: if isSuperAdmin()
-        && request.resource.data.status in ['verified', 'rejected'];
-
-      allow delete: if isSuperAdmin();
     }
 
     // ── /senior_records ──────────────────────────────────────────────────

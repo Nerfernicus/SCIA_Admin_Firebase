@@ -137,7 +137,6 @@ const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-      { path: 'ncsc-registrations', element: <Navigate to="/senior-records" replace /> },
     ],
   },
 ]);

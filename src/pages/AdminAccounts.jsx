@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { ShieldCheck, Lock, Unlock, Search, X, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Lock, Unlock, Search, X, Loader2, AlertCircle, CheckCircle2, Pencil, UserPlus, Copy } from 'lucide-react';
 import { db, functions } from '../lib/firebase';
+import { DISTRICTS, barangaysOf } from '../lib/barangay';
 
 const setAdminLock = httpsCallable(functions, 'setAdminLock');
+const createSubAdmin = httpsCallable(functions, 'createSubAdmin');
+const updateSubAdmin = httpsCallable(functions, 'updateSubAdmin');
+
+const errMsg = (e) => e?.message?.replace(/^.*?:\s*/, '') || 'Something went wrong. Please try again.';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const INPUT = 'w-full bg-white text-gray-900 border border-gray-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300';
+const LABEL = 'block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5';
 
 const fmt = (t) => {
   const d = t?.toDate ? t.toDate() : null;
@@ -51,6 +59,130 @@ function ConfirmModal({ admin, busy, error, onClose, onConfirm }) {
   );
 }
 
+// Add (admin = null) or edit (admin = row) a Barangay admin. After a successful
+// create, the temporary password is shown once so OSCA can hand it over.
+function AdminFormModal({ admin, onClose, onSaved }) {
+  const editing = !!admin;
+  const [form, setForm] = useState({
+    name: admin?.name || '', email: admin?.email || '', barangay: admin?.barangay || '',
+    contactNumber: admin?.contactNumber || '', position: admin?.position || '',
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [created, setCreated] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (form.name.trim().length < 2) return setError('Enter the admin\'s full name.');
+    if (!EMAIL_RE.test(form.email.trim())) return setError('Enter a valid email address.');
+    if (!form.barangay) return setError('Choose a barangay.');
+    setBusy(true);
+    setError('');
+    try {
+      if (editing) {
+        await updateSubAdmin({ uid: admin.id, ...form });
+        onSaved(`${form.name.trim()} updated.`);
+      } else {
+        const { data } = await createSubAdmin(form);
+        setCreated(data);
+      }
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyPw = async () => {
+    try { await navigator.clipboard.writeText(created.tempPassword); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* clipboard blocked */ }
+  };
+
+  return (
+    <div className="fixed inset-0 z-10000 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={busy ? undefined : (created ? () => onSaved(`${created.email} created.`) : onClose)} />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 z-10 max-h-[90vh] overflow-y-auto">
+        {created ? (
+          <div className="text-center">
+            <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 size={26} className="text-green-600" />
+            </div>
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Sub Admin account created</h2>
+            <p className="text-sm text-gray-600 mb-4">{created.email}</p>
+            <p className={LABEL}>Temporary password</p>
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <span className="font-mono text-2xl font-bold tracking-wider text-gray-900">{created.tempPassword}</span>
+              <button onClick={copyPw} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600" aria-label="Copy password">
+                {copied ? <CheckCircle2 size={16} className="text-green-600" /> : <Copy size={16} />}
+              </button>
+            </div>
+            <p className="text-xs font-semibold text-amber-700 bg-amber-50 rounded-xl px-4 py-2 mb-5">
+              This password is shown only once. Give it to the admin securely.
+            </p>
+            <button onClick={() => onSaved(`${created.email} created.`)} className="w-full py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-800 text-white text-sm font-bold">Done</button>
+          </div>
+        ) : (
+          <form onSubmit={submit} noValidate>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                {editing ? <Pencil size={18} className="text-[#0f52ba]" /> : <UserPlus size={18} className="text-[#0f52ba]" />}
+                {editing ? 'Edit Barangay Admin' : 'Add Sub Admin'}
+              </h2>
+              <button type="button" onClick={onClose} disabled={busy} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className={LABEL} htmlFor="sa-name">Full name</label>
+                <input id="sa-name" className={INPUT} value={form.name} onChange={set('name')} maxLength={80} autoComplete="off" />
+              </div>
+              <div>
+                <label className={LABEL} htmlFor="sa-email">Email (login)</label>
+                <input id="sa-email" type="email" className={INPUT} value={form.email} onChange={set('email')} maxLength={120} autoComplete="off" />
+              </div>
+              <div>
+                <label className={LABEL} htmlFor="sa-brgy">Barangay</label>
+                <select id="sa-brgy" className={INPUT} value={form.barangay} onChange={set('barangay')}>
+                  <option value="">Select barangay</option>
+                  {DISTRICTS.map((d) => (
+                    <optgroup key={d} label={d}>
+                      {barangaysOf(d).map((b) => <option key={b} value={b}>{b}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={LABEL} htmlFor="sa-phone">Contact number</label>
+                  <input id="sa-phone" className={INPUT} value={form.contactNumber} onChange={set('contactNumber')} placeholder="09XXXXXXXXX" inputMode="tel" maxLength={15} />
+                </div>
+                <div>
+                  <label className={LABEL} htmlFor="sa-pos">Position</label>
+                  <input id="sa-pos" className={INPUT} value={form.position} onChange={set('position')} maxLength={60} />
+                </div>
+              </div>
+            </div>
+            {!editing && <p className="text-xs text-gray-500 mt-4">A temporary password is generated when you create the account.</p>}
+            {editing && form.email.trim().toLowerCase() !== (admin.email || '').toLowerCase() && (
+              <p className="text-xs font-semibold text-amber-700 bg-amber-50 rounded-xl px-4 py-2 mt-4">Changing the email changes what this admin types to log in.</p>
+            )}
+            {error && (
+              <p role="alert" className="text-xs font-medium text-red-600 mt-4 flex items-center gap-1"><AlertCircle size={12} /> {error}</p>
+            )}
+            <div className="flex gap-3 mt-5">
+              <button type="button" onClick={onClose} disabled={busy} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-60">Cancel</button>
+              <button type="submit" disabled={busy} className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-800 text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60">
+                {busy && <Loader2 size={15} className="animate-spin" />}
+                {editing ? 'Save changes' : 'Create account'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminAccounts() {
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +192,7 @@ export default function AdminAccounts() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const [formFor, setFormFor] = useState(undefined); // undefined = closed, null = add, row = edit
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -124,6 +257,14 @@ export default function AdminAccounts() {
         />
       )}
 
+      {formFor !== undefined && (
+        <AdminFormModal
+          admin={formFor}
+          onClose={() => setFormFor(undefined)}
+          onSaved={(msg) => { setFormFor(undefined); showToast(msg); }}
+        />
+      )}
+
       {toast && (
         <div className="fixed top-6 right-6 z-10001 bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3">
           <CheckCircle2 size={16} className="text-green-400" /> {toast}
@@ -137,9 +278,16 @@ export default function AdminAccounts() {
             <ShieldCheck size={22} className="text-[#0f52ba]" /> Barangay Admin Accounts
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Lock an account that is unattended, compromised or no longer needed. Locked admins are signed out and cannot log in until unlocked.
+            Add Sub Admin accounts and edit their details. Lock an account that is unattended, compromised or no longer needed. Locked admins are signed out and cannot log in until unlocked.
           </p>
         </div>
+        <div className="flex items-center gap-3 flex-wrap">
+        <button
+          onClick={() => setFormFor(null)}
+          className="inline-flex items-center gap-2 bg-[#0f52ba] hover:bg-blue-800 text-white text-sm font-bold rounded-xl px-4 py-2.5 transition-colors"
+        >
+          <UserPlus size={16} /> Add Sub Admin
+        </button>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
           <input
@@ -148,6 +296,7 @@ export default function AdminAccounts() {
             placeholder="Search admins..."
             className="bg-white text-gray-900 border border-gray-200 rounded-xl py-2.5 pl-9 pr-3 w-64 focus:ring-2 focus:ring-blue-100 focus:border-blue-300 outline-none text-sm"
           />
+        </div>
         </div>
       </div>
 
@@ -193,7 +342,13 @@ export default function AdminAccounts() {
                       </span>
                     )}
                   </td>
-                  <td className="py-3.5 px-5 text-right">
+                  <td className="py-3.5 px-5 text-right whitespace-nowrap">
+                    <button
+                      onClick={() => setFormFor(a)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 mr-2 rounded-lg text-xs font-bold border transition-colors bg-blue-50 hover:bg-blue-100 text-[#0f52ba] border-blue-200"
+                    >
+                      <Pencil size={13} /> Edit
+                    </button>
                     <button
                       onClick={() => { setError(''); setTarget(a); }}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${

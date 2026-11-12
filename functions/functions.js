@@ -386,6 +386,8 @@ exports.synthesizeSpeech = require("./textToSpeech").synthesizeSpeech;
 // Super admin lock/unlock + password reset, and the senior Forgot Password OTP flow.
 const accountControls = require("./accountControls");
 exports.setAdminLock = accountControls.setAdminLock;
+exports.createSubAdmin = accountControls.createSubAdmin;
+exports.updateSubAdmin = accountControls.updateSubAdmin;
 exports.resetUserPassword = accountControls.resetUserPassword;
 exports.deactivateInactiveUser = accountControls.deactivateInactiveUser;
 exports.requestPasswordResetOtp = accountControls.requestPasswordResetOtp;

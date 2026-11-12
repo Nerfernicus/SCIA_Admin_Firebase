@@ -2,6 +2,8 @@
 //
 // Account-control callables:
 //   setAdminLock             super admin locks / unlocks a Barangay admin
+//   createSubAdmin           super admin creates a new Barangay (sub) admin account
+//   updateSubAdmin           super admin edits a Barangay admin's name / email / barangay / contact
 //   resetUserPassword        super admin resets a senior's password
 //   deactivateInactiveUser   super admin deactivates one senior inactive > 180 days
 //   requestPasswordResetOtp  senior asks for an SMS one-time code (Forgot Password)
@@ -15,6 +17,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const { sendSms, normalizePhNumber, SMS_API_KEY } = require("./sms");
+const { DISTRICT_1_BARANGAYS, DISTRICT_2_BARANGAYS } = require("./barangays");
 
 const db = admin.firestore();
 const auth = admin.auth();
@@ -119,6 +122,102 @@ exports.setAdminLock = onCall(REGION, async (request) => {
 
   await audit(locked ? "admin_locked" : "admin_unlocked", caller.uid, uid, { barangay: snap.data().barangay || null });
   return { ok: true, uid, locked };
+});
+
+// ── Super admin: create / edit Barangay (sub) admin accounts ────────────────
+const ALL_BARANGAYS = [...DISTRICT_1_BARANGAYS, ...DISTRICT_2_BARANGAYS];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+// Trim + validate the editable profile fields. Throws HttpsError on bad input.
+function cleanAdminProfile(data) {
+  const name = String(data.name || "").trim().replace(/\s+/g, " ");
+  const email = String(data.email || "").trim().toLowerCase();
+  const barangay = String(data.barangay || "").trim();
+  const contactNumber = String(data.contactNumber || "").trim();
+  const position = String(data.position || "").trim().replace(/\s+/g, " ");
+
+  if (name.length < 2 || name.length > 80) throw new HttpsError("invalid-argument", "Enter the admin's full name (2 to 80 characters).");
+  if (!EMAIL_RE.test(email) || email.length > 120) throw new HttpsError("invalid-argument", "Enter a valid email address.");
+  if (!ALL_BARANGAYS.includes(barangay)) throw new HttpsError("invalid-argument", "Choose a barangay from the list.");
+  if (contactNumber && !normalizePhNumber(contactNumber)) throw new HttpsError("invalid-argument", "Enter a valid Philippine mobile number (09XXXXXXXXX).");
+  if (position.length > 60) throw new HttpsError("invalid-argument", "Position is too long (60 characters max).");
+  return { name, email, barangay, contactNumber, position };
+}
+
+exports.createSubAdmin = onCall(REGION, async (request) => {
+  const caller = await requireSuperAdmin(request);
+  const profile = cleanAdminProfile(request.data || {});
+
+  const tempPassword = generateTempPassword();
+  let userRecord;
+  try {
+    userRecord = await auth.createUser({
+      email: profile.email, password: tempPassword, displayName: profile.name, disabled: false,
+    });
+  } catch (e) {
+    if (e.code === "auth/email-already-exists") throw new HttpsError("already-exists", "An account with that email already exists.");
+    if (e.code === "auth/invalid-email") throw new HttpsError("invalid-argument", "Enter a valid email address.");
+    logger.error("createSubAdmin auth failed:", e);
+    throw new HttpsError("internal", "Could not create the account. Please try again.");
+  }
+
+  try {
+    await db.collection("admins").doc(userRecord.uid).set({
+      ...profile,
+      role: "sub_admin",
+      locked: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdBy: caller.uid,
+    });
+  } catch (e) {
+    // Do not leave a login with no admin record behind.
+    await auth.deleteUser(userRecord.uid).catch(() => {});
+    logger.error("createSubAdmin firestore failed:", e);
+    throw new HttpsError("internal", "Could not save the account. Please try again.");
+  }
+
+  await audit("sub_admin_created", caller.uid, userRecord.uid, { barangay: profile.barangay });
+  return { ok: true, uid: userRecord.uid, email: profile.email, tempPassword };
+});
+
+exports.updateSubAdmin = onCall(REGION, async (request) => {
+  const caller = await requireSuperAdmin(request);
+  const data = request.data || {};
+  const uid = data.uid;
+  if (typeof uid !== "string" || !uid) throw new HttpsError("invalid-argument", "uid is required.");
+  const profile = cleanAdminProfile(data);
+
+  const ref = db.collection("admins").doc(uid);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "That admin account does not exist.");
+  const before = snap.data();
+  if (String(before.role).trim() !== "sub_admin") {
+    throw new HttpsError("failed-precondition", "Only Barangay admin accounts can be edited here.");
+  }
+
+  const authUpdate = {};
+  if (profile.email !== before.email) authUpdate.email = profile.email;
+  if (profile.name !== before.name) authUpdate.displayName = profile.name;
+  if (Object.keys(authUpdate).length) {
+    try {
+      await auth.updateUser(uid, authUpdate);
+    } catch (e) {
+      if (e.code === "auth/email-already-exists") throw new HttpsError("already-exists", "Another account already uses that email.");
+      if (e.code === "auth/invalid-email") throw new HttpsError("invalid-argument", "Enter a valid email address.");
+      logger.error("updateSubAdmin auth failed:", e);
+      throw new HttpsError("internal", "Could not update the account. Please try again.");
+    }
+  }
+
+  await ref.update({
+    ...profile,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedBy: caller.uid,
+  });
+
+  const changed = ["name", "email", "barangay", "contactNumber", "position"].filter((k) => (before[k] || "") !== profile[k]);
+  await audit("sub_admin_updated", caller.uid, uid, { changed });
+  return { ok: true, uid, changed };
 });
 
 // ── Super admin: deactivate ONE senior account that has been inactive ───────

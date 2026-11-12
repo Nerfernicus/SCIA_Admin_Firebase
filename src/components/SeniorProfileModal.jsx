@@ -40,11 +40,11 @@ const Field = ({ label, value }) => (
 );
 
 const primaryText = (p) => {
-  if (p.status === 'verified') return `Primary ID: Submitted${p.type ? ` (${p.type})` : ''} — Verified`;
-  if (p.status === 'submitted') return 'Primary ID: Submitted — awaiting OSCA review';
+  if (p.status === 'verified') return `Primary ID: Submitted${p.type ? ` (${p.type})` : ''}, Verified`;
+  if (p.status === 'submitted') return 'Primary ID: Submitted, awaiting OSCA review';
   return 'Primary ID: Missing';
 };
-const docBadge = (s) => (s === 'verified' ? 'On File — Verified' : s === 'submitted' ? 'Available / Submitted' : 'Not Provided');
+const docBadge = (s) => (s === 'verified' ? 'On File, Verified' : s === 'submitted' ? 'Available / Submitted' : 'Not Provided');
 
 export default function SeniorProfileModal({ target, onClose }) {
   const [p, setP] = useState(null);

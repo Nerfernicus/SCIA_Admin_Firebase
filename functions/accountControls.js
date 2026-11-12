@@ -129,7 +129,7 @@ const ALL_BARANGAYS = [...DISTRICT_1_BARANGAYS, ...DISTRICT_2_BARANGAYS];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 // Trim + validate the editable profile fields. Throws HttpsError on bad input.
-function cleanAdminProfile(data) {
+function cleanAdminProfile(data, role = "sub_admin") {
   const name = String(data.name || "").trim().replace(/\s+/g, " ");
   const email = String(data.email || "").trim().toLowerCase();
   const barangay = String(data.barangay || "").trim();
@@ -138,10 +138,13 @@ function cleanAdminProfile(data) {
 
   if (name.length < 2 || name.length > 80) throw new HttpsError("invalid-argument", "Enter the admin's full name (2 to 80 characters).");
   if (!EMAIL_RE.test(email) || email.length > 120) throw new HttpsError("invalid-argument", "Enter a valid email address.");
-  if (!ALL_BARANGAYS.includes(barangay)) throw new HttpsError("invalid-argument", "Choose a barangay from the list.");
+  // Only Barangay (sub) admins belong to a barangay. The main admin oversees all of them.
+  if (role === "sub_admin" && !ALL_BARANGAYS.includes(barangay)) {
+    throw new HttpsError("invalid-argument", "Choose a barangay from the list.");
+  }
   if (contactNumber && !normalizePhNumber(contactNumber)) throw new HttpsError("invalid-argument", "Enter a valid Philippine mobile number (09XXXXXXXXX).");
   if (position.length > 60) throw new HttpsError("invalid-argument", "Position is too long (60 characters max).");
-  return { name, email, barangay, contactNumber, position };
+  return { name, email, barangay: role === "sub_admin" ? barangay : "", contactNumber, position };
 }
 
 exports.createSubAdmin = onCall(REGION, async (request) => {
@@ -185,15 +188,18 @@ exports.updateSubAdmin = onCall(REGION, async (request) => {
   const data = request.data || {};
   const uid = data.uid;
   if (typeof uid !== "string" || !uid) throw new HttpsError("invalid-argument", "uid is required.");
-  const profile = cleanAdminProfile(data);
 
   const ref = db.collection("admins").doc(uid);
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError("not-found", "That admin account does not exist.");
   const before = snap.data();
-  if (String(before.role).trim() !== "sub_admin") {
-    throw new HttpsError("failed-precondition", "Only Barangay admin accounts can be edited here.");
+  const role = String(before.role).trim();
+  if (role !== "sub_admin" && role !== "super_admin") {
+    throw new HttpsError("failed-precondition", "This account cannot be edited here.");
   }
+
+  const profile = cleanAdminProfile(data, role);
+  if (role === "super_admin") delete profile.barangay; // main admin has no barangay
 
   const authUpdate = {};
   if (profile.email !== before.email) authUpdate.email = profile.email;
@@ -215,7 +221,7 @@ exports.updateSubAdmin = onCall(REGION, async (request) => {
     updatedBy: caller.uid,
   });
 
-  const changed = ["name", "email", "barangay", "contactNumber", "position"].filter((k) => (before[k] || "") !== profile[k]);
+  const changed = Object.keys(profile).filter((k) => (before[k] || "") !== profile[k]);
   await audit("sub_admin_updated", caller.uid, uid, { changed });
   return { ok: true, uid, changed };
 });

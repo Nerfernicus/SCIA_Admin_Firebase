@@ -59,10 +59,12 @@ function ConfirmModal({ admin, busy, error, onClose, onConfirm }) {
   );
 }
 
-// Add (admin = null) or edit (admin = row) a Barangay admin. After a successful
+// Add (admin = null) or edit (admin = row) an admin. After a successful
 // create, the temporary password is shown once so OSCA can hand it over.
+// The main admin (super_admin) oversees every barangay, so it has no barangay field.
 function AdminFormModal({ admin, onClose, onSaved }) {
   const editing = !!admin;
+  const isMain = admin?.role === 'super_admin';
   const [form, setForm] = useState({
     name: admin?.name || '', email: admin?.email || '', barangay: admin?.barangay || '',
     contactNumber: admin?.contactNumber || '', position: admin?.position || '',
@@ -77,7 +79,7 @@ function AdminFormModal({ admin, onClose, onSaved }) {
     e.preventDefault();
     if (form.name.trim().length < 2) return setError('Enter the admin\'s full name.');
     if (!EMAIL_RE.test(form.email.trim())) return setError('Enter a valid email address.');
-    if (!form.barangay) return setError('Choose a barangay.');
+    if (!isMain && !form.barangay) return setError('Choose a barangay.');
     setBusy(true);
     setError('');
     try {
@@ -127,7 +129,7 @@ function AdminFormModal({ admin, onClose, onSaved }) {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 {editing ? <Pencil size={18} className="text-[#0f52ba]" /> : <UserPlus size={18} className="text-[#0f52ba]" />}
-                {editing ? 'Edit Barangay Admin' : 'Add Sub Admin'}
+                {editing ? (isMain ? 'Edit Main Admin' : 'Edit Barangay Admin') : 'Add Sub Admin'}
               </h2>
               <button type="button" onClick={onClose} disabled={busy} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
             </div>
@@ -140,17 +142,19 @@ function AdminFormModal({ admin, onClose, onSaved }) {
                 <label className={LABEL} htmlFor="sa-email">Email (login)</label>
                 <input id="sa-email" type="email" className={INPUT} value={form.email} onChange={set('email')} maxLength={120} autoComplete="off" />
               </div>
-              <div>
-                <label className={LABEL} htmlFor="sa-brgy">Barangay</label>
-                <select id="sa-brgy" className={INPUT} value={form.barangay} onChange={set('barangay')}>
-                  <option value="">Select barangay</option>
-                  {DISTRICTS.map((d) => (
-                    <optgroup key={d} label={d}>
-                      {barangaysOf(d).map((b) => <option key={b} value={b}>{b}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
+              {!isMain && (
+                <div>
+                  <label className={LABEL} htmlFor="sa-brgy">Barangay</label>
+                  <select id="sa-brgy" className={INPUT} value={form.barangay} onChange={set('barangay')}>
+                    <option value="">Select barangay</option>
+                    {DISTRICTS.map((d) => (
+                      <optgroup key={d} label={d}>
+                        {barangaysOf(d).map((b) => <option key={b} value={b}>{b}</option>)}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={LABEL} htmlFor="sa-phone">Contact number</label>
@@ -201,8 +205,10 @@ export default function AdminAccounts() {
         setAdmins(
           snap.docs
             .map((d) => ({ id: d.id, ...d.data() }))
-            .filter((a) => String(a.role).trim() === 'sub_admin')
-            .sort((a, b) => String(a.barangay || '').localeCompare(String(b.barangay || ''))),
+            .filter((a) => ['sub_admin', 'super_admin'].includes(String(a.role).trim()))
+            .sort((a, b) =>
+              (b.role === 'super_admin') - (a.role === 'super_admin') ||
+              String(a.barangay || '').localeCompare(String(b.barangay || ''))),
         );
         setLoading(false);
       },
@@ -327,7 +333,9 @@ export default function AdminAccounts() {
                     <p className="font-bold text-gray-900 text-sm">{a.name || 'Unnamed admin'}</p>
                     <p className="text-xs text-gray-500">{a.email}</p>
                   </td>
-                  <td className="py-3.5 px-5 text-sm text-gray-700">{a.barangay ? `Brgy. ${a.barangay}` : 'None'}</td>
+                  <td className="py-3.5 px-5 text-sm text-gray-700">
+                    {a.role === 'super_admin' ? 'All barangays (Main Admin)' : a.barangay ? `Brgy. ${a.barangay}` : 'None'}
+                  </td>
                   <td className="py-3.5 px-5">
                     {a.locked ? (
                       <div>
@@ -349,16 +357,18 @@ export default function AdminAccounts() {
                     >
                       <Pencil size={13} /> Edit
                     </button>
-                    <button
-                      onClick={() => { setError(''); setTarget(a); }}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
-                        a.locked
-                          ? 'bg-green-50 hover:bg-green-100 text-green-700 border-green-200'
-                          : 'bg-red-50 hover:bg-red-100 text-red-600 border-red-200'
-                      }`}
-                    >
-                      {a.locked ? <><Unlock size={13} /> Unlock</> : <><Lock size={13} /> Lock</>}
-                    </button>
+                    {a.role !== 'super_admin' && (
+                      <button
+                        onClick={() => { setError(''); setTarget(a); }}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                          a.locked
+                            ? 'bg-green-50 hover:bg-green-100 text-green-700 border-green-200'
+                            : 'bg-red-50 hover:bg-red-100 text-red-600 border-red-200'
+                        }`}
+                      >
+                        {a.locked ? <><Unlock size={13} /> Unlock</> : <><Lock size={13} /> Lock</>}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

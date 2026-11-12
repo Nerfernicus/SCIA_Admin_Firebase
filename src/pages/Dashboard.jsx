@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
-import { collection, query, orderBy, limit, doc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { X, Megaphone, ChevronRight, Pencil, Trash2, Save, Loader2, AlertTriangle, ShieldAlert, Users, Activity, MapPin } from 'lucide-react';
+import { collection, query, orderBy, limit, where, doc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { X, Megaphone, ChevronRight, Pencil, Trash2, Save, Loader2, AlertTriangle, ShieldAlert, Users, Activity, MapPin, BadgeCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import mapOfValenzuela from '../assets/map_of_valenzuela.jpg';
@@ -276,6 +276,29 @@ export default function Dashboard() {
     return () => unsub();
   }, []);
 
+  // OSCA Valenzuela local registry: issued records, plus desk applications waiting for review.
+  // senior_applications is super-admin only (see firestore.rules), so sub-admins skip that listener.
+  const [records, setRecords] = useState([]);
+  const [recordsLoading, setRecordsLoading] = useState(true);
+  const [deskPending, setDeskPending] = useState(0);
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, 'senior_records'),
+      (snap) => { setRecords(snap.docs.map((d) => d.data().status)); setRecordsLoading(false); },
+      (err) => { console.error('Failed to load senior records:', err); setRecordsLoading(false); },
+    );
+    return () => unsub();
+  }, []);
+  useEffect(() => {
+    if (!isSuperAdmin) return undefined;
+    const unsub = onSnapshot(
+      query(collection(db, 'senior_applications'), where('status', '==', 'pending')),
+      (snap) => setDeskPending(snap.size),
+      (err) => console.error('Failed to load desk applications:', err),
+    );
+    return () => unsub();
+  }, [isSuperAdmin]);
+
   const handleSaved = (updated) => {
     setAnnouncements((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
   };
@@ -290,7 +313,10 @@ export default function Dashboard() {
   const latestActiveAlert = sosAlerts.find((a) => a.status !== 'resolved');
 
   const totalUserCount = allUsers.length;
-  const pendingUserCount = allUsers.filter((u) => (u.status ?? 'PENDING') === 'PENDING').length;
+  // Same queue the Senior Records > Pending tab shows: app sign-ups + desk applications.
+  const pendingUserCount = allUsers.filter((u) => (u.status ?? 'PENDING') === 'PENDING').length + deskPending;
+  const activeRecordCount = records.filter((s) => s === 'active').length;
+  const revokedRecordCount = records.filter((s) => s === 'revoked').length;
   const activeUserCount = allUsers.filter((u) => u.status === 'ACTIVE').length;
   const recentPendingUsers = allUsers.filter((u) => (u.status ?? 'PENDING') === 'PENDING').slice(0, 3);
   const activePercent = totalUserCount > 0 ? Math.round((activeUserCount / totalUserCount) * 100) : 0;
@@ -299,6 +325,7 @@ export default function Dashboard() {
   const sosShown     = useCountUp(activeSosCount,  { enabled: !sosLoading });
   const pendingShown = useCountUp(pendingUserCount, { enabled: !usersLoading });
   const totalShown   = useCountUp(totalUserCount,   { enabled: !usersLoading });
+  const recordsShown = useCountUp(activeRecordCount, { enabled: !recordsLoading });
 
   // Live workload score from the data above (see lib/useDashboardLive.js)
   const sys = useSystemLoad({ users: allUsers, alerts: sosAlerts, ready: !usersLoading && !sosLoading });
@@ -339,7 +366,7 @@ export default function Dashboard() {
           <AnnouncementBanner announcements={announcements} />
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <div
             className="stat-card-in bg-red-500 rounded-xl p-5 shadow-sm text-white flex flex-col justify-between cursor-pointer hover:bg-red-600 transition-colors"
             style={{ animationDelay: '0ms' }}
@@ -421,6 +448,34 @@ export default function Dashboard() {
               <>
                 <div className="text-4xl font-bold text-gray-900 mt-1 tabular-nums">{totalShown.toLocaleString()}</div>
                 <div className="text-[10px] text-gray-400 font-semibold mt-2">{activeUserCount.toLocaleString()} {t.verifiedActiveSuffix}</div>
+              </>
+            )}
+          </div>
+
+          <div
+            className="stat-card-in bg-white rounded-xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between cursor-pointer hover:border-blue-200 transition-colors"
+            style={{ animationDelay: '200ms' }}
+            onClick={() => navigate('/senior-records')}
+            title={t.seniorRecords}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <BadgeCheck size={18} className="text-[#0f52ba]" />
+              {recordsLoading ? (
+                <span className="h-5 w-16 rounded bg-gray-100 animate-pulse" />
+              ) : (
+                <span className="text-yellow-700 text-xs font-bold bg-yellow-50 px-2 py-0.5 rounded">{pendingUserCount} {t.statPending}</span>
+              )}
+            </div>
+            <div className="text-gray-500 text-sm font-medium">{t.seniorRecords}</div>
+            {recordsLoading ? (
+              <div className="mt-1 space-y-2" aria-busy="true">
+                <div className="h-10 w-14 rounded-lg bg-gray-200 animate-pulse" />
+                <div className="h-2.5 w-24 rounded bg-gray-100 animate-pulse" />
+              </div>
+            ) : (
+              <>
+                <div className="text-4xl font-bold text-gray-900 mt-1 tabular-nums">{recordsShown.toLocaleString()}</div>
+                <div className="text-[10px] text-gray-400 font-semibold mt-2">{t.activeSuffix} · {revokedRecordCount.toLocaleString()} revoked</div>
               </>
             )}
           </div>

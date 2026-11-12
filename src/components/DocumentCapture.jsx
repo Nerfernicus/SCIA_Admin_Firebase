@@ -12,6 +12,22 @@ const ATTEMPTS = [{ width: 1400, quality: 0.65 }, { width: 1100, quality: 0.55 }
 const ID_RATIO = 85.6 / 54;     // CR80 card, landscape
 const DOC_RATIO = 210 / 297;    // A4 page, portrait
 
+// ── Camera outline tuning ─ change ONLY these while testing on the real device ──────────────
+const TUNE = {
+  detectWidth: 160,     // analysis width in px. Higher = finer edges, slower
+  edgeFloor: 28,        // minimum edge strength. Raise if the outline jumps on a plain table; lower if it misses a pale card
+  minEdgeSpan: 0.14,    // how much of the frame an edge line must span (0..1). Raise to ignore text/patterns
+  minBoxSize: 0.2,      // smallest box (fraction of frame) accepted as a document
+  idRatioMin: 1.25,     // box width/height that counts as an ID card...
+  idRatioMax: 2.0,      // ...between these two
+  idMaxArea: 0.7,       // an "ID card" box bigger than this share of the frame is treated as a document
+  smoothing: 0.5,       // 0..1. Lower = steadier outline, higher = follows faster
+  idGuideHeight: 0.62,  // fixed "ID card" guide height (fraction of frame)
+  docGuideHeight: 0.9,  // fixed "Document" guide height
+  steadyFrames: 8,      // frames (about 200 ms each) held still before auto-capture
+  capturePad: 0.02,     // extra margin around the box when cropping
+};
+
 // Crop (sx,sy,sw,sh) of `source` into a JPEG whose base64 fits under the Firestore limit.
 function toJpeg(source, sx, sy, sw, sh) {
   for (const { width, quality } of ATTEMPTS) {
@@ -29,7 +45,7 @@ function toJpeg(source, sx, sy, sw, sh) {
 // Find the dominant rectangle in the frame from edge strength (no libraries). Returns a box in
 // 0..1 frame coordinates, or null when nothing document-like is in view.
 function detect(video, work) {
-  const W = 160;
+  const W = TUNE.detectWidth;
   const H = Math.max(40, Math.round((W * video.videoHeight) / video.videoWidth));
   work.width = W; work.height = H;
   const ctx = work.getContext('2d', { willReadFrequently: true });
@@ -44,21 +60,21 @@ function detect(video, work) {
     mag[y * W + x] = m; sum += m; sum2 += m * m; n++;
   }
   const mean = sum / n;
-  const thr = Math.max(28, mean + Math.sqrt(Math.max(0, sum2 / n - mean * mean)));
+  const thr = Math.max(TUNE.edgeFloor, mean + Math.sqrt(Math.max(0, sum2 / n - mean * mean)));
   const rows = new Uint16Array(H), cols = new Uint16Array(W);
   for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) if (mag[y * W + x] > thr) { rows[y]++; cols[x]++; }
-  const minRow = W * 0.14, minCol = H * 0.14;       // an edge of a card/page spans a good part of the frame
+  const minRow = W * TUNE.minEdgeSpan, minCol = H * TUNE.minEdgeSpan;       // an edge of a card/page spans a good part of the frame
   let top = -1, bottom = -1, left = -1, right = -1;
   for (let y = 2; y < H - 2; y++) if (rows[y] >= minRow) { if (top < 0) top = y; bottom = y; }
   for (let x = 2; x < W - 2; x++) if (cols[x] >= minCol) { if (left < 0) left = x; right = x; }
-  if (top < 0 || left < 0 || bottom - top < H * 0.2 || right - left < W * 0.2) return null;
+  if (top < 0 || left < 0 || bottom - top < H * TUNE.minBoxSize || right - left < W * TUNE.minBoxSize) return null;
   return { x: left / W, y: top / H, w: (right - left) / W, h: (bottom - top) / H };
 }
 
 // Outline for a forced mode, centred, in 0..1 frame coordinates.
 function fixedGuide(mode, vw, vh) {
   const ratio = mode === 'id' ? ID_RATIO : DOC_RATIO;
-  let h = mode === 'id' ? 0.62 : 0.9;
+  let h = mode === 'id' ? TUNE.idGuideHeight : TUNE.docGuideHeight;
   let w = (h * vh * ratio) / vw;
   if (w > 0.9) { w = 0.9; h = (w * vw) / (ratio * vh); }
   return { x: (1 - w) / 2, y: (1 - h) / 2, w, h };
@@ -66,7 +82,7 @@ function fixedGuide(mode, vw, vh) {
 
 const classify = (box, vw, vh) => {
   const ratio = (box.w * vw) / (box.h * vh);
-  return ratio >= 1.25 && ratio <= 2.0 && box.w * box.h < 0.7 ? 'id' : 'document';
+  return ratio >= TUNE.idRatioMin && ratio <= TUNE.idRatioMax && box.w * box.h < TUNE.idMaxArea ? 'id' : 'document';
 };
 
 export default function DocumentCapture({ value, onChange }) {
@@ -121,7 +137,7 @@ export default function DocumentCapture({ value, onChange }) {
     if (!v || !v.videoWidth) return;
     try {
       const b = useBox || { x: 0, y: 0, w: 1, h: 1 };
-      const pad = 0.02;
+      const pad = TUNE.capturePad;
       const x = Math.max(0, b.x - pad), y = Math.max(0, b.y - pad);
       const w = Math.min(1 - x, b.w + 2 * pad), h = Math.min(1 - y, b.h + 2 * pad);
       add(useKind || 'document', toJpeg(v, x * v.videoWidth, y * v.videoHeight, w * v.videoWidth, h * v.videoHeight));
@@ -144,14 +160,14 @@ export default function DocumentCapture({ value, onChange }) {
           k = ids >= 3 ? 'id' : 'document';
         } else { votes.current = []; k = null; }
       } else { k = mode; b = fixedGuide(mode, v.videoWidth, v.videoHeight); }
-      setBox((prev) => (b && prev ? { x: prev.x + (b.x - prev.x) * 0.5, y: prev.y + (b.y - prev.y) * 0.5, w: prev.w + (b.w - prev.w) * 0.5, h: prev.h + (b.h - prev.h) * 0.5 } : b));
+      setBox((prev) => (b && prev ? { x: prev.x + (b.x - prev.x) * TUNE.smoothing, y: prev.y + (b.y - prev.y) * TUNE.smoothing, w: prev.w + (b.w - prev.w) * TUNE.smoothing, h: prev.h + (b.h - prev.h) * TUNE.smoothing } : b));
       setKind(k);
 
       // Hold still ~1.5 s on the same shape -> take it.
       const st = stableRef.current;
       const moved = !b || !st.box || Math.abs(b.x - st.box.x) > 0.03 || Math.abs(b.y - st.box.y) > 0.03 || Math.abs(b.w - st.box.w) > 0.04;
       st.n = moved ? 0 : st.n + 1; st.box = b;
-      if (autoShot && b && k && st.n >= 8) { st.n = 0; capture(b, k); }
+      if (autoShot && b && k && st.n >= TUNE.steadyFrames) { st.n = 0; capture(b, k); }
     }, 200);
     return () => clearInterval(id);
   }, [live, mode, autoShot, capture]);

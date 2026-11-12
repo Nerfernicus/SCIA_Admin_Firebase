@@ -138,13 +138,14 @@ function cleanAdminProfile(data, role = "sub_admin") {
 
   if (name.length < 2 || name.length > 80) throw new HttpsError("invalid-argument", "Enter the admin's full name (2 to 80 characters).");
   if (!EMAIL_RE.test(email) || email.length > 120) throw new HttpsError("invalid-argument", "Enter a valid email address.");
-  // Only Barangay (sub) admins belong to a barangay. The main admin oversees all of them.
-  if (role === "sub_admin" && !ALL_BARANGAYS.includes(barangay)) {
+  // A Master account (no barangay) oversees every barangay. Every other sub admin needs one.
+  const allBarangays = role === "super_admin" || data.allBarangays === true;
+  if (!allBarangays && !ALL_BARANGAYS.includes(barangay)) {
     throw new HttpsError("invalid-argument", "Choose a barangay from the list.");
   }
   if (contactNumber && !normalizePhNumber(contactNumber)) throw new HttpsError("invalid-argument", "Enter a valid Philippine mobile number (09XXXXXXXXX).");
   if (position.length > 60) throw new HttpsError("invalid-argument", "Position is too long (60 characters max).");
-  return { name, email, barangay: role === "sub_admin" ? barangay : "", contactNumber, position };
+  return { name, email, barangay: allBarangays ? "" : barangay, contactNumber, position };
 }
 
 exports.createSubAdmin = onCall(REGION, async (request) => {
@@ -179,7 +180,7 @@ exports.createSubAdmin = onCall(REGION, async (request) => {
     throw new HttpsError("internal", "Could not save the account. Please try again.");
   }
 
-  await audit("sub_admin_created", caller.uid, userRecord.uid, { barangay: profile.barangay });
+  await audit("sub_admin_created", caller.uid, userRecord.uid, { barangay: profile.barangay || "ALL (master)" });
   return { ok: true, uid: userRecord.uid, email: profile.email, tempPassword };
 });
 
@@ -199,7 +200,7 @@ exports.updateSubAdmin = onCall(REGION, async (request) => {
   }
 
   const profile = cleanAdminProfile(data, role);
-  if (role === "super_admin") delete profile.barangay; // main admin has no barangay
+  if (role === "super_admin") delete profile.barangay; // OSCA admin: leave the record as is
 
   const authUpdate = {};
   if (profile.email !== before.email) authUpdate.email = profile.email;

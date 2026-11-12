@@ -19,6 +19,9 @@ const fmt = (t) => {
   return d ? d.toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 };
 
+// The OSCA admin and any sub admin with no barangay oversee every barangay.
+const isMasterRow = (a) => a.role === 'super_admin' || !a.barangay;
+
 function ConfirmModal({ admin, busy, error, onClose, onConfirm }) {
   const locking = !admin.locked;
   return (
@@ -30,7 +33,7 @@ function ConfirmModal({ admin, busy, error, onClose, onConfirm }) {
         </div>
         <h2 className="text-lg font-bold text-gray-900 mb-1">{locking ? 'Lock this account?' : 'Unlock this account?'}</h2>
         <p className="text-sm font-bold text-gray-800">{admin.name || admin.email}</p>
-        <p className="text-xs text-gray-500 mb-4">{admin.barangay ? `Brgy. ${admin.barangay}` : 'No barangay assigned'}</p>
+        <p className="text-xs text-gray-500 mb-4">{isMasterRow(admin) ? 'All barangays (Master)' : `Brgy. ${admin.barangay}`}</p>
         <p className={`text-xs font-semibold rounded-xl px-4 py-2 mb-5 ${locking ? 'text-red-600 bg-red-50' : 'text-green-700 bg-green-50'}`}>
           {locking
             ? 'They will be signed out right away and cannot log in until you unlock the account.'
@@ -61,10 +64,12 @@ function ConfirmModal({ admin, busy, error, onClose, onConfirm }) {
 
 // Add (admin = null) or edit (admin = row) an admin. After a successful
 // create, the temporary password is shown once so OSCA can hand it over.
-// The main admin (super_admin) oversees every barangay, so it has no barangay field.
+// A Master account oversees every barangay, so it has no barangay.
 function AdminFormModal({ admin, onClose, onSaved }) {
   const editing = !!admin;
-  const isMain = admin?.role === 'super_admin';
+  const isOsca = admin?.role === 'super_admin';
+  const [allBarangays, setAllBarangays] = useState(editing && !admin.barangay);
+  const isMain = isOsca || allBarangays;
   const [form, setForm] = useState({
     name: admin?.name || '', email: admin?.email || '', barangay: admin?.barangay || '',
     contactNumber: admin?.contactNumber || '', position: admin?.position || '',
@@ -84,10 +89,10 @@ function AdminFormModal({ admin, onClose, onSaved }) {
     setError('');
     try {
       if (editing) {
-        await updateSubAdmin({ uid: admin.id, ...form });
+        await updateSubAdmin({ uid: admin.id, ...form, barangay: isMain ? '' : form.barangay, allBarangays: isMain });
         onSaved(`${form.name.trim()} updated.`);
       } else {
-        const { data } = await createSubAdmin(form);
+        const { data } = await createSubAdmin({ ...form, barangay: isMain ? '' : form.barangay, allBarangays: isMain });
         setCreated(data);
       }
     } catch (err) {
@@ -129,7 +134,7 @@ function AdminFormModal({ admin, onClose, onSaved }) {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 {editing ? <Pencil size={18} className="text-[#0f52ba]" /> : <UserPlus size={18} className="text-[#0f52ba]" />}
-                {editing ? (isMain ? 'Edit Main Admin' : 'Edit Barangay Admin') : 'Add Sub Admin'}
+                {editing ? (isMain ? 'Edit Master Admin' : 'Edit Barangay Admin') : 'Add Sub Admin'}
               </h2>
               <button type="button" onClick={onClose} disabled={busy} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
             </div>
@@ -142,6 +147,20 @@ function AdminFormModal({ admin, onClose, onSaved }) {
                 <label className={LABEL} htmlFor="sa-email">Email (login)</label>
                 <input id="sa-email" type="email" className={INPUT} value={form.email} onChange={set('email')} maxLength={120} autoComplete="off" />
               </div>
+              {!isOsca && (
+                <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={allBarangays}
+                    onChange={(e) => setAllBarangays(e.target.checked)}
+                  />
+                  <span>
+                    <span className="font-bold">Master account</span>
+                    <span className="block text-xs text-gray-500">Oversees every barangay, so no barangay is assigned.</span>
+                  </span>
+                </label>
+              )}
               {!isMain && (
                 <div>
                   <label className={LABEL} htmlFor="sa-brgy">Barangay</label>
@@ -207,7 +226,7 @@ export default function AdminAccounts() {
             .map((d) => ({ id: d.id, ...d.data() }))
             .filter((a) => ['sub_admin', 'super_admin'].includes(String(a.role).trim()))
             .sort((a, b) =>
-              (b.role === 'super_admin') - (a.role === 'super_admin') ||
+              isMasterRow(b) - isMasterRow(a) ||
               String(a.barangay || '').localeCompare(String(b.barangay || ''))),
         );
         setLoading(false);
@@ -334,7 +353,7 @@ export default function AdminAccounts() {
                     <p className="text-xs text-gray-500">{a.email}</p>
                   </td>
                   <td className="py-3.5 px-5 text-sm text-gray-700">
-                    {a.role === 'super_admin' ? 'All barangays (Main Admin)' : a.barangay ? `Brgy. ${a.barangay}` : 'None'}
+                    {isMasterRow(a) ? 'All barangays (Master)' : `Brgy. ${a.barangay}`}
                   </td>
                   <td className="py-3.5 px-5">
                     {a.locked ? (

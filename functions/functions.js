@@ -401,6 +401,8 @@ const guideAI = require("./guideAI");
 
 // ── Senior account review: approve / reject / flag, each with an audit record ──
 exports.reviewSenior = require("./seniorReview").reviewSenior;
+exports.requestMissingRequirements = require("./missingRequirements").requestMissingRequirements;
+exports.onSeniorDocumentSubmitted = require("./missingRequirements").onSeniorDocumentSubmitted;
 
 // ── Local OSCA Valenzuela registry (no NCSC) ───────────────────────────────
 const seniorRecord = require("./seniorRecord");

@@ -130,14 +130,15 @@ service cloud.firestore {
               // only to reactivate a suspended account.
               && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
                    'reviewedBy', 'reviewerName', 'reviewedAt', 'reviewDecision', 'reviewReason',
-                   'rejectionReason', 'flagged', 'flagNote', 'flaggedBy', 'flaggedByName', 'flaggedAt'])
+                   'rejectionReason', 'flagged', 'flagNote', 'flaggedBy', 'flaggedByName', 'flaggedAt',
+                   'missingRequirements'])
               && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'isVerified'])
                   || resource.data.get('status', '') == 'SUSPENDED'))
             || (request.auth.uid == userId
                 && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
                      'isVerified', 'status', 'idNumber', 'hasTempId', 'role',
                      'verifiedAt', 'previousIdNumber', 'tempIdReplacedAt',
-                     'safety_alert',
+                     'safety_alert', 'missingRequirements',
                      'reviewedBy', 'reviewerName', 'reviewedAt', 'reviewDecision', 'reviewReason',
                      'rejectionReason', 'flagged', 'flagNote', 'flaggedBy', 'flaggedByName', 'flaggedAt'])));
 

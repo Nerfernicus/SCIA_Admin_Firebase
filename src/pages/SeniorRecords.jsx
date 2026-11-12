@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
 import {
-  ClipboardCheck, CheckCircle2, XCircle, Loader2, Printer, Ban, Search, QrCode, Plus, X, Download, Eye,
+  ClipboardCheck, CheckCircle2, XCircle, Loader2, Printer, Ban, Search, QrCode, Plus, X, Download, Eye, BellRing,
 } from 'lucide-react';
 import { db, functions } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -13,6 +13,7 @@ import { ID_TYPES, idTypeLabel, RECORD_RE } from '../lib/seniorRecord';
 import Code39 from '../components/Code39';
 import MaskedName from '../components/MaskedName';
 import SeniorProfileModal from '../components/SeniorProfileModal';
+import MissingRequirementsModal from '../components/MissingRequirementsModal';
 import vallogo from '../assets/vallogo.png';
 
 const call = (name) => httpsCallable(functions, name);
@@ -333,6 +334,7 @@ export default function SeniorRecords() {
   const [verifiedUsers, setVerifiedUsers] = useState([]);
   const [apps, setApps] = useState([]);
   const [reviewTarget, setReviewTarget] = useState(null);
+  const [missingTarget, setMissingTarget] = useState(null);
   const [profileTarget, setProfileTarget] = useState(null);   // { uid } | { applicationId }
   const [importing, setImporting] = useState(false);
   const [search, setSearch] = useState('');
@@ -469,6 +471,11 @@ export default function SeniorRecords() {
                     <div className="flex flex-wrap items-center gap-2">
                       <button className={viewBtn} onClick={() => setProfileTarget(u._app ? { applicationId: u.id } : { uid: u.id })}><Eye size={13} /> View</button>
                       <button className={primaryBtn} onClick={() => (u._app ? setReviewTarget(u) : setVerifyTarget(u))}><CheckCircle2 size={13} /> {u._app ? 'Review documents' : 'Verify'}</button>
+                      {!u._app && (
+                        <button className={viewBtn} onClick={() => setMissingTarget(u)} title="Tell the senior which ID or documents are missing">
+                          <BellRing size={13} /> Request docs
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -578,6 +585,10 @@ export default function SeniorRecords() {
             setVerifyTarget(null); setTab('registry');
             setNotice({ ok: true, text: `OSCA No. ${d.recordNo} issued${d.digitalIdIssued ? '.' : '. The digital ID is not issued yet; use the Digital ID page.'}` });
           }} />
+      )}
+      {missingTarget && (
+        <MissingRequirementsModal user={missingTarget} onClose={() => setMissingTarget(null)}
+          onDone={() => { setMissingTarget(null); setNotice({ ok: true, text: 'The senior was notified in the app about the missing requirements.' }); }} />
       )}
       {profileTarget && <SeniorProfileModal target={profileTarget} onClose={() => setProfileTarget(null)} />}
       {reviewTarget && (

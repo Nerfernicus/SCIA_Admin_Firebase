@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
 import {
-  ClipboardCheck, CheckCircle2, XCircle, Loader2, Printer, Ban, Search, QrCode, Plus, X,
+  ClipboardCheck, CheckCircle2, XCircle, Loader2, Printer, Ban, Search, QrCode, Plus, X, Download,
 } from 'lucide-react';
 import { db, functions } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -133,6 +133,81 @@ function VerifyModal({ user, onClose, onDone }) {
   );
 }
 
+// ── Review an assisted-sign-up application (documents scanned at the desk) ──────────────────
+function ReviewModal({ app, onClose, onDone }) {
+  const [images, setImages] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [note, setNote] = useState('');
+  const [rejecting, setRejecting] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    getDocs(collection(db, 'senior_applications', app.id, 'documents')).then((snap) => {
+      const list = snap.docs.map((d) => d.data()).sort((a, b) => 0 + (a.uploadedAt?.seconds || 0) - (b.uploadedAt?.seconds || 0));
+      setImages(list);
+      setRows(list.map((d) => ({ type: d.kind === 'id' ? 'philsys' : 'birth_certificate', number: '' })));
+    }).catch(() => { setImages([]); setErr('Could not load the documents.'); });
+  }, [app.id]);
+
+  const set = (i, patch) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const submit = async (action) => {
+    setBusy(true); setErr('');
+    try { onDone((await call('verifyApplication')({ applicationId: app.id, action, documents: rows, note })).data); }
+    catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal wide>
+      <h2 className="text-lg font-bold text-gray-900">Review documents</h2>
+      <p className="mt-1 text-sm text-gray-600">
+        <MaskedName id={app.id} name={nameOf(app)} /> · {app.barangay || 'No barangay'} · Birthdate {app.dob || '?'}
+      </p>
+      <p className="mt-1 text-xs text-gray-500">Check each photo against the senior's details, choose what it is, and enter the ID number.</p>
+
+      {images === null && <p className="mt-4 flex items-center gap-2 text-sm text-gray-500"><Loader2 size={14} className="animate-spin" /> Loading documents…</p>}
+      <div className="mt-4 space-y-4">
+        {(images || []).map((img, i) => (
+          <div key={i} className="rounded-xl border border-gray-200 p-3">
+            <a href={`data:image/jpeg;base64,${img.imageBase64}`} target="_blank" rel="noreferrer">
+              <img src={`data:image/jpeg;base64,${img.imageBase64}`} alt={`Document ${i + 1}`} className="max-h-64 w-full rounded-lg object-contain bg-gray-50" />
+            </a>
+            <div className="mt-2 flex gap-2">
+              <select className={`${inputCls} flex-1`} value={rows[i]?.type || ''} onChange={(e) => set(i, { type: e.target.value })}>
+                {ID_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+              <input className={`${inputCls} !w-40`} value={rows[i]?.number || ''} onChange={(e) => set(i, { number: e.target.value })}
+                placeholder={rows[i]?.type === 'birth_certificate' ? 'Reg. no. (optional)' : 'ID number'} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <textarea className={`${inputCls} mt-3`} rows={2} value={note} onChange={(e) => setNote(e.target.value)}
+        placeholder={rejecting ? 'Reason for rejecting (required)' : 'Notes (optional)'} />
+      {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
+
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <button className={ghostBtn} onClick={onClose} disabled={busy}>Close</button>
+        {rejecting ? (
+          <button onClick={() => submit('reject')} disabled={busy || note.trim().length < 5}
+            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-sm font-bold text-white flex items-center gap-1 disabled:opacity-50">
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />} Confirm reject
+          </button>
+        ) : (
+          <>
+            <button onClick={() => setRejecting(true)} disabled={busy} className="px-4 py-2 rounded-lg border border-red-200 text-sm font-semibold text-red-600 hover:bg-red-50">Reject</button>
+            <button onClick={() => submit('approve')} disabled={busy || !images?.length}
+              className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-sm font-bold text-white flex items-center gap-1 disabled:opacity-50">
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Verify
+            </button>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 // ── Revoke ──────────────────────────────────────────────────────────────────
 function RevokeModal({ record, onClose, onDone }) {
   const [reason, setReason] = useState('');
@@ -231,6 +306,10 @@ export default function SeniorRecords() {
   const [filter, setFilter] = useState('all');
   const [pending, setPending] = useState([]);
   const [records, setRecords] = useState([]);
+  const [verifiedUsers, setVerifiedUsers] = useState([]);
+  const [apps, setApps] = useState([]);
+  const [reviewTarget, setReviewTarget] = useState(null);
+  const [importing, setImporting] = useState(false);
   const [search, setSearch] = useState('');
   const [verifyTarget, setVerifyTarget] = useState(null);
   const [revokeTarget, setRevokeTarget] = useState(null);
@@ -243,13 +322,46 @@ export default function SeniorRecords() {
     const u2 = onSnapshot(collection(db, 'senior_records'),
       (s) => setRecords(s.docs.map((d) => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (b.issuedAt?.toMillis?.() || 0) - (a.issuedAt?.toMillis?.() || 0))));
-    return () => { u1(); u2(); };
+    const u3 = onSnapshot(query(collection(db, 'users'), where('isVerified', '==', true)),
+      (s) => setVerifiedUsers(s.docs.map((d) => ({ id: d.id, ...d.data() }))));
+    const u4 = onSnapshot(query(collection(db, 'senior_applications'), where('status', '==', 'pending')),
+      (s) => setApps(s.docs.map((d) => ({ id: d.id, _app: true, ...d.data() }))
+        .sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0))));
+    return () => { u1(); u2(); u3(); u4(); };
   }, [isSuperAdmin]);
 
   const q = search.trim().toLowerCase();
-  const fp = useMemo(() => pending.filter((u) => !q || nameOf(u).toLowerCase().includes(q)), [pending, q]);
+  const fp = useMemo(() => [...apps, ...pending].filter((u) => !q || nameOf(u).toLowerCase().includes(q)), [apps, pending, q]);
   const fr = useMemo(() => records.filter((r) =>
     (filter === 'all' || r.status === filter) && (!q || `${r.fullName} ${r.recordNo}`.toLowerCase().includes(q))), [records, filter, q]);
+
+  // Accounts OSCA verified before this registry existed: verified, but no senior_records entry yet.
+  const recordIds = useMemo(() => new Set(records.map((r) => r.id)), [records]);
+  const existing = useMemo(() => verifiedUsers.filter((u) => !recordIds.has(u.id)
+    && String(u.status || '').toUpperCase() !== 'SUSPENDED'
+    && (!q || nameOf(u).toLowerCase().includes(q))), [verifiedUsers, recordIds, q]);
+
+  const importUsers = async (list) => {
+    setImporting(true); setNotice(null);
+    const tally = { imported: 0, kept: 0, error: 0, skipped: 0 };
+    let firstError = '';
+    try {
+      for (let i = 0; i < list.length; i += 25) {
+        const res = (await call('migrateLegacySeniors')({ uids: list.slice(i, i + 25).map((u) => u.id) })).data;
+        res.results.forEach((r) => {
+          if (r.result === 'imported') { tally.imported += 1; if (r.kept) tally.kept += 1; }
+          else if (r.result === 'error') { tally.error += 1; firstError ||= r.why; }
+          else tally.skipped += 1;
+        });
+      }
+    } catch (e) { tally.error += 1; firstError ||= errMsg(e); }
+    setImporting(false);
+    setNotice({
+      ok: tally.error === 0,
+      text: `Imported ${tally.imported} (${tally.kept} kept their existing number, ${tally.imported - tally.kept} got a new one)`
+        + `${tally.skipped ? `, skipped ${tally.skipped}` : ''}${tally.error ? `, ${tally.error} failed: ${firstError}` : '.'}`,
+    });
+  };
 
   const print = async (r) => {
     if (printCard(r)) { try { await call('logSeniorIdPrint')({ uid: r.id }); } catch { /* log is best-effort */ } }
@@ -257,7 +369,7 @@ export default function SeniorRecords() {
   };
 
   const tabs = [
-    ...(isSuperAdmin ? [{ key: 'pending', label: `Pending (${pending.length})` }, { key: 'registry', label: `Registry (${records.length})` }] : []),
+    ...(isSuperAdmin ? [{ key: 'pending', label: `Pending (${pending.length + apps.length})` }, { key: 'registry', label: `Registry (${records.length})` }, { key: 'existing', label: `Existing accounts (${verifiedUsers.filter((u) => !recordIds.has(u.id) && String(u.status || '').toUpperCase() !== 'SUSPENDED').length})` }] : []),
     { key: 'scan', label: 'Scan / verify' },
   ];
 
@@ -293,7 +405,7 @@ export default function SeniorRecords() {
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <div className="relative w-full max-w-xs">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input className={`${inputCls} !pl-9`} placeholder={tab === 'pending' ? 'Search name' : 'Search name or OSCA No.'}
+            <input className={`${inputCls} !pl-9`} placeholder={tab !== 'registry' ? 'Search name' : 'Search name or OSCA No.'}
               value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           {tab === 'registry' && FILTERS.map((f) => (
@@ -314,20 +426,22 @@ export default function SeniorRecords() {
                 <th className="px-4 py-3 font-semibold">Senior</th>
                 <th className="px-4 py-3 font-semibold">Barangay</th>
                 <th className="px-4 py-3 font-semibold">Birthdate</th>
+                <th className="px-4 py-3 font-semibold">Source</th>
                 <th className="px-4 py-3 font-semibold">Registered</th>
                 <th className="px-4 py-3 font-semibold">Action</th>
               </tr>
             </thead>
             <tbody>
-              {fp.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No seniors waiting for verification</td></tr>}
+              {fp.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No seniors waiting for verification</td></tr>}
               {fp.map((u) => (
                 <tr key={u.id} className="border-t border-gray-100">
                   <td className="px-4 py-3"><MaskedName className="font-semibold text-gray-900" id={u.id} name={nameOf(u) || 'Unknown'} /></td>
                   <td className="px-4 py-3">{u.barangay || '-'}</td>
                   <td className="px-4 py-3">{u.dob || '-'}</td>
+                  <td className="px-4 py-3">{u._app ? 'Assisted sign-up' : 'Mobile app'}</td>
                   <td className="px-4 py-3">{fmt(u.createdAt)}</td>
                   <td className="px-4 py-3">
-                    <button className={primaryBtn} onClick={() => setVerifyTarget(u)}><CheckCircle2 size={13} /> Verify</button>
+                    <button className={primaryBtn} onClick={() => (u._app ? setReviewTarget(u) : setVerifyTarget(u))}><CheckCircle2 size={13} /> {u._app ? 'Review documents' : 'Verify'}</button>
                   </td>
                 </tr>
               ))}
@@ -361,7 +475,7 @@ export default function SeniorRecords() {
                   <td className="px-4 py-3">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${BADGE[r.status] || ''}`}>{r.status}</span>
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-600">{(r.verification?.documents || []).map((d) => idTypeLabel(d.type)).join(', ') || '-'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600">{(r.verification?.documents || []).map((d) => idTypeLabel(d.type)).join(', ') || (r.verification?.migrated ? 'Existing account (imported)' : '-')}</td>
                   <td className="px-4 py-3">{fmt(r.issuedAt)}</td>
                   <td className="px-4 py-3">{r.printCount || 0}×</td>
                   <td className="px-4 py-3">
@@ -382,6 +496,46 @@ export default function SeniorRecords() {
         </div>
       )}
 
+      {tab === 'existing' && (
+        <>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900">
+            <span>
+              These seniors were verified before the local registry existed. Importing keeps a clean 6-digit OSCA number as it is
+              (their printed card stays valid); anyone else gets a new number.
+            </span>
+            <button disabled={importing || existing.length === 0} onClick={() => importUsers(existing)}
+              className="px-3 py-1.5 rounded-lg bg-[#0f52ba] hover:bg-[#0c3f91] text-white text-xs font-bold flex items-center gap-1 disabled:opacity-50">
+              {importing ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Import all ({existing.length})
+            </button>
+          </div>
+          <div className="overflow-x-auto bg-white rounded-2xl border border-gray-100 shadow-sm">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-left text-gray-500">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Senior</th>
+                  <th className="px-4 py-3 font-semibold">Barangay</th>
+                  <th className="px-4 py-3 font-semibold">Current ID no.</th>
+                  <th className="px-4 py-3 font-semibold">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {existing.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">All verified accounts are in the registry</td></tr>}
+                {existing.map((u) => (
+                  <tr key={u.id} className="border-t border-gray-100">
+                    <td className="px-4 py-3"><MaskedName className="font-semibold text-gray-900" id={u.id} name={nameOf(u) || 'Unknown'} /></td>
+                    <td className="px-4 py-3">{u.barangay || '-'}</td>
+                    <td className="px-4 py-3 font-mono">{u.idNumber || '-'}</td>
+                    <td className="px-4 py-3">
+                      <button disabled={importing} className={primaryBtn} onClick={() => importUsers([u])}><Download size={13} /> Import</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
       {tab === 'scan' && <ScanPanel />}
 
       {verifyTarget && (
@@ -389,6 +543,15 @@ export default function SeniorRecords() {
           onDone={(d) => {
             setVerifyTarget(null); setTab('registry');
             setNotice({ ok: true, text: `OSCA No. ${d.recordNo} issued${d.digitalIdIssued ? '.' : '. The digital ID is not issued yet; use the Digital ID page.'}` });
+          }} />
+      )}
+      {reviewTarget && (
+        <ReviewModal app={reviewTarget} onClose={() => setReviewTarget(null)}
+          onDone={(d) => {
+            setReviewTarget(null);
+            setNotice({ ok: true, text: d.status === 'rejected'
+              ? 'Application rejected.'
+              : `Verified. OSCA No. ${d.recordNo} is reserved. Confirm the account in User Management to give the senior their login.` });
           }} />
       )}
       {revokeTarget && (

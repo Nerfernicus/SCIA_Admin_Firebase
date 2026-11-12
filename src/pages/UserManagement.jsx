@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import AccountCreationPanel from "../components/AccountCreationPanel";
 import {
   Search,
   Users,
@@ -447,6 +448,9 @@ export default function UserManagement() {
           </div>
         </div>
       </div>
+
+      {/* Applications OSCA verified in Senior Records: confirm to create the login */}
+      <AccountCreationPanel />
 
       {/* KPI Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">

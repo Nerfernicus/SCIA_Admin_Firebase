@@ -812,3 +812,10 @@ exports.verifyAndIssueSeniorRecord = seniorRecord.verifyAndIssueSeniorRecord;
 exports.lookupSeniorRecord = seniorRecord.lookupSeniorRecord;
 exports.revokeSeniorRecord = seniorRecord.revokeSeniorRecord;
 exports.logSeniorIdPrint = seniorRecord.logSeniorIdPrint;
+exports.migrateLegacySeniors = seniorRecord.migrateLegacySeniors;
+
+// ── Assisted sign-up applications (documents -> verify -> confirm account) ──
+const applications = require("./applications");
+exports.submitAssistedApplication = applications.submitAssistedApplication;
+exports.verifyApplication = applications.verifyApplication;
+exports.createAccountFromApplication = applications.createAccountFromApplication;

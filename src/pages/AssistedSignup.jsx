@@ -1,18 +1,17 @@
 import { useState, useEffect } from 'react';
 import { httpsCallable } from 'firebase/functions';
-import { UserPlus, Loader2, CheckCircle2, Copy, AlertCircle, ExternalLink, Clock } from 'lucide-react';
+import { UserPlus, Loader2, AlertCircle, Clock, ShieldCheck } from 'lucide-react';
 import { functions } from '../lib/firebase';
-import { createAssistedSeniorAccountWithSession } from '../lib/assistedKiosk';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import { DISTRICTS, barangaysOf, resolveBarangay } from '../lib/barangay';
-import IdCardCapture from '../components/IdCardCapture';
+import DocumentCapture from '../components/DocumentCapture';
 import PrivacyConsent from '../components/PrivacyConsent';
 import { RULES, sanitize, validate, validateGender, validateDob, validateOption } from '../lib/validators';
 
-const createAssistedSeniorAccount = httpsCallable(functions, 'createAssistedSeniorAccount');
-
-const NCSC_FORM_URL = 'https://www.ncsc.gov.ph/seniorcitizensdataform';
+// No account is created at the desk any more: the application goes to OSCA's Senior Records for
+// verification, and the login is created later from User Management.
+const submitAssistedApplication = httpsCallable(functions, 'submitAssistedApplication');
 
 const EMPTY_FORM = {
   firstName: '', midName: '', lastName: '', district: '', barangay: '', block: '', street: '',
@@ -115,20 +114,12 @@ export default function AssistedSignup({ kiosk = null }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState(null); // { uid, idNumber, tempPassword }
-  const [copied, setCopied] = useState(false);
+  const [result, setResult] = useState(null); // { applicationId, reference }
   const [fieldErrors, setFieldErrors] = useState({});
-  // null = not asked yet, 'registered' = already registered with NCSC,
-  // otherwise the progress of registering them now: started | cancelled | completed_claimed
-  const [ncscAnswer, setNcscAnswer] = useState(null);
-  // Only used when the senior says they already hold a physical OSCA ID:
-  // idPhoto = raw base64 JPEG of the card (taken with the camera or chosen from
-  // files); idPhotoLater = they didn't bring it and will send a photo from the app.
-  const [idPhoto, setIdPhoto] = useState('');
-  const [idPhotoLater, setIdPhotoLater] = useState(false);
+  // Scanned / uploaded documents: a valid ID and/or the birth certificate.
+  const [docs, setDocs] = useState([]);
   const [agreed, setAgreed] = useState(false);
   const [consentError, setConsentError] = useState(false);
-  const resetIdPhoto = () => { setIdPhoto(''); setIdPhotoLater(false); };
 
   const update = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
   const clearErr = (...fields) =>
@@ -173,7 +164,6 @@ export default function AssistedSignup({ kiosk = null }) {
       guardianName: validate('name', form.guardianName),
       guardianPhone: validate('phone', form.guardianPhone),
       guardianRelation: validate('relation', form.guardianRelation, { required: false }),
-      idNumber: validate('idNumber', form.idNumber, { required: ncscAnswer === 'registered' }),
     };
     if (!errs.guardianPhone && form.guardianPhone.replace(/\D/g, '').slice(-10) === form.conNumber.replace(/\D/g, '').slice(-10)) {
       errs.guardianPhone = "The guardian's number must be different from the senior's own number.";
@@ -185,16 +175,8 @@ export default function AssistedSignup({ kiosk = null }) {
       return;
     }
 
-    if (ncscAnswer === null) {
-      setError('Please answer whether the senior is already registered.');
-      return;
-    }
-    if (ncscAnswer === 'registered' && !form.idNumber.trim()) {
-      setError('OSCA ID Number is required for a senior who is already registered.');
-      return;
-    }
-    if (ncscAnswer === 'registered' && !idPhoto && !idPhotoLater) {
-      setError("Add a photo of the senior's OSCA ID, or choose that they didn't bring it and will send it from home.");
+    if (docs.length === 0) {
+      setError('Add at least one photo: a valid ID or the birth certificate.');
       return;
     }
 
@@ -206,13 +188,7 @@ export default function AssistedSignup({ kiosk = null }) {
 
     setSubmitting(true);
     try {
-      const ncscStatus = ['started', 'cancelled', 'completed_claimed', 'registered'].includes(ncscAnswer)
-        ? ncscAnswer
-        : null;
-      const submit = kiosk
-        ? (payload) => createAssistedSeniorAccountWithSession({ ...payload, sessionToken: kiosk.token })
-        : createAssistedSeniorAccount;
-      const res = await submit({
+      const res = await submitAssistedApplication({
         ...form,
         block: form.block.trim(),
         street: form.street.trim(),
@@ -221,31 +197,20 @@ export default function AssistedSignup({ kiosk = null }) {
         guardianName: form.guardianName.trim(),
         guardianPhone: form.guardianPhone.trim(),
         guardianRelation: form.guardianRelation.trim(),
-        ncscStatus,
-        ...(ncscAnswer === 'registered' && idPhoto ? { idPhotoBase64: idPhoto } : {}),
-        ...(ncscAnswer === 'registered' && !idPhoto && idPhotoLater ? { idPhotoLater: true } : {}),
+        documents: docs,
+        ...(kiosk ? { sessionToken: kiosk.token } : {}),
       });
       setResult(res.data);
       setForm(EMPTY_FORM);
-      setNcscAnswer(null);
       setAgreed(false);
       setConsentError(false);
-      resetIdPhoto();
+      setDocs([]);
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Failed to create the account. Please try again.');
+      setError(err.message || 'Failed to submit the application. Please try again.');
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const copyCredentials = () => {
-    if (!result) return;
-    const text = `SCIA Login\nID Number: ${result.idNumber}\nTemporary Password: ${result.tempPassword}`;
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    });
   };
 
   return (
@@ -255,76 +220,32 @@ export default function AssistedSignup({ kiosk = null }) {
           <UserPlus size={22} className="text-[#0f52ba]" /> Assisted Senior Sign-Up
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          For seniors visiting in person without a phone or tech familiarity. Fill this in on their
-          behalf and give them the printed credentials below to log into the app later.
+          For seniors visiting in person. Fill this in on their behalf and scan their documents. OSCA verifies them first; the login is created only after approval.
           {myBarangay && (kiosk || !isSuperAdmin) && ` This account will be registered under Brgy. ${myBarangay}.`}
         </p>
       </div>
 
       {result ? (
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 text-center">
-          <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 size={26} className="text-green-600" />
+          <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock size={26} className="text-amber-600" />
           </div>
-          <h2 className="text-lg font-bold text-gray-900 mb-1">Account Created</h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-1">Waiting for verification</h2>
           <p className="text-sm text-gray-500 mb-6">
-            Write these down for the senior, or copy them to include in a printed slip. This is the
-            only time this password will be shown.
+            OSCA will check the documents in Senior Records. The login details are not available yet; they are
+            created after OSCA approves the application.
           </p>
-
-          {result.idPhoto === 'submitted' && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-4 text-left flex items-start gap-2">
-              <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-emerald-800">
-                The photo of the OSCA ID was sent to OSCA. The account becomes verified once OSCA approves it.
-              </p>
-            </div>
-          )}
-          {result.idPhoto === 'later' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-left flex items-start gap-2">
-              <Clock size={16} className="text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-amber-800">
-                <b>Not verified yet.</b> Tell the senior to open the app at home, go to Account &gt; Verify My
-                OSCA ID, and send a photo of the physical ID (the ID number is already filled in). The account
-                is verified after OSCA approves it.
-              </p>
-            </div>
-          )}
-          {result.idPhoto === 'failed' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-left flex items-start gap-2">
-              <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-amber-800">
-                The account was created, but the ID photo could not be saved. Ask the senior to send it from the
-                app (Account &gt; Verify My OSCA ID).
-              </p>
-            </div>
-          )}
-
-          <div className="bg-gray-50 rounded-2xl border border-gray-100 p-5 text-left mb-6 space-y-3">
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">ID Number</p>
-              <p className="text-xl font-mono font-bold text-gray-900">{result.idNumber}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Temporary Password</p>
-              <p className="text-xl font-mono font-bold text-gray-900">{result.tempPassword}</p>
-            </div>
+          <div className="bg-gray-50 rounded-2xl border border-gray-100 p-5 mb-6">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Reference number</p>
+            <p className="text-2xl font-mono font-bold text-gray-900">{result.reference}</p>
+            <p className="text-xs text-gray-400 mt-1">Give this to the senior so OSCA can find the application.</p>
           </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={copyCredentials}
-              className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-            >
-              <Copy size={16} /> {copied ? 'Copied!' : 'Copy Credentials'}
-            </button>
-            <button
-              onClick={() => setResult(null)}
-              className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 text-white text-sm font-bold transition-colors"
-            >
-              Register Another
-            </button>
-          </div>
+          <button
+            onClick={() => setResult(null)}
+            className="w-full py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 text-white text-sm font-bold transition-colors"
+          >
+            Register Another
+          </button>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 space-y-5">
@@ -335,100 +256,14 @@ export default function AssistedSignup({ kiosk = null }) {
             </div>
           )}
 
-          <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-3">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-              Is the senior already registered as a Senior Citizen? *
+          <Section title="Documents *">
+            <p className="text-sm text-gray-500 -mt-1">
+              Scan a valid government ID (National ID, SSS, GSIS, Driver's License, Voter's ID, Passport) and/or the Birth
+              Certificate. The camera outline fits the ID or document it sees, or upload photos from this device.
             </p>
-
-            {ncscAnswer === null && (
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setNcscAnswer('registered')}
-                  className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-white transition-colors"
-                >
-                  Yes, registered
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNcscAnswer('none')}
-                  className="flex-1 py-2.5 rounded-xl border-2 border-[#0f52ba] text-sm font-bold text-[#0f52ba] hover:bg-blue-50 transition-colors"
-                >
-                  Not yet
-                </button>
-              </div>
-            )}
-
-            {ncscAnswer === 'registered' && (
-              <p className="text-sm text-gray-600">
-                Enter the senior's OSCA ID Number and add a photo of the physical ID under Account Details below.
-              </p>
-            )}
-
-            {(ncscAnswer === 'none' || ncscAnswer === 'cancelled') && (
-              <div className="space-y-2">
-                <p className="text-sm text-gray-600">
-                  The senior can register at NCSC now, or you can skip this and just create the
-                  account. Registering is optional.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNcscAnswer('started');
-                    window.open(NCSC_FORM_URL, '_blank', 'noopener,noreferrer');
-                  }}
-                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
-                >
-                  <ExternalLink size={16} /> Register at NCSC
-                </button>
-              </div>
-            )}
-
-            {ncscAnswer === 'started' && (
-              <div className="space-y-2">
-                <p className="text-sm text-gray-600">Did the senior finish the NCSC registration?</p>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setNcscAnswer('completed_claimed')}
-                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-colors"
-                  >
-                    Yes, finished
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNcscAnswer('cancelled')}
-                    className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-white transition-colors"
-                  >
-                    Cancelled
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => window.open(NCSC_FORM_URL, '_blank', 'noopener,noreferrer')}
-                  className="text-xs text-[#0f52ba] underline"
-                >
-                  Open the form again
-                </button>
-              </div>
-            )}
-
-            {ncscAnswer === 'completed_claimed' && (
-              <p className="text-sm text-emerald-700">
-                Marked as finished. It will show up in NCSC Registrations for verification.
-              </p>
-            )}
-
-            {ncscAnswer !== null && (
-              <button
-                type="button"
-                onClick={() => { setNcscAnswer(null); resetIdPhoto(); }}
-                className="text-xs text-gray-500 underline"
-              >
-                Change answer
-              </button>
-            )}
-          </div>
+            <DocumentCapture value={docs} onChange={setDocs} />
+            <p className="text-xs text-gray-400 flex items-center gap-1"><ShieldCheck size={13} /> Photos are only visible to OSCA staff.</p>
+          </Section>
 
           <Section title="Personal Information">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -557,33 +392,6 @@ export default function AssistedSignup({ kiosk = null }) {
             </div>
           </Section>
 
-          <Section title="Account Details">
-            <div>
-              <label className={LABEL_CLS}>
-                Senior Citizen ID Number{ncscAnswer === 'registered' ? ' *' : ' (optional)'}
-              </label>
-              <input value={form.idNumber} onChange={updateText('idNumber', 'idNumber')} maxLength={RULES.idNumber.max} aria-invalid={!!fieldErrors.idNumber} className={inputCls(fieldErrors.idNumber)} />
-              <FieldError msg={fieldErrors.idNumber} />
-              <p className="text-xs text-gray-400 mt-1.5">
-                {ncscAnswer === 'registered'
-                  ? 'Required for a senior who is already registered.'
-                  : "Leave blank if they don't have one yet. A temporary ID will be assigned."}
-              </p>
-            </div>
-
-            {ncscAnswer === 'registered' && (
-              <div>
-                <label className={LABEL_CLS}>Senior Citizen ID Photo *</label>
-                <IdCardCapture
-                  value={idPhoto}
-                  onChange={setIdPhoto}
-                  later={idPhotoLater}
-                  onLaterChange={setIdPhotoLater}
-                />
-              </div>
-            )}
-          </Section>
-
           <PrivacyConsent checked={agreed} onChange={(v) => { setAgreed(v); if (v) setConsentError(false); }} error={consentError} />
 
           <button
@@ -592,7 +400,7 @@ export default function AssistedSignup({ kiosk = null }) {
             className="w-full bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-md shadow-blue-500/20"
           >
             {submitting ? <Loader2 size={18} className="animate-spin" /> : <UserPlus size={18} />}
-            Create Account
+            Submit for Verification
           </button>
         </form>
       )}

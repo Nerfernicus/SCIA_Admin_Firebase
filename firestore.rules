@@ -464,6 +464,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── /senior_applications ─────────────────────────────────────────────
+    // Assisted sign-up applications waiting for OSCA verification. Server-written only;
+    // OSCA (super_admin) reads them, including the scanned documents.
+    match /senior_applications/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+      match /documents/{docId} {
+        allow read: if isSuperAdmin();
+        allow write: if false;
+      }
+    }
+
     // Record-number counter: server only.
     match /counters/{id} {
       allow read, write: if false;

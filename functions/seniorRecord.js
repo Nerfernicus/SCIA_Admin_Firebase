@@ -33,6 +33,24 @@ const DOC_TYPES = [...PRIMARY_ID_TYPES, "birth_certificate"];
 const RECORD_RE = /^\d{6}$/;
 const formatRecordNo = (n) => String(n).padStart(6, "0");
 
+// Next free OSCA number at or after counter+1. Skips numbers a legacy account already uses
+// (as idNumber or as a login key) so a new record can never overwrite someone's login.
+// MUST be called before any write in the transaction.
+async function allocateNumber(tx, cntSnap) {
+  let next = (cntSnap.exists && cntSnap.data().next) || 0;
+  for (let i = 0; i < 50; i++) {
+    next += 1;
+    if (next > 999999) break;
+    const cand = formatRecordNo(next);
+    const [lk, used] = await Promise.all([
+      tx.get(db().collection("user_lookup").doc(cand)),
+      tx.get(db().collection("users").where("idNumber", "==", cand).limit(1)),
+    ]);
+    if (!lk.exists && used.empty) return { recordNo: cand, next };
+  }
+  throw new HttpsError("resource-exhausted", "Could not find a free OSCA number. Try again.");
+}
+
 async function requireStaff(auth, roles) {
   if (!auth) throw new HttpsError("unauthenticated", "Sign in as an OSCA staff account first.");
   const snap = await db().collection("admins").doc(auth.uid).get();
@@ -92,21 +110,7 @@ exports.verifyAndIssueSeniorRecord = onCall(REGION, async ({ auth, data }) => {
     if (!["PENDING", "REJECTED"].includes(status)) {
       throw new HttpsError("failed-precondition", `This account is already ${status.toLowerCase()}.`);
     }
-    // Next free number. Skip any that a legacy account already uses (as idNumber or login key),
-    // so issuing can never overwrite someone else's login lookup.
-    let next = (cnt.exists && cnt.data().next) || 0;
-    let recordNo = null;
-    for (let i = 0; i < 50 && !recordNo; i++) {
-      next += 1;
-      if (next > 999999) break;
-      const cand = formatRecordNo(next);
-      const [lk, used] = await Promise.all([
-        tx.get(db().collection("user_lookup").doc(cand)),
-        tx.get(db().collection("users").where("idNumber", "==", cand).limit(1)),
-      ]);
-      if (!lk.exists && used.empty) recordNo = cand;
-    }
-    if (!recordNo) throw new HttpsError("resource-exhausted", "Could not find a free OSCA number. Try again.");
+    const { recordNo, next } = await allocateNumber(tx, cnt);
 
     tx.set(counterRef, { next }, { merge: true });
     tx.create(recordRef, {
@@ -198,3 +202,78 @@ exports.logSeniorIdPrint = onCall(REGION, async ({ auth, data }) => {
   });
   return { ok: true };
 });
+
+// ── One-time import of accounts OSCA already verified before this registry existed ──────────
+// A senior with a clean 6-digit number KEEPS it (their printed card stays valid). Anyone else
+// (TEMP id, odd format, duplicate of another account) gets a new number and a login lookup.
+async function migrateOne(uid, staff) {
+  const FV = admin.firestore.FieldValue;
+  const userRef = db().collection("users").doc(uid);
+  const recordRef = db().collection("senior_records").doc(uid);
+  const counterRef = db().collection("counters").doc("senior_records");
+  const digitalRef = db().collection("digital_ids").doc(uid);
+
+  return db().runTransaction(async (tx) => {
+    const [usr, rec, cnt, dig] = await Promise.all([tx.get(userRef), tx.get(recordRef), tx.get(counterRef), tx.get(digitalRef)]);
+    if (!usr.exists) return { uid, result: "skipped", why: "missing" };
+    if (rec.exists) return { uid, result: "skipped", why: "already_in_registry" };
+    const u = usr.data();
+    if (u.isVerified !== true) return { uid, result: "skipped", why: "not_verified" };
+    if (String(u.status || "").toUpperCase() === "SUSPENDED") return { uid, result: "skipped", why: "deactivated" };
+
+    const legacy = String(u.idNumber || "").trim();
+    let recordNo = null;
+    let kept = false;
+    if (/^\d{6}$/.test(legacy)) {
+      const [r2, u2] = await Promise.all([
+        tx.get(db().collection("senior_records").where("recordNo", "==", legacy).limit(1)),
+        tx.get(db().collection("users").where("idNumber", "==", legacy).limit(3)),
+      ]);
+      if (r2.empty && u2.docs.every((d) => d.id === uid)) { recordNo = legacy; kept = true; }
+    }
+    let next = null;
+    if (!recordNo) ({ recordNo, next } = await allocateNumber(tx, cnt));
+    const lookupRef = db().collection("user_lookup").doc(recordNo);
+    const lookup = kept ? await tx.get(lookupRef) : null;
+
+    // ── writes ──
+    if (next !== null) tx.set(counterRef, { next }, { merge: true });
+    tx.create(recordRef, {
+      uid, recordNo, status: "active",
+      fullName: [u.firstName, u.midName, u.lastName].filter(Boolean).join(" "),
+      dob: u.dob || "", sex: u.gender || "", address: u.address || "", barangay: u.barangay || "",
+      verification: { documents: [], note: "Migrated from an account OSCA verified before the local registry.",
+        verifiedBy: staff.uid, verifiedByName: staff.name, migrated: true },
+      issuedAt: u.verifiedAt || FV.serverTimestamp(), migratedAt: FV.serverTimestamp(),
+      qrValue: recordNo, printCount: 0, source: "legacy_migration",
+    });
+    if (!kept) {
+      if (legacy) tx.set(lookupRef, { idNumber: legacy, uid });   // login by the new number still reaches the sign-up id
+      tx.update(userRef, { idNumber: recordNo, hasTempId: false, legacyIdNumber: legacy || FV.delete() });
+      if (dig.exists) tx.update(digitalRef, { idNumber: recordNo, controlNumber: recordNo });
+    } else if (lookup && !lookup.exists) {
+      tx.set(lookupRef, { idNumber: legacy, uid });
+    }
+    tx.set(db().collection("admin_audit").doc(), {
+      action: "senior_record_migrated", actorUid: staff.uid, actorName: staff.name, actorRole: "super_admin",
+      targetUid: uid, targetRef: referenceCode(uid), recordNo, keptLegacyNumber: kept, at: FV.serverTimestamp(),
+    });
+    return { uid, result: "imported", recordNo, kept };
+  });
+}
+
+exports.migrateLegacySeniors = onCall(REGION, async ({ auth, data }) => {
+  const staff = await requireStaff(auth, ["super_admin"]);
+  const uids = [...new Set((Array.isArray(data && data.uids) ? data.uids : []).map(String))].slice(0, 25);
+  if (uids.length === 0) throw new HttpsError("invalid-argument", "No accounts given.");
+  const results = [];
+  for (const uid of uids) {           // one at a time: each import takes the next free number
+    try { results.push(await migrateOne(uid, staff)); }
+    catch (e) { results.push({ uid, result: "error", why: e.message || "failed" }); }
+  }
+  return { ok: true, results };
+});
+
+// Internal helper for functions/applications.js (not re-exported from functions.js, so not deployed).
+exports.allocateNumber = allocateNumber;
+exports.DOC_TYPES = DOC_TYPES;

@@ -137,7 +137,7 @@ function AdminFormModal({ admin, onClose, onSaved }) {
                 {editing ? <Pencil size={18} className="text-brand" /> : <UserPlus size={18} className="text-brand" />}
                 {editing ? (isMain ? 'Edit Master Admin' : 'Edit Barangay Admin') : 'Add Sub Admin'}
               </h2>
-              <button type="button" onClick={onClose} disabled={busy} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+              <button aria-label="Close" type="button" onClick={onClose} disabled={busy} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
             </div>
             <div className="space-y-4">
               <div>

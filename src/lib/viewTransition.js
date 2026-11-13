@@ -29,4 +29,4 @@ if (typeof document !== 'undefined') {
     const r = e.target.getBoundingClientRect();
     setOrigin(r.left + r.width / 2, r.top + r.height / 2);
   }, { capture: true, passive: true });
-}4
+}

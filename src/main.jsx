@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.jsx'
 import AccessibilityMenu from './components/AccessibilityMenu'
 import { initMonitoring, ErrorBoundary } from './lib/monitoring'
+import './lib/viewTransition'
 
 initMonitoring()
 

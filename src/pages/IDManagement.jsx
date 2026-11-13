@@ -573,7 +573,7 @@ function RequestDetailModal({ record, onClose, onApprove, onReject, processing }
   const name = record.seniorName || record.fullName || t.unknownLabel;
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-8 max-w-lg w-full max-h-[90dvh] overflow-y-auto">
+      <div style={{ viewTransitionName: 'id-detail' }} className="bg-white rounded-3xl shadow-2xl p-4 sm:p-8 max-w-lg w-full max-h-[90dvh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><FileText size={18} className="text-brand" /> {t.physicalIdReqTitle}</h3>
@@ -621,7 +621,7 @@ function StatCard({ label, value, icon: Icon, color, bg }) {
         <Icon size={20} className={color} />
       </div>
       <div>
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
+        <p className="text-2xl font-bold text-gray-900 tabular-nums">{value}</p>
         <p className="text-xs text-gray-500">{label}</p>
       </div>
     </div>
@@ -629,10 +629,10 @@ function StatCard({ label, value, icon: Icon, color, bg }) {
 }
 
 /* ─── One row in the OSCA request lists (approved / processing / ready / claimed) ─── */
-function RequestRow({ r, status, sub, actions, tone = 'border-gray-100' }) {
+function RequestRow({ r, status, sub, actions, tone = 'border-gray-100', index = 0 }) {
   const { t } = useLang();
   return (
-    <div className={`bg-white border ${tone} rounded-2xl p-5 flex items-center justify-between flex-wrap gap-3`}>
+    <div style={{ '--i': Math.min(index, 10) }} className={`stagger-item bg-white border ${tone} rounded-2xl p-5 flex items-center justify-between flex-wrap gap-3`}>
       <div className="flex-1 min-w-[12rem]">
         <div className="flex items-center gap-2 flex-wrap">
           <MaskedName className="font-semibold text-gray-900" id={r.uid || r.id} name={r.seniorName || r.fullName || t.unknownLabel} />
@@ -1106,7 +1106,7 @@ export default function IDManagement() {
             className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${mainTab === tab.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
           >
             {tab.label}
-            {tab.badge > 0 && <span className="ml-1.5 bg-brand text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
+            {tab.badge > 0 && <span className="ml-1.5 bg-brand text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums">{tab.badge}</span>}
           </button>
         ))}
       </div>
@@ -1151,7 +1151,7 @@ export default function IDManagement() {
               <button key={tab.key} onClick={() => { setVerifTab(tab.key); setVerifSearch(''); setFilterStatus('all'); }}
                 className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${verifTab === tab.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                 {tab.label}
-                {tab.badge > 0 && <span className="ml-1.5 bg-brand text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
+                {tab.badge > 0 && <span className="ml-1.5 bg-brand text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums">{tab.badge}</span>}
               </button>
             ))}
           </div>
@@ -1186,7 +1186,7 @@ export default function IDManagement() {
                 <div className="mb-6">
                   <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.statPendingReview} ({verifPending.length})</h2>
                   <div className="space-y-3">
-                    {verifPending.map(r => {
+                    {verifPending.map((r, i) => {
                       const repeat = isRepeat(r);
                       const isVoid = verifTab === 'physical' && (r.isVoid || (!r.seniorName && !r.fullName && !r.seniorId));
                       const rName  = nameOf(r) || t.unknownLabel;
@@ -1194,7 +1194,7 @@ export default function IDManagement() {
                       const rDate  = (verifTab === 'submissions' ? r.submittedAt?.toDate?.()?.toLocaleDateString?.() : r.createdAt?.toDate?.()?.toLocaleDateString?.()) || null;
                       const noBday = !hasBirthday(r);
                       return (
-                        <div key={r.id} className={`rounded-2xl p-5 flex items-center justify-between flex-wrap gap-3 border ${
+                        <div key={r.id} style={{ '--i': Math.min(i, 10) }} className={`rounded-2xl p-5 flex items-center justify-between flex-wrap gap-3 border ${isVoid ? '' : 'stagger-item'} ${
                           isVoid ? 'bg-gray-50 border-gray-200 opacity-60' :
                           repeat ? 'bg-orange-50 border-orange-300 ring-1 ring-orange-200' : 'bg-white border-yellow-200'}`}>
                           <div className="flex items-start gap-3 flex-1 min-w-[12rem]">
@@ -1231,7 +1231,7 @@ export default function IDManagement() {
                               </button>
                             )}
                             <button onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })}
-                              className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
+                              aria-label={t.delete} title={t.delete} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
                           </div>
                         </div>
                       );
@@ -1244,12 +1244,12 @@ export default function IDManagement() {
                 <div>
                   <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.reviewedSection} ({verifReviewed.length})</h2>
                   <div className="space-y-2">
-                    {verifReviewed.map(r => {
+                    {verifReviewed.map((r, i) => {
                       const repeat = isRepeat(r);
                       const rName  = nameOf(r) || t.unknownLabel;
                       const rId    = idOf(r);
                       return (
-                        <div key={r.id} className={`rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3 border ${repeat ? 'bg-orange-50/60 border-orange-200' : 'bg-white border-gray-100'}`}>
+                        <div key={r.id} style={{ '--i': Math.min(i, 10) }} className={`stagger-item rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3 border ${repeat ? 'bg-orange-50/60 border-orange-200' : 'bg-white border-gray-100'}`}>
                           <div className="flex items-center gap-3 flex-1 min-w-[12rem]">
                             {verifTab === 'submissions'
                               ? ((r.idImageUrl || r.imageBase64) ? <img src={r.idImageUrl ?? `data:image/jpeg;base64,${r.imageBase64}`} alt="ID" className="w-12 h-8 rounded-md object-cover border border-gray-200 shrink-0" /> : <div className="w-12 h-8 rounded-md bg-gray-100 flex items-center justify-center shrink-0"><FileImage size={12} className="text-gray-300" /></div>)
@@ -1269,7 +1269,7 @@ export default function IDManagement() {
                           <div className="flex items-center justify-end flex-wrap gap-2 ml-auto shrink-0">
                             <StatusBadge status={r.status} />
                             <button onClick={(e) => openWithTransition(e.currentTarget.parentElement?.parentElement, () => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' }))} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-brand icon-label whitespace-nowrap shrink-0"><Eye size={13} /> {t.view}</button>
-                            <button onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
+                            <button onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })} aria-label={t.delete} title={t.delete} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
                           </div>
                         </div>
                       );
@@ -1317,7 +1317,7 @@ export default function IDManagement() {
               <button key={tab.key} onClick={() => setReleaseTab(tab.key)}
                 className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${releaseTab === tab.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                 {tab.label}
-                {tab.badge > 0 && <span className="ml-1.5 bg-brand text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
+                {tab.badge > 0 && <span className="ml-1.5 bg-brand text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums">{tab.badge}</span>}
               </button>
             ))}
           </div>
@@ -1338,11 +1338,11 @@ export default function IDManagement() {
                   {relPending.length > 0 ? (
                     <div className="space-y-3">
                       <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.pendingRequestsSection} ({relPending.length})</h2>
-                      {relPending.map(r => {
+                      {relPending.map((r, i) => {
                         const isVoid = r.isVoid || (!r.seniorName && !r.fullName && !r.seniorId);
                         const noBday = !hasBirthday(r);
                         return (
-                          <div key={r.id} className={`rounded-2xl p-5 flex items-center justify-between flex-wrap gap-3 border ${isVoid ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-yellow-200'}`}>
+                          <div key={r.id} style={{ '--i': Math.min(i, 10) }} className={`${isVoid ? '' : 'stagger-item'} rounded-2xl p-5 flex items-center justify-between flex-wrap gap-3 border ${isVoid ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-yellow-200'}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-semibold text-gray-900">{r.seniorName || r.fullName || t.unknownLabel}</p>
@@ -1359,8 +1359,8 @@ export default function IDManagement() {
                             </div>
                             <div className="flex items-center justify-end flex-wrap gap-2 ml-auto shrink-0">
                               <StatusBadge status={isVoid ? 'void' : 'pending'} />
-                              {!isVoid && <button onClick={() => setDetailRecord(r)} className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline icon-label whitespace-nowrap shrink-0"><Eye size={14} /> {t.reviewAction}</button>}
-                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
+                              {!isVoid && <button onClick={(e) => openWithTransition(e.currentTarget.parentElement?.parentElement, () => setDetailRecord(r))} className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline icon-label whitespace-nowrap shrink-0"><Eye size={14} /> {t.reviewAction}</button>}
+                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} aria-label={t.delete} title={t.delete} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
                             </div>
                           </div>
                         );
@@ -1384,7 +1384,7 @@ export default function IDManagement() {
                             </div>
                             <div className="flex items-center gap-2">
                               <StatusBadge status="rejected" />
-                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
+                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} aria-label={t.delete} title={t.delete} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
                             </div>
                           </div>
                         ))}
@@ -1406,7 +1406,7 @@ export default function IDManagement() {
                             </div>
                             <div className="flex items-center gap-2">
                               <StatusBadge status="cancelled" />
-                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
+                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} aria-label={t.delete} title={t.delete} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
                             </div>
                           </div>
                         ))}
@@ -1426,8 +1426,8 @@ export default function IDManagement() {
                         {L(t, 'startProcessingNote', 'Press "Start processing" when OSCA begins preparing the physical ID.')}
                       </div>
                       <div className="space-y-3">
-                        {relApproved.map(r => (
-                          <RequestRow key={r.id} r={r} status="approved" tone="border-green-100"
+                        {relApproved.map((r, i) => (
+                          <RequestRow key={r.id} index={i} r={r} status="approved" tone="border-green-100"
                             actions={
                               <>
                                 <button disabled={processing} onClick={() => handleStartProcessing(r)}
@@ -1459,8 +1459,8 @@ export default function IDManagement() {
                         {L(t, 'markReadyNote', 'When the ID is printed and ready at the OSCA office, press "Mark ready to claim" and confirm the pickup time. The senior is told when to come to City Hall.')}
                       </div>
                       <div className="space-y-3">
-                        {relProcessing.map(r => (
-                          <RequestRow key={r.id} r={r} status="processing" tone="border-indigo-100"
+                        {relProcessing.map((r, i) => (
+                          <RequestRow key={r.id} index={i} r={r} status="processing" tone="border-indigo-100"
                             sub={fmtDate(r.processedAt) ? `${L(t, 'processingSince', 'Processing since')} ${fmtDate(r.processedAt)}` : ''}
                             actions={
                               <>
@@ -1495,8 +1495,8 @@ export default function IDManagement() {
                       <div className="space-y-3">
                         {[...relReady]
                           .sort((a, b) => ((a.pickup?.date || '9999') + (a.pickup?.time || '')).localeCompare((b.pickup?.date || '9999') + (b.pickup?.time || '')))
-                          .map(r => (
-                          <RequestRow key={r.id} r={r} status="ready" tone="border-teal-100"
+                          .map((r, i) => (
+                          <RequestRow key={r.id} index={i} r={r} status="ready" tone="border-teal-100"
                             sub={r.pickup?.date ? '' : L(t, 'noPickupTime', 'no pickup time yet')}
                             actions={
                               <>
@@ -1528,8 +1528,8 @@ export default function IDManagement() {
                 <div>
                   {relDone.length > 0 ? (
                     <div className="space-y-3">
-                      {relDone.map(r => (
-                        <RequestRow key={r.id} r={r} status="done" tone="border-green-100"
+                      {relDone.map((r, i) => (
+                        <RequestRow key={r.id} index={i} r={r} status="done" tone="border-green-100"
                           sub={`${L(t, 'claimedOn', 'Claimed')} ${fmtDate(r.claimedAt) || '—'}`} />
                       ))}
                     </div>

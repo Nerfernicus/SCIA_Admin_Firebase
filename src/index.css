@@ -212,6 +212,10 @@ div.fixed.inset-0 > [class*="rounded-2xl"],
 div.fixed.inset-0 > [class*="rounded-xl"],
 div.fixed.inset-0 > [class*="rounded-3xl"] {
   transition: opacity 180ms ease-out, transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  /* 10 · Origin-aware: grow from the control that opened the panel. The panel is centred, so its
+     origin is its own centre plus the click's offset from the screen centre (--ox/--oy are set
+     by lib/viewTransition.js). */
+  transform-origin: calc(50% + var(--ox, 50vw) - 50vw) calc(50% + var(--oy, 50vh) - 50vh);
 }
 @starting-style {
   div.fixed.inset-0 { opacity: 0; }

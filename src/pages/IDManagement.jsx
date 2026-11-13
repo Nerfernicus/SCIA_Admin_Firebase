@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { openWithTransition } from '../lib/viewTransition';
 import {
   ShieldCheck, Clock as ClockIcon, CheckCircle2, XCircle, Eye,
   Loader2, Trash2, AlertTriangle, X, User, Search, Database,
@@ -193,7 +194,7 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-8 max-w-lg w-full max-h-[92dvh] overflow-y-auto">
+      <div style={{ viewTransitionName: 'id-detail' }} className="bg-white rounded-3xl shadow-2xl p-4 sm:p-8 max-w-lg w-full max-h-[92dvh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -284,7 +285,7 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-8 max-w-lg w-full max-h-[90dvh] overflow-y-auto">
+      <div style={{ viewTransitionName: 'id-detail' }} className="bg-white rounded-3xl shadow-2xl p-4 sm:p-8 max-w-lg w-full max-h-[90dvh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -1224,7 +1225,7 @@ export default function IDManagement() {
                           <div className="flex items-center gap-2 ml-4 shrink-0">
                             <StatusBadge status={isVoid ? 'void' : (r.status || 'pending')} />
                             {!isVoid && (
-                              <button onClick={() => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' })}
+                              <button onClick={(e) => openWithTransition(e.currentTarget.parentElement?.parentElement, () => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' }))}
                                 className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline">
                                 <Eye size={14} /> {t.reviewAction}
                               </button>
@@ -1267,7 +1268,7 @@ export default function IDManagement() {
                           </div>
                           <div className="flex items-center gap-2 ml-4 shrink-0">
                             <StatusBadge status={r.status} />
-                            <button onClick={() => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' })} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-brand"><Eye size={13} /> {t.view}</button>
+                            <button onClick={(e) => openWithTransition(e.currentTarget.parentElement?.parentElement, () => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' }))} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-brand"><Eye size={13} /> {t.view}</button>
                             <button onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
                           </div>
                         </div>

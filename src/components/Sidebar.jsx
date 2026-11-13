@@ -219,7 +219,7 @@ export default function Sidebar({ children }) {
                 }}
                 className={`w-full flex items-center gap-3 rounded-xl text-sm font-medium transition-colors duration-150 ${
                   isActive
-                    ? 'bg-[#0f52ba] text-white shadow-sm'
+                    ? 'bg-brand text-white shadow-sm'
                     : (dark ? 'text-[#aeada6] hover:bg-white/5 hover:text-[#f0efec]' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900')
                 }`}
               >
@@ -238,7 +238,7 @@ export default function Sidebar({ children }) {
               padding: expanded ? '10px 16px' : '10px',
               justifyContent: expanded ? 'flex-start' : 'center',
               transition: 'padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              background: 'linear-gradient(135deg, #0f52ba 0%, #1a6fd4 100%)',
+              background: 'linear-gradient(135deg, var(--color-brand) 0%, #1a6fd4 100%)',
             }}
             className="w-full flex items-center gap-3 rounded-xl text-sm font-semibold text-white shadow-md shadow-blue-500/25 hover:shadow-blue-500/40 hover:brightness-110 transition-all duration-150"
           >

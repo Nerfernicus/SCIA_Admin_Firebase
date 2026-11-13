@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { db, functions } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
+import Combobox from '../components/Combobox';
 import { ID_TYPES, idTypeLabel, RECORD_RE } from '../lib/seniorRecord';
 import Code39 from '../components/Code39';
 import MaskedName from '../components/MaskedName';
@@ -150,9 +151,7 @@ function VerifyModal({ user, onClose, onDone }) {
       <div className="mt-4 space-y-2">
         {rows.map((r, i) => (
           <div key={i} className="flex gap-2">
-            <select className={`${inputCls} flex-1`} value={r.type} onChange={(e) => set(i, { type: e.target.value })}>
-              {ID_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
+            <Combobox ariaLabel="ID type" className="flex-1" value={r.type} onChange={(v) => set(i, { type: v })} options={ID_TYPES} />
             <input className={`${inputCls} !w-40`} value={r.number} onChange={(e) => set(i, { number: e.target.value })}
               placeholder={r.type === 'birth_certificate' ? 'Reg. no. (optional)' : 'ID number'} />
             {rows.length > 1 && (
@@ -222,9 +221,7 @@ function ReviewModal({ app, onClose, onDone }) {
               <img src={`data:image/jpeg;base64,${img.imageBase64}`} alt={`Document ${i + 1}`} className="max-h-64 w-full rounded-lg object-contain bg-gray-50" />
             </a>
             <div className="mt-2 flex gap-2">
-              <select className={`${inputCls} flex-1`} value={rows[i]?.type || ''} onChange={(e) => set(i, { type: e.target.value })}>
-                {ID_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+              <Combobox ariaLabel="ID type" className="flex-1" value={rows[i]?.type || ''} onChange={(v) => set(i, { type: v })} options={ID_TYPES} />
               <input className={`${inputCls} !w-40`} value={rows[i]?.number || ''} onChange={(e) => set(i, { number: e.target.value })}
                 placeholder={rows[i]?.type === 'birth_certificate' ? 'Reg. no. (optional)' : 'ID number'} />
             </div>

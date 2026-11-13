@@ -263,3 +263,8 @@ p:not([class*="text-center"]):not([class*="text-right"]) { max-inline-size: 65ch
   div.fixed.inset-0, div.fixed.inset-0 > *, .absolute.right-0.top-12, .absolute.right-0.top-full { transition: none; }
   tbody > tr { animation: none !important; }
 }
+
+/* 20 · Shared element transition: the clicked request row grows into its detail panel. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-group(id-detail) { animation-duration: 280ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+}

@@ -61,7 +61,7 @@ export default function AccountCreationPanel() {
   if (!isSuperAdmin || (apps.length === 0 && !creds)) return null;
 
   return (
-    <div className="mb-8 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="mb-8 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden touch-comfy">
       <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
         <ShieldCheck size={18} className="text-green-600" />
         <div>
@@ -105,8 +105,8 @@ export default function AccountCreationPanel() {
 
       {profileId && <SeniorProfileModal target={{ applicationId: profileId }} onClose={() => setProfileId(null)} />}
       {target && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 transition-opacity duration-150 starting:opacity-0 motion-reduce:transition-none">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl transition duration-200 ease-out starting:opacity-0 starting:scale-[0.97] starting:translate-y-2 motion-reduce:transition-none touch-comfy">
             <h2 className="text-lg font-bold text-gray-900">Create this account?</h2>
             <p className="mt-2 text-sm text-gray-600">
               Reference <span className="font-semibold font-mono">{referenceCode(target.id)}</span> will get a SCIA login with OSCA No.{' '}
@@ -124,8 +124,8 @@ export default function AccountCreationPanel() {
       )}
 
       {creds && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl text-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 transition-opacity duration-150 starting:opacity-0 motion-reduce:transition-none">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl text-center transition duration-200 ease-out starting:opacity-0 starting:scale-[0.97] starting:translate-y-2 motion-reduce:transition-none touch-comfy">
             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3"><CheckCircle2 size={24} className="text-green-600" /></div>
             <h2 className="text-lg font-bold text-gray-900">Account created</h2>
             <p className="mt-1 text-sm text-gray-500">Give these to the senior. This is the only time the password is shown.</p>

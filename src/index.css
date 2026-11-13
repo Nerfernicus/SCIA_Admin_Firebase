@@ -137,3 +137,53 @@ html.dark {
   .stat-card-in { animation: none; opacity: 1; }
   .boot-sweep   { animation: none; width: 100%; }
 }
+
+/* 
+   Design polish (typography, layout stability, touch, motion)
+    */
+
+/* Kerning + legible rendering for every piece of text. */
+body { font-kerning: normal; text-rendering: optimizeLegibility; }
+
+/* Layout shift: reserve the scrollbar's width so opening a modal or a long list never nudges
+   the page sideways. */
+html { scrollbar-gutter: stable; }
+
+/* Widows and orphans: balanced headings, no one-word last lines in paragraphs. Tighter tracking
+   on large headings, since wide default spacing looks loose at display sizes. */
+h1, h2, h3 { text-wrap: balance; letter-spacing: -0.01em; }
+p, li, dd { text-wrap: pretty; }
+/* Leading: comfortable line height for reading text (tables and controls keep their own). */
+p, li { line-height: 1.6; }
+/* Line length: cap running text at about 65 characters. */
+.measure { max-inline-size: 65ch; }
+
+/* Tabular numbers: figures line up in columns and don't jitter when a value changes. */
+table, .font-mono, .tabular { font-variant-numeric: tabular-nums; }
+
+/* Affordance: Tailwind 4 stopped giving buttons a pointer cursor. */
+button:not(:disabled), [role="button"]:not([aria-disabled="true"]), summary, select:not(:disabled) { cursor: pointer; }
+button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
+
+/* Touch target: on touch screens (the assisted desk tablet) controls inside .touch-comfy are at
+   least 44 px, the minimum for comfortable, accurate taps. Mouse users keep the compact size. */
+@media (pointer: coarse) {
+  .touch-comfy button, .touch-comfy select, .touch-comfy input:not([type="checkbox"]):not([type="radio"]),
+  .touch-comfy a.btn { min-height: 44px; }
+  .touch-comfy button { min-width: 44px; }
+}
+
+/* Safe area: fixed corner controls stay clear of a phone's notch / home bar. */
+.safe-br       { bottom: max(1rem, env(safe-area-inset-bottom)); right: max(1rem, env(safe-area-inset-right)); }
+.safe-br-panel { bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); right: max(1rem, env(safe-area-inset-right)); }
+
+/* Stagger: list rows rise in one after another (first ~10 only, so long lists don't drag).
+   Reuses the dashboard's keyframes; reduced-motion users get no animation. */
+.stagger-item {
+  opacity: 0;
+  animation: stat-card-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 35ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .stagger-item { animation: none; opacity: 1; }
+}

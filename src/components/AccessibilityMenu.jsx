@@ -57,7 +57,7 @@ export default function AccessibilityMenu() {
         aria-expanded={open}
         aria-controls="a11y-panel"
         aria-label="Accessibility options"
-        className="fixed bottom-4 right-4 z-9999 flex items-center gap-2 rounded-full bg-[#0f52ba] px-4 py-3 text-sm font-bold text-white shadow-lg ring-2 ring-white hover:bg-blue-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-yellow-300"
+        className="safe-br fixed bottom-4 right-4 z-9999 flex items-center gap-2 rounded-full bg-[#0f52ba] px-4 py-3 text-sm font-bold text-white shadow-lg ring-2 ring-white hover:bg-blue-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-yellow-300"
       >
         <Eye size={20} /> <span className="hidden sm:inline">Accessibility</span>
       </button>
@@ -67,7 +67,7 @@ export default function AccessibilityMenu() {
           id="a11y-panel"
           role="dialog"
           aria-label="Accessibility options"
-          className="fixed bottom-20 right-4 z-9999 flex max-h-[calc(100dvh-6.5rem)] w-[min(92vw,22rem)] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white text-gray-900 shadow-2xl"
+          className="safe-br-panel origin-bottom-right transition duration-150 ease-out starting:opacity-0 starting:scale-95 motion-reduce:transition-none fixed bottom-20 right-4 z-9999 flex max-h-[calc(100dvh-6.5rem)] w-[min(92vw,22rem)] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white text-gray-900 shadow-2xl"
         >
           {/* Header stays pinned; only the options below scroll */}
           <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 pb-3 pt-4">

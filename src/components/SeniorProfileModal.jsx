@@ -58,8 +58,8 @@ export default function SeniorProfileModal({ target, onClose }) {
   }, [target]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-[#f8f9fa] p-5 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 transition-opacity duration-150 starting:opacity-0 motion-reduce:transition-none">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-[#f8f9fa] p-5 shadow-xl transition duration-200 ease-out starting:opacity-0 starting:scale-[0.97] starting:translate-y-2 motion-reduce:transition-none touch-comfy">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Senior Profile</h2>

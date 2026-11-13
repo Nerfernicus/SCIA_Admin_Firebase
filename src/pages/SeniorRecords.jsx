@@ -76,8 +76,8 @@ function printCard(r) {
 
 function Modal({ children, wide }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className={`w-full ${wide ? 'max-w-lg' : 'max-w-sm'} max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl`}>{children}</div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 transition-opacity duration-150 starting:opacity-0 motion-reduce:transition-none">
+      <div className={`w-full ${wide ? 'max-w-lg' : 'max-w-sm'} max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl transition duration-200 ease-out starting:opacity-0 starting:scale-[0.97] starting:translate-y-2 motion-reduce:transition-none touch-comfy`}>{children}</div>
     </div>
   );
 }
@@ -137,7 +137,7 @@ function VerifyModal({ user, onClose, onDone }) {
       {photos === null && <p className="mt-3 flex items-center gap-2 text-sm text-gray-500"><Loader2 size={14} className="animate-spin" /> Loading documents…</p>}
       {photos && photos.length === 0 && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">This senior has not sent any documents. Check the originals in person, or ask them to send them.</p>}
       {photos && photos.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-3">
+        <div className="mt-3 flex min-h-[7.5rem] flex-wrap gap-3">
           {photos.map((p, i) => (
             <a key={i} href={`data:image/jpeg;base64,${p.imageBase64}`} target="_blank" rel="noreferrer" className="block w-36">
               <img src={`data:image/jpeg;base64,${p.imageBase64}`} alt={`Document ${i + 1}`} className="h-24 w-full rounded-lg border border-gray-200 object-cover" />
@@ -427,12 +427,12 @@ export default function SeniorRecords() {
   ];
 
   return (
-    <div className="p-4 sm:p-8 max-w-6xl mx-auto font-sans">
+    <div className="p-4 sm:p-8 max-w-6xl mx-auto font-sans touch-comfy">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <ClipboardCheck size={22} className="text-[#0f52ba]" /> Senior Records
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-gray-500 mt-1 measure">
           The OSCA Valenzuela local registry. Verify a senior against a valid ID or birth certificate, issue the OSCA number, and print the ID.
         </p>
       </div>
@@ -486,8 +486,8 @@ export default function SeniorRecords() {
             </thead>
             <tbody>
               {fp.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No seniors waiting for verification</td></tr>}
-              {fp.map((u) => (
-                <tr key={u.id} className="border-t border-gray-100">
+              {fp.map((u, i) => (
+                <tr key={u.id} className="border-t border-gray-100 stagger-item" style={{ '--i': Math.min(i, 10) }}>
                   <td className="px-4 py-3"><MaskedName className="font-semibold text-gray-900" id={u.id} name={nameOf(u) || 'Unknown'} /></td>
                   <td className="px-4 py-3">{u.barangay || '-'}</td>
                   <td className="px-4 py-3">{u.dob || '-'}</td>
@@ -528,8 +528,8 @@ export default function SeniorRecords() {
             </thead>
             <tbody>
               {fr.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No records</td></tr>}
-              {fr.map((r) => (
-                <tr key={r.id} className="border-t border-gray-100">
+              {fr.map((r, i) => (
+                <tr key={r.id} className="border-t border-gray-100 stagger-item" style={{ '--i': Math.min(i, 10) }}>
                   <td className="px-4 py-3 font-mono font-semibold text-gray-900">{r.recordNo}</td>
                   <td className="px-4 py-3"><MaskedName className="font-semibold text-gray-900" id={r.id} name={r.fullName || 'Unknown'} /></td>
                   <td className="px-4 py-3">{r.barangay || '-'}</td>
@@ -547,7 +547,7 @@ export default function SeniorRecords() {
                         <button onClick={() => print(r)} className="px-3 py-1.5 rounded-lg bg-[#0f52ba] hover:bg-[#0c3f91] text-white text-xs font-bold flex items-center gap-1">
                           <Printer size={13} /> Print ID
                         </button>
-                        <button onClick={() => setRevokeTarget(r)} title="Revoke this record"
+                        <button onClick={() => setRevokeTarget(r)} title="Revoke this record" aria-label="Revoke this record"
                           className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><Ban size={14} /></button>
                       </>
                     ) : null}
@@ -584,8 +584,8 @@ export default function SeniorRecords() {
               </thead>
               <tbody>
                 {existing.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">All verified accounts are in the registry</td></tr>}
-                {existing.map((u) => (
-                  <tr key={u.id} className="border-t border-gray-100">
+                {existing.map((u, i) => (
+                  <tr key={u.id} className="border-t border-gray-100 stagger-item" style={{ '--i': Math.min(i, 10) }}>
                     <td className="px-4 py-3"><MaskedName className="font-semibold text-gray-900" id={u.id} name={nameOf(u) || 'Unknown'} /></td>
                     <td className="px-4 py-3">{u.barangay || '-'}</td>
                     <td className="px-4 py-3 font-mono">{u.idNumber || '-'}</td>

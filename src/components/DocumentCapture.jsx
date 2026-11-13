@@ -193,7 +193,7 @@ export default function DocumentCapture({ value, onChange }) {
   const label = !box ? 'Point the camera at the ID or document' : kind === 'id' ? 'ID card detected' : 'Document detected';
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 touch-comfy">
       {value.length > 0 && (
         <div className="flex flex-wrap gap-3">
           {value.map((d, i) => (

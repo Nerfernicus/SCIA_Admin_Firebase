@@ -83,8 +83,29 @@ function Modal({ children, wide }) {
 }
 
 // ── Verify & issue ──────────────────────────────────────────────────────────
+// OSCA ID number is typed by the OSCA admin (6 digits, as printed on the card).
+function OscaNumberField({ value, onChange }) {
+  return (
+    <div className="mt-4">
+      <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-1.5" htmlFor="osca-no">OSCA ID number</label>
+      <input
+        id="osca-no"
+        className={`${inputCls} font-mono tracking-widest`}
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
+        inputMode="numeric"
+        maxLength={6}
+        placeholder="000000"
+        autoComplete="off"
+      />
+      <p className="mt-1 text-xs text-gray-500">Type the 6-digit number for this senior. It cannot match any other senior.</p>
+    </div>
+  );
+}
+
 function VerifyModal({ user, onClose, onDone }) {
   const [rows, setRows] = useState([{ type: 'philsys', number: '' }]);
+  const [recordNo, setRecordNo] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -101,13 +122,13 @@ function VerifyModal({ user, onClose, onDone }) {
 
   const submit = async () => {
     setBusy(true); setErr('');
-    try { onDone((await call('verifyAndIssueSeniorRecord')({ uid: user.id, documents: rows, note })).data); }
+    try { onDone((await call('verifyAndIssueSeniorRecord')({ uid: user.id, documents: rows, recordNo, note })).data); }
     catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
   };
 
   return (
     <Modal wide>
-      <h2 className="text-lg font-bold text-gray-900">Verify &amp; issue OSCA number</h2>
+      <h2 className="text-lg font-bold text-gray-900">Verify &amp; assign OSCA number</h2>
       <p className="mt-1 text-sm text-gray-600">
         <MaskedName id={user.id} name={nameOf(user)} /> · {user.barangay || 'No barangay'} · Birthdate {user.dob || '?'}
       </p>
@@ -144,13 +165,15 @@ function VerifyModal({ user, onClose, onDone }) {
           className="text-sm font-semibold text-[#0f52ba] flex items-center gap-1"><Plus size={14} /> Add another document</button>
       </div>
 
+      <OscaNumberField value={recordNo} onChange={setRecordNo} />
+
       <textarea className={`${inputCls} mt-3`} rows={2} value={note} onChange={(e) => setNote(e.target.value)}
         placeholder="Notes (required if the birthdate on the ID is unclear)" />
       {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
 
       <div className="mt-5 flex justify-end gap-2">
         <button className={ghostBtn} onClick={onClose} disabled={busy}>Cancel</button>
-        <button onClick={submit} disabled={busy} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-sm font-bold text-white flex items-center gap-1 disabled:opacity-50">
+        <button onClick={submit} disabled={busy || recordNo.length !== 6} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-sm font-bold text-white flex items-center gap-1 disabled:opacity-50">
           {busy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Verify &amp; issue
         </button>
       </div>
@@ -162,6 +185,7 @@ function VerifyModal({ user, onClose, onDone }) {
 function ReviewModal({ app, onClose, onDone }) {
   const [images, setImages] = useState(null);
   const [rows, setRows] = useState([]);
+  const [recordNo, setRecordNo] = useState('');
   const [note, setNote] = useState('');
   const [rejecting, setRejecting] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -178,7 +202,7 @@ function ReviewModal({ app, onClose, onDone }) {
   const set = (i, patch) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const submit = async (action) => {
     setBusy(true); setErr('');
-    try { onDone((await call('verifyApplication')({ applicationId: app.id, action, documents: rows, note })).data); }
+    try { onDone((await call('verifyApplication')({ applicationId: app.id, action, documents: rows, recordNo, note })).data); }
     catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
   };
 
@@ -208,6 +232,8 @@ function ReviewModal({ app, onClose, onDone }) {
         ))}
       </div>
 
+      {!rejecting && <OscaNumberField value={recordNo} onChange={setRecordNo} />}
+
       <textarea className={`${inputCls} mt-3`} rows={2} value={note} onChange={(e) => setNote(e.target.value)}
         placeholder={rejecting ? 'Reason for rejecting (required)' : 'Notes (optional)'} />
       {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
@@ -222,7 +248,7 @@ function ReviewModal({ app, onClose, onDone }) {
         ) : (
           <>
             <button onClick={() => setRejecting(true)} disabled={busy} className="px-4 py-2 rounded-lg border border-red-200 text-sm font-semibold text-red-600 hover:bg-red-50">Reject</button>
-            <button onClick={() => submit('approve')} disabled={busy || !images?.length}
+            <button onClick={() => submit('approve')} disabled={busy || !images?.length || recordNo.length !== 6}
               className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-sm font-bold text-white flex items-center gap-1 disabled:opacity-50">
               {busy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Verify
             </button>

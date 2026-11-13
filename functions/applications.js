@@ -6,7 +6,7 @@
 //   1. submitAssistedApplication     (admin / kiosk session) form + scanned documents
 //                                    -> senior_applications/{id}  status "pending"
 //   2. verifyApplication             (super_admin, Senior Records) checks the documents, reserves the
-//                                    OSCA number                  status "verified"  (or "rejected")
+//                                    OSCA number (typed by OSCA)                  status "verified"  (or "rejected")
 //   3. createAccountFromApplication  (super_admin, User Management) confirmation step: creates the
 //                                    login + user + senior_records + digital ID, returns the login
 //                                    details ONCE                 status "account_created"
@@ -21,7 +21,7 @@ const admin = require("firebase-admin");
 const { resolveBarangay } = require("./barangays");
 const { referenceCode } = require("./referenceCode");
 const { issueDigitalIdForUser } = require("./digitalId");
-const { allocateNumber, DOC_TYPES } = require("./seniorRecord");
+const { claimNumber, DOC_TYPES } = require("./seniorRecord");
 
 const REGION = { region: "asia-southeast1" };
 const db = () => admin.firestore();
@@ -168,12 +168,11 @@ exports.verifyApplication = onCall(REGION, async ({ auth, data }) => {
   if (docs.find((d) => d.type !== "birth_certificate" && d.number.length < 4)) {
     throw new HttpsError("invalid-argument", "Enter the ID number of each government ID you checked.");
   }
-  const counterRef = db().collection("counters").doc("senior_records");
   const out = await db().runTransaction(async (tx) => {
-    const [app, cnt] = await Promise.all([tx.get(ref), tx.get(counterRef)]);
+    const app = await tx.get(ref);
     if (!app.exists || app.data().status !== "pending") throw new HttpsError("failed-precondition", "This application is no longer pending.");
-    const { recordNo, next } = await allocateNumber(tx, cnt);
-    tx.set(counterRef, { next }, { merge: true });
+    // OSCA types the number by hand; it is checked for duplicates, not auto-assigned.
+    const recordNo = await claimNumber(tx, data && data.recordNo, { excludeAppId: id });
     tx.update(ref, {
       status: "verified", recordNo,
       verification: { documents: docs, note: note || null, verifiedBy: staff.uid, verifiedByName: staff.name },

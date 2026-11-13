@@ -3,8 +3,8 @@
 // OSCA Valenzuela LOCAL registry. No NCSC call anywhere: OSCA is the source of truth.
 //
 //   verifyAndIssueSeniorRecord  (super_admin) verify a PENDING senior against a primary
-//       government ID and/or birth certificate, then mint a unique record number
-//       (VAL-OSCA-YYYY-000001) in ONE transaction, write senior_records/{uid}, mark the
+//       government ID and/or birth certificate, then claim the 6-digit OSCA
+//       number that OSCA typed (checked unique, never auto-assigned) in ONE transaction, write senior_records/{uid}, mark the
 //       user verified, set users.idNumber = record number, write an audit entry, and
 //       issue the digital ID.
 //   lookupSeniorRecord          (sub_admin / super_admin) resolve a scanned QR / barcode
@@ -51,6 +51,28 @@ async function allocateNumber(tx, cntSnap) {
   throw new HttpsError("resource-exhausted", "Could not find a free OSCA number. Try again.");
 }
 
+// Manual OSCA number: the OSCA admin types the number (6 digits, same as the card). It must not
+// belong to any other account, record (revoked ones included, a number is never reused), lookup
+// key or already-verified application. MUST be called before any write in the transaction.
+async function claimNumber(tx, raw, { excludeAppId } = {}) {
+  const recordNo = String(raw || "").trim();
+  if (!RECORD_RE.test(recordNo)) {
+    throw new HttpsError("invalid-argument", "Enter the 6-digit OSCA ID number (for example 000123).");
+  }
+  const [lk, used, rec, apps] = await Promise.all([
+    tx.get(db().collection("user_lookup").doc(recordNo)),
+    tx.get(db().collection("users").where("idNumber", "==", recordNo).limit(1)),
+    tx.get(db().collection("senior_records").where("recordNo", "==", recordNo).limit(1)),
+    tx.get(db().collection("senior_applications").where("recordNo", "==", recordNo).limit(5)),
+  ]);
+  const heldByApp = apps.docs.some((d) => d.id !== excludeAppId
+    && ["verified", "creating", "account_created"].includes(d.data().status));
+  if (lk.exists || !used.empty || !rec.empty || heldByApp) {
+    throw new HttpsError("already-exists", `OSCA No. ${recordNo} is already used by another senior.`);
+  }
+  return recordNo;
+}
+
 async function requireStaff(auth, roles) {
   if (!auth) throw new HttpsError("unauthenticated", "Sign in as an OSCA staff account first.");
   const snap = await db().collection("admins").doc(auth.uid).get();
@@ -82,7 +104,6 @@ exports.verifyAndIssueSeniorRecord = onCall(REGION, async ({ auth, data }) => {
 
   const userRef = db().collection("users").doc(uid);
   const recordRef = db().collection("senior_records").doc(uid);
-  const counterRef = db().collection("counters").doc("senior_records");
 
   // Server-side eligibility (age 60+, Valenzuela resident). ID-photo / duplicate-number
   // OSCA issues the number itself, so there is no card-number or duplicate-ID check.
@@ -101,7 +122,7 @@ exports.verifyAndIssueSeniorRecord = onCall(REGION, async ({ auth, data }) => {
   }
 
   const result = await db().runTransaction(async (tx) => {
-    const [rec, cnt, usr] = await Promise.all([tx.get(recordRef), tx.get(counterRef), tx.get(userRef)]);
+    const [rec, usr] = await Promise.all([tx.get(recordRef), tx.get(userRef)]);
     if (rec.exists) {
       if (rec.data().status === "revoked") throw new HttpsError("failed-precondition", "This record was revoked. Review it before re-issuing.");
       return { recordNo: rec.data().recordNo, created: false };
@@ -110,9 +131,8 @@ exports.verifyAndIssueSeniorRecord = onCall(REGION, async ({ auth, data }) => {
     if (!["PENDING", "REJECTED"].includes(status)) {
       throw new HttpsError("failed-precondition", `This account is already ${status.toLowerCase()}.`);
     }
-    const { recordNo, next } = await allocateNumber(tx, cnt);
+    const recordNo = await claimNumber(tx, data && data.recordNo);
 
-    tx.set(counterRef, { next }, { merge: true });
     tx.create(recordRef, {
       uid,
       recordNo,
@@ -276,4 +296,5 @@ exports.migrateLegacySeniors = onCall(REGION, async ({ auth, data }) => {
 
 // Internal helper for functions/applications.js (not re-exported from functions.js, so not deployed).
 exports.allocateNumber = allocateNumber;
+exports.claimNumber = claimNumber;
 exports.DOC_TYPES = DOC_TYPES;

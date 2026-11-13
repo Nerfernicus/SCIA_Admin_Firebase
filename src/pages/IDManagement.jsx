@@ -92,7 +92,7 @@ const StatusBadge = ({ status }) => {
     cancelled:  { cls: 'bg-red-100 text-red-700',        label: L(t, 'statusCancelled',  'Cancelled') },
   };
   const { cls, label } = map[status] || map.pending;
-  return <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${cls}`}>{label}</span>;
+  return <span className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap shrink-0 ${cls}`}>{label}</span>;
 };
 
 /* Follow-up badge + note (senior nudged OSCA about their request) */
@@ -632,8 +632,8 @@ function StatCard({ label, value, icon: Icon, color, bg }) {
 function RequestRow({ r, status, sub, actions, tone = 'border-gray-100' }) {
   const { t } = useLang();
   return (
-    <div className={`bg-white border ${tone} rounded-2xl p-5 flex items-center justify-between`}>
-      <div className="flex-1 min-w-0">
+    <div className={`bg-white border ${tone} rounded-2xl p-5 flex items-center justify-between flex-wrap gap-3`}>
+      <div className="flex-1 min-w-[12rem]">
         <div className="flex items-center gap-2 flex-wrap">
           <MaskedName className="font-semibold text-gray-900" id={r.uid || r.id} name={r.seniorName || r.fullName || t.unknownLabel} />
           <FollowUpBadge record={r} />
@@ -650,7 +650,7 @@ function RequestRow({ r, status, sub, actions, tone = 'border-gray-100' }) {
         )}
         <FollowUpNote record={r} />
       </div>
-      <div className="flex items-center gap-2 ml-4 shrink-0" style={{ gap: '0.5rem' }}>
+      <div className="flex items-center justify-end flex-wrap gap-2 ml-auto shrink-0">
         <StatusBadge status={status} />
         {actions}
       </div>
@@ -1061,7 +1061,7 @@ export default function IDManagement() {
   /* Small action buttons reused in the OSCA lists */
   const CancelBtn = ({ r }) => (
     <button disabled={processing} onClick={() => setCancelRecord(r)}
-      className="flex items-center gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 text-xs font-bold px-3 py-2 rounded-xl transition-colors icon-btn">
+      className="flex items-center gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 text-xs font-bold px-3 py-2 rounded-xl transition-colors icon-label">
       <XCircle size={12} /> {L(t, 'cancelRequestAction', 'Cancel request')}
     </button>
   );
@@ -1194,10 +1194,10 @@ export default function IDManagement() {
                       const rDate  = (verifTab === 'submissions' ? r.submittedAt?.toDate?.()?.toLocaleDateString?.() : r.createdAt?.toDate?.()?.toLocaleDateString?.()) || null;
                       const noBday = !hasBirthday(r);
                       return (
-                        <div key={r.id} className={`rounded-2xl p-5 flex items-center justify-between border ${
+                        <div key={r.id} className={`rounded-2xl p-5 flex items-center justify-between flex-wrap gap-3 border ${
                           isVoid ? 'bg-gray-50 border-gray-200 opacity-60' :
                           repeat ? 'bg-orange-50 border-orange-300 ring-1 ring-orange-200' : 'bg-white border-yellow-200'}`}>
-                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className="flex items-start gap-3 flex-1 min-w-[12rem]">
                             {verifTab === 'submissions' ? (
                               (r.idImageUrl || r.imageBase64)
                                 ? <img src={r.idImageUrl ?? `data:image/jpeg;base64,${r.imageBase64}`} alt="ID" className="w-16 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
@@ -1222,16 +1222,16 @@ export default function IDManagement() {
                               {verifTab === 'physical' && <FollowUpNote record={r} />}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 ml-4 shrink-0" style={{ gap: '0.5rem' }}>
+                          <div className="flex items-center justify-end flex-wrap gap-2 ml-auto shrink-0">
                             <StatusBadge status={isVoid ? 'void' : (r.status || 'pending')} />
                             {!isVoid && (
                               <button onClick={(e) => openWithTransition(e.currentTarget.parentElement?.parentElement, () => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' }))}
-                                className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline icon-btn">
+                                className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline icon-label whitespace-nowrap shrink-0">
                                 <Eye size={14} /> {t.reviewAction}
                               </button>
                             )}
                             <button onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })}
-                              className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
+                              className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
                           </div>
                         </div>
                       );
@@ -1249,8 +1249,8 @@ export default function IDManagement() {
                       const rName  = nameOf(r) || t.unknownLabel;
                       const rId    = idOf(r);
                       return (
-                        <div key={r.id} className={`rounded-2xl p-4 flex items-center justify-between border ${repeat ? 'bg-orange-50/60 border-orange-200' : 'bg-white border-gray-100'}`}>
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div key={r.id} className={`rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3 border ${repeat ? 'bg-orange-50/60 border-orange-200' : 'bg-white border-gray-100'}`}>
+                          <div className="flex items-center gap-3 flex-1 min-w-[12rem]">
                             {verifTab === 'submissions'
                               ? ((r.idImageUrl || r.imageBase64) ? <img src={r.idImageUrl ?? `data:image/jpeg;base64,${r.imageBase64}`} alt="ID" className="w-12 h-8 rounded-md object-cover border border-gray-200 shrink-0" /> : <div className="w-12 h-8 rounded-md bg-gray-100 flex items-center justify-center shrink-0"><FileImage size={12} className="text-gray-300" /></div>)
                               : <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center shrink-0"><FileText size={13} className="text-gray-400" /></div>
@@ -1266,10 +1266,10 @@ export default function IDManagement() {
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 ml-4 shrink-0" style={{ gap: '0.5rem' }}>
+                          <div className="flex items-center justify-end flex-wrap gap-2 ml-auto shrink-0">
                             <StatusBadge status={r.status} />
-                            <button onClick={(e) => openWithTransition(e.currentTarget.parentElement?.parentElement, () => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' }))} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-brand icon-btn"><Eye size={13} /> {t.view}</button>
-                            <button onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
+                            <button onClick={(e) => openWithTransition(e.currentTarget.parentElement?.parentElement, () => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' }))} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-brand icon-label whitespace-nowrap shrink-0"><Eye size={13} /> {t.view}</button>
+                            <button onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
                           </div>
                         </div>
                       );
@@ -1342,7 +1342,7 @@ export default function IDManagement() {
                         const isVoid = r.isVoid || (!r.seniorName && !r.fullName && !r.seniorId);
                         const noBday = !hasBirthday(r);
                         return (
-                          <div key={r.id} className={`rounded-2xl p-5 flex items-center justify-between border ${isVoid ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-yellow-200'}`}>
+                          <div key={r.id} className={`rounded-2xl p-5 flex items-center justify-between flex-wrap gap-3 border ${isVoid ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-yellow-200'}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-semibold text-gray-900">{r.seniorName || r.fullName || t.unknownLabel}</p>
@@ -1357,10 +1357,10 @@ export default function IDManagement() {
                               {r.reason && <p className="text-xs text-gray-400 mt-0.5 italic">{t.reasonLabel}: {r.reason}</p>}
                               <FollowUpNote record={r} />
                             </div>
-                            <div className="flex items-center gap-2 ml-4 shrink-0" style={{ gap: '0.5rem' }}>
+                            <div className="flex items-center justify-end flex-wrap gap-2 ml-auto shrink-0">
                               <StatusBadge status={isVoid ? 'void' : 'pending'} />
-                              {!isVoid && <button onClick={() => setDetailRecord(r)} className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline icon-btn"><Eye size={14} /> {t.reviewAction}</button>}
-                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
+                              {!isVoid && <button onClick={() => setDetailRecord(r)} className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline icon-label whitespace-nowrap shrink-0"><Eye size={14} /> {t.reviewAction}</button>}
+                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
                             </div>
                           </div>
                         );
@@ -1384,7 +1384,7 @@ export default function IDManagement() {
                             </div>
                             <div className="flex items-center gap-2">
                               <StatusBadge status="rejected" />
-                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
+                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
                             </div>
                           </div>
                         ))}
@@ -1406,7 +1406,7 @@ export default function IDManagement() {
                             </div>
                             <div className="flex items-center gap-2">
                               <StatusBadge status="cancelled" />
-                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
+                              <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"><Trash2 size={15} /></button>
                             </div>
                           </div>
                         ))}
@@ -1431,7 +1431,7 @@ export default function IDManagement() {
                             actions={
                               <>
                                 <button disabled={processing} onClick={() => handleStartProcessing(r)}
-                                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors icon-btn">
+                                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors icon-label">
                                   <Package size={13} /> {L(t, 'startProcessing', 'Start processing')}
                                 </button>
                                 <CancelBtn r={r} />
@@ -1465,7 +1465,7 @@ export default function IDManagement() {
                             actions={
                               <>
                                 <button disabled={processing} onClick={() => setReleaseRecord(r)}
-                                  className="flex items-center gap-1.5 bg-brand hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors icon-btn">
+                                  className="flex items-center gap-1.5 bg-brand hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors icon-label">
                                   <Send size={13} /> {L(t, 'markReady', 'Mark ready to claim')}
                                 </button>
                                 <CancelBtn r={r} />
@@ -1501,11 +1501,11 @@ export default function IDManagement() {
                             actions={
                               <>
                                 <button disabled={processing} onClick={() => handleMarkClaimed(r)}
-                                  className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors icon-btn">
+                                  className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors icon-label">
                                   <CheckCircle2 size={13} /> {L(t, 'markClaimed', 'Mark claimed')}
                                 </button>
                                 <button disabled={processing} onClick={() => setRescheduleRecord(r)}
-                                  className="flex items-center gap-1.5 border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 text-xs font-bold px-3 py-2 rounded-xl transition-colors icon-btn">
+                                  className="flex items-center gap-1.5 border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 text-xs font-bold px-3 py-2 rounded-xl transition-colors icon-label">
                                   <CalendarDays size={12} /> {r.pickup?.date ? L(t, 'rescheduleBtn', 'Reschedule') : L(t, 'setTimeBtn', 'Set time')}
                                 </button>
                                 <CancelBtn r={r} />

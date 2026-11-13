@@ -152,6 +152,10 @@ body { font-kerning: normal; text-rendering: optimizeLegibility; }
 
 /* Optical centering: a round or pointy icon beside text sits a hair high, so nudge it down.
    Applied to flex icon-and-text buttons as class "icon-btn" (layout is left to Tailwind). */
+.icon-label > svg { translate: 0 0.5px; flex-shrink: 0; }
+.icon-label > svg:first-child:not(:last-child) { margin-inline-start: -1px; }
+.icon-label > svg:last-child:not(:first-child)  { margin-inline-end: -1px; }
+
 .icon-btn > svg { translate: 0 0.5px; flex-shrink: 0; }
 .icon-btn > svg:first-child:not(:last-child) { margin-inline-start: -1px; }
 .icon-btn > svg:last-child:not(:first-child)  { margin-inline-end: -1px; }

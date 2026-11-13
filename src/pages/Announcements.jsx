@@ -274,7 +274,7 @@ export default function Announcements() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{t.announcements}</h1>
           <p className="text-gray-500">{t.announcementsPageSubtitle}</p>
         </div>
-        <button onClick={handleNewAnnouncement} className="bg-brand hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-medium flex items-center justify-center gap-2 transition-colors shadow-sm self-start sm:self-auto">
+        <button onClick={handleNewAnnouncement} className="bg-brand hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-medium flex items-center justify-center gap-2 transition-colors shadow-sm self-start sm:self-auto icon-btn">
           <Plus size={18} /> {t.newAnnouncement}
         </button>
       </div>
@@ -458,7 +458,7 @@ export default function Announcements() {
                           <button
                             type="button"
                             onClick={() => addFieldOption(field.id)}
-                            className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline pt-1"
+                            className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline pt-1 icon-btn"
                           >
                             <Plus size={13} /> {t.addOption || 'Add option'}
                           </button>
@@ -468,7 +468,7 @@ export default function Announcements() {
                   ))}
                 </div>
 
-                <button type="button" onClick={addFormField} className="flex items-center gap-2 text-sm font-semibold text-brand hover:underline">
+                <button type="button" onClick={addFormField} className="flex items-center gap-2 text-sm font-semibold text-brand hover:underline icon-btn">
                   <ListPlus size={16} /> {t.addSignupField}
                 </button>
               </>
@@ -547,9 +547,12 @@ export default function Announcements() {
                 </>
               )}
 
-              <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{t.expirationLabel}</label>
-                <div className="relative">
+              <details open={expiration !== 'Never'} className="group">
+                <summary className="flex items-center justify-between gap-2 text-sm font-semibold text-gray-600 list-none [&::-webkit-details-marker]:hidden">
+                  <span>{t.expirationLabel}: <span className="text-gray-900">{expiration}</span></span>
+                  <ChevronDown size={16} className="text-gray-400 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="relative mt-3">
                   <AlertCircle className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-700" size={16} />
                   <select
                     value={expiration}
@@ -570,7 +573,7 @@ export default function Announcements() {
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                 </div>
-              </div>
+              </details>
             </div>
 
             <button

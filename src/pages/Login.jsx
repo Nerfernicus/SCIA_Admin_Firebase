@@ -140,7 +140,7 @@ export default function Login() {
           {/* Shown only on mobile, since the map panel above is hidden below lg */}
           <div className="lg:hidden flex items-center gap-3 mb-8">
             <div className="w-10 h-10 rounded-full border-2 border-[#d9a545] flex items-center justify-center">
-              <ShieldCheck size={18} className="text-[#0f52ba]" />
+              <ShieldCheck size={18} className="text-brand" />
             </div>
             <div>
               <h1 className="text-lg font-semibold text-gray-900 leading-tight">SCIA Admin</h1>
@@ -172,7 +172,7 @@ export default function Login() {
                   <CheckCircle2 size={16} className="shrink-0 mt-0.5" />
                   <span>If that email belongs to an admin account, a password reset link has been sent. Check your inbox.</span>
                 </div>
-                <button type="button" onClick={() => { setMode('signin'); setResetSent(false); }} className="text-sm text-[#0f52ba] hover:underline">
+                <button type="button" onClick={() => { setMode('signin'); setResetSent(false); }} className="text-sm text-brand hover:underline">
                   Back to sign in
                 </button>
               </div>
@@ -189,10 +189,10 @@ export default function Login() {
                     placeholder="admin@scia.gov"
                     required
                     autoComplete="email"
-                    className="w-full border-0 border-b-2 border-gray-200 py-2 px-0.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#0f52ba] transition-colors"
+                    className="w-full border-0 border-b-2 border-gray-200 py-2 px-0.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-brand transition-colors"
                   />
                 </div>
-                <button type="submit" disabled={loading} className="w-full bg-[#0f52ba] hover:bg-[#0c4295] disabled:opacity-60 text-white py-2.5 text-sm font-medium transition-colors">
+                <button type="submit" disabled={loading} className="w-full bg-brand hover:bg-brand-dark disabled:opacity-60 text-white py-2.5 text-sm font-medium transition-colors">
                   {loading ? 'Sending...' : 'Send reset link'}
                 </button>
                 <button type="button" onClick={() => { setMode('signin'); setError(''); }} className="text-sm text-gray-500 hover:underline">
@@ -214,7 +214,7 @@ export default function Login() {
                 placeholder="admin@scia.gov"
                 required
                 autoComplete="email"
-                className="w-full border-0 border-b-2 border-gray-200 py-2 px-0.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#0f52ba] transition-colors"
+                className="w-full border-0 border-b-2 border-gray-200 py-2 px-0.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-brand transition-colors"
               />
             </div>
 
@@ -231,7 +231,7 @@ export default function Login() {
                   placeholder="Enter your password"
                   required
                   autoComplete="current-password"
-                  className="w-full border-0 border-b-2 border-gray-200 py-2 pr-9 px-0.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#0f52ba] transition-colors"
+                  className="w-full border-0 border-b-2 border-gray-200 py-2 pr-9 px-0.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-brand transition-colors"
                 />
                 <button
                   type="button"
@@ -243,7 +243,7 @@ export default function Login() {
                 </button>
               </div>
               <div className="text-right mt-2">
-                <button type="button" onClick={() => { setMode('reset'); setError(''); setNotice(''); }} className="text-xs text-[#0f52ba] hover:underline">
+                <button type="button" onClick={() => { setMode('reset'); setError(''); setNotice(''); }} className="text-xs text-brand hover:underline">
                   Forgot password?
                 </button>
               </div>
@@ -252,7 +252,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#0f52ba] hover:bg-[#0c4295] disabled:opacity-60 disabled:cursor-not-allowed text-white py-2.5 text-sm font-medium transition-colors mt-3 flex items-center justify-center gap-2"
+              className="w-full bg-brand hover:bg-brand-dark disabled:opacity-60 disabled:cursor-not-allowed text-white py-2.5 text-sm font-medium transition-colors mt-3 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>

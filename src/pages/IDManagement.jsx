@@ -1061,7 +1061,7 @@ export default function IDManagement() {
   /* Small action buttons reused in the OSCA lists */
   const CancelBtn = ({ r }) => (
     <button disabled={processing} onClick={() => setCancelRecord(r)}
-      className="flex items-center gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 text-xs font-bold px-3 py-2 rounded-xl transition-colors">
+      className="flex items-center gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 text-xs font-bold px-3 py-2 rounded-xl transition-colors icon-btn">
       <XCircle size={12} /> {L(t, 'cancelRequestAction', 'Cancel request')}
     </button>
   );
@@ -1226,7 +1226,7 @@ export default function IDManagement() {
                             <StatusBadge status={isVoid ? 'void' : (r.status || 'pending')} />
                             {!isVoid && (
                               <button onClick={(e) => openWithTransition(e.currentTarget.parentElement?.parentElement, () => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' }))}
-                                className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline">
+                                className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline icon-btn">
                                 <Eye size={14} /> {t.reviewAction}
                               </button>
                             )}
@@ -1268,7 +1268,7 @@ export default function IDManagement() {
                           </div>
                           <div className="flex items-center gap-2 ml-4 shrink-0">
                             <StatusBadge status={r.status} />
-                            <button onClick={(e) => openWithTransition(e.currentTarget.parentElement?.parentElement, () => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' }))} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-brand"><Eye size={13} /> {t.view}</button>
+                            <button onClick={(e) => openWithTransition(e.currentTarget.parentElement?.parentElement, () => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' }))} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-brand icon-btn"><Eye size={13} /> {t.view}</button>
                             <button onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
                           </div>
                         </div>
@@ -1359,7 +1359,7 @@ export default function IDManagement() {
                             </div>
                             <div className="flex items-center gap-2 ml-4 shrink-0">
                               <StatusBadge status={isVoid ? 'void' : 'pending'} />
-                              {!isVoid && <button onClick={() => setDetailRecord(r)} className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline"><Eye size={14} /> {t.reviewAction}</button>}
+                              {!isVoid && <button onClick={() => setDetailRecord(r)} className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline icon-btn"><Eye size={14} /> {t.reviewAction}</button>}
                               <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
                             </div>
                           </div>
@@ -1431,7 +1431,7 @@ export default function IDManagement() {
                             actions={
                               <>
                                 <button disabled={processing} onClick={() => handleStartProcessing(r)}
-                                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors">
+                                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors icon-btn">
                                   <Package size={13} /> {L(t, 'startProcessing', 'Start processing')}
                                 </button>
                                 <CancelBtn r={r} />
@@ -1465,7 +1465,7 @@ export default function IDManagement() {
                             actions={
                               <>
                                 <button disabled={processing} onClick={() => setReleaseRecord(r)}
-                                  className="flex items-center gap-1.5 bg-brand hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors">
+                                  className="flex items-center gap-1.5 bg-brand hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors icon-btn">
                                   <Send size={13} /> {L(t, 'markReady', 'Mark ready to claim')}
                                 </button>
                                 <CancelBtn r={r} />
@@ -1501,11 +1501,11 @@ export default function IDManagement() {
                             actions={
                               <>
                                 <button disabled={processing} onClick={() => handleMarkClaimed(r)}
-                                  className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors">
+                                  className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors icon-btn">
                                   <CheckCircle2 size={13} /> {L(t, 'markClaimed', 'Mark claimed')}
                                 </button>
                                 <button disabled={processing} onClick={() => setRescheduleRecord(r)}
-                                  className="flex items-center gap-1.5 border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 text-xs font-bold px-3 py-2 rounded-xl transition-colors">
+                                  className="flex items-center gap-1.5 border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 text-xs font-bold px-3 py-2 rounded-xl transition-colors icon-btn">
                                   <CalendarDays size={12} /> {r.pickup?.date ? L(t, 'rescheduleBtn', 'Reschedule') : L(t, 'setTimeBtn', 'Set time')}
                                 </button>
                                 <CancelBtn r={r} />

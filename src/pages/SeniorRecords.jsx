@@ -28,7 +28,7 @@ const FILTERS = [
 ];
 const BADGE = { active: 'bg-green-100 text-green-800', revoked: 'bg-red-100 text-red-800' };
 
-const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f52ba]/30 focus:border-[#0f52ba]';
+const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand';
 const viewBtn = 'px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-bold flex items-center gap-1';
 const primaryBtn = 'px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-bold flex items-center gap-1 disabled:opacity-50';
 const ghostBtn = 'px-4 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50';
@@ -162,7 +162,7 @@ function VerifyModal({ user, onClose, onDone }) {
           </div>
         ))}
         <button onClick={() => setRows([...rows, { type: 'birth_certificate', number: '' }])}
-          className="text-sm font-semibold text-[#0f52ba] flex items-center gap-1"><Plus size={14} /> Add another document</button>
+          className="text-sm font-semibold text-brand flex items-center gap-1"><Plus size={14} /> Add another document</button>
       </div>
 
       <OscaNumberField value={recordNo} onChange={setRecordNo} />
@@ -260,15 +260,12 @@ function ReviewModal({ app, onClose, onDone }) {
 }
 
 // ── Revoke ──────────────────────────────────────────────────────────────────
-function RevokeModal({ record, onClose, onDone }) {
+// Optimistic: the modal closes and the row flips to "Revoked" at once; the parent rolls it back if the server refuses.
+function RevokeModal({ record, onClose, onRevoke }) {
   const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  const submit = async () => {
-    setBusy(true); setErr('');
-    try { await call('revokeSeniorRecord')({ uid: record.id, reason }); onDone(); }
-    catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
-  };
+  const busy = false;
+  const err = '';
+  const submit = () => onRevoke(record, reason);
   return (
     <Modal>
       <h2 className="text-lg font-bold text-gray-900">Revoke this record?</h2>
@@ -316,9 +313,9 @@ function ScanPanel() {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-        <h2 className="font-bold text-gray-900 flex items-center gap-2"><QrCode size={18} className="text-[#0f52ba]" /> Scan an OSCA ID</h2>
+        <h2 className="font-bold text-gray-900 flex items-center gap-2"><QrCode size={18} className="text-brand" /> Scan an OSCA ID</h2>
         <div id="scia-qr-reader" className="mt-3" />
-        <button onClick={scanning ? stop : start} className="mt-3 px-4 py-2 rounded-lg bg-[#0f52ba] hover:bg-[#0c3f91] text-white text-sm font-bold">
+        <button onClick={scanning ? stop : start} className="mt-3 px-4 py-2 rounded-lg bg-brand hover:bg-brand-dark text-white text-sm font-bold">
           {scanning ? 'Stop camera' : 'Start camera'}
         </button>
         <div className="mt-4 flex gap-2">
@@ -366,6 +363,7 @@ export default function SeniorRecords() {
   const [search, setSearch] = useState('');
   const [verifyTarget, setVerifyTarget] = useState(null);
   const [revokeTarget, setRevokeTarget] = useState(null);
+  const [revokedLocal, setRevokedLocal] = useState(() => new Set()); // optimistic revokes not yet confirmed
   const [notice, setNotice] = useState(null); // { ok, text }
 
   useEffect(() => {
@@ -385,8 +383,19 @@ export default function SeniorRecords() {
 
   const q = search.trim().toLowerCase();
   const fp = useMemo(() => [...apps, ...pending].filter((u) => !q || nameOf(u).toLowerCase().includes(q)), [apps, pending, q]);
-  const fr = useMemo(() => records.filter((r) =>
-    (filter === 'all' || r.status === filter) && (!q || `${r.fullName} ${r.recordNo}`.toLowerCase().includes(q))), [records, filter, q]);
+  const shownRecords = useMemo(
+    () => records.map((r) => (revokedLocal.has(r.id) ? { ...r, status: 'revoked' } : r)), [records, revokedLocal]);
+  const fr = useMemo(() => shownRecords.filter((r) =>
+    (filter === 'all' || r.status === filter) && (!q || `${r.fullName} ${r.recordNo}`.toLowerCase().includes(q))), [shownRecords, filter, q]);
+
+  const revoke = async (record, reason) => {
+    const drop = () => setRevokedLocal((p) => { const n = new Set(p); n.delete(record.id); return n; });
+    setRevokedLocal((p) => new Set(p).add(record.id));
+    setRevokeTarget(null);
+    setNotice({ ok: true, text: 'Record revoked.' });
+    try { await call('revokeSeniorRecord')({ uid: record.id, reason }); drop(); }
+    catch (e) { drop(); setNotice({ ok: false, text: `Could not revoke, so the record was restored. ${errMsg(e)}` }); }
+  };
 
   // Accounts OSCA verified before this registry existed: verified, but no senior_records entry yet.
   const recordIds = useMemo(() => new Set(records.map((r) => r.id)), [records]);
@@ -430,7 +439,7 @@ export default function SeniorRecords() {
     <div className="p-4 sm:p-8 max-w-6xl mx-auto font-sans touch-comfy">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <ClipboardCheck size={22} className="text-[#0f52ba]" /> Senior Records
+          <ClipboardCheck size={22} className="text-brand" /> Senior Records
         </h1>
         <p className="text-sm text-gray-500 mt-1 measure">
           The OSCA Valenzuela local registry. Verify a senior against a valid ID or birth certificate, issue the OSCA number, and print the ID.
@@ -441,7 +450,7 @@ export default function SeniorRecords() {
         {tabs.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
-              tab === t.key ? 'bg-[#0f52ba] text-white border-[#0f52ba]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+              tab === t.key ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
             {t.label}
           </button>
         ))}
@@ -544,7 +553,7 @@ export default function SeniorRecords() {
                       <button className={viewBtn} onClick={() => setProfileTarget({ uid: r.id })}><Eye size={13} /> View</button>
                     {r.status === 'active' ? (
                       <>
-                        <button onClick={() => print(r)} className="px-3 py-1.5 rounded-lg bg-[#0f52ba] hover:bg-[#0c3f91] text-white text-xs font-bold flex items-center gap-1">
+                        <button onClick={() => print(r)} className="px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-bold flex items-center gap-1">
                           <Printer size={13} /> Print ID
                         </button>
                         <button onClick={() => setRevokeTarget(r)} title="Revoke this record" aria-label="Revoke this record"
@@ -568,7 +577,7 @@ export default function SeniorRecords() {
               (their printed card stays valid); anyone else gets a new number.
             </span>
             <button disabled={importing || existing.length === 0} onClick={() => importUsers(existing)}
-              className="px-3 py-1.5 rounded-lg bg-[#0f52ba] hover:bg-[#0c3f91] text-white text-xs font-bold flex items-center gap-1 disabled:opacity-50">
+              className="px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-bold flex items-center gap-1 disabled:opacity-50">
               {importing ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Import all ({existing.length})
             </button>
           </div>
@@ -627,8 +636,7 @@ export default function SeniorRecords() {
           }} />
       )}
       {revokeTarget && (
-        <RevokeModal record={revokeTarget} onClose={() => setRevokeTarget(null)}
-          onDone={() => { setRevokeTarget(null); setNotice({ ok: true, text: 'Record revoked.' }); }} />
+        <RevokeModal record={revokeTarget} onClose={() => setRevokeTarget(null)} onRevoke={revoke} />
       )}
     </div>
   );

@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import { DISTRICTS, barangaysOf, resolveBarangay } from '../lib/barangay';
 import DocumentCapture from '../components/DocumentCapture';
+import Combobox from '../components/Combobox';
 import PrivacyConsent from '../components/PrivacyConsent';
 import { RULES, sanitize, validate, validateGender, validateDob, validateOption } from '../lib/validators';
 
@@ -28,7 +29,7 @@ const INPUT_BAD = 'bg-red-50 border-red-300 focus:ring-red-100 focus:border-red-
 const INPUT_CLS = `${INPUT_BASE} ${INPUT_OK}`;
 const inputCls = (err) => `${INPUT_BASE} ${err ? INPUT_BAD : INPUT_OK}`;
 // Selected / unselected choice buttons (district, gender). dark: keeps the blue readable on the dark theme.
-const CHOICE_ON = 'border-[#0f52ba] bg-blue-50 text-[#0f52ba] dark:border-blue-400 dark:text-blue-300';
+const CHOICE_ON = 'border-brand bg-blue-50 text-brand dark:border-blue-400 dark:text-blue-300';
 const CHOICE_OFF = 'border-gray-200 text-gray-600 hover:bg-gray-50';
 // Darker than gray-400: NN/g flags light-grey, low-contrast text as hard for older eyes.
 const LABEL_CLS = 'block text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-1.5';
@@ -217,7 +218,7 @@ export default function AssistedSignup({ kiosk = null }) {
     <div className="p-4 sm:p-8 max-w-3xl mx-auto font-sans">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <UserPlus size={22} className="text-[#0f52ba]" /> Assisted Senior Sign-Up
+          <UserPlus size={22} className="text-brand" /> Assisted Senior Sign-Up
         </h1>
         <p className="text-sm text-gray-500 mt-1">
           For seniors visiting in person. Fill this in on their behalf and scan their documents. OSCA verifies them first; the login is created only after approval.
@@ -242,7 +243,7 @@ export default function AssistedSignup({ kiosk = null }) {
           </div>
           <button
             onClick={() => setResult(null)}
-            className="w-full py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 text-white text-sm font-bold transition-colors"
+            className="w-full py-3 rounded-xl bg-brand hover:bg-blue-700 text-white text-sm font-bold transition-colors"
           >
             Register Another
           </button>
@@ -337,21 +338,16 @@ export default function AssistedSignup({ kiosk = null }) {
 
             <div>
               <label className={LABEL_CLS}>Barangay{locked ? '' : ' *'}</label>
-              <select
+              <Combobox
+                ariaLabel="Barangay"
                 value={locked ? locked.name : form.barangay}
-                onChange={(e) => { update('barangay')(e); clearErr('barangay'); }}
+                onChange={(b) => { update('barangay')({ target: { value: b } }); clearErr('barangay'); }}
+                options={locked ? [locked.name] : barangaysOf(form.district)}
                 disabled={!!locked || !form.district}
+                invalid={!!fieldErrors.barangay}
+                placeholder={form.district ? 'Search or select barangay' : 'Select a district first'}
                 className={`${INPUT_CLS} disabled:opacity-60`}
-              >
-                {locked ? (
-                  <option value={locked.name}>{locked.name}</option>
-                ) : (
-                  <>
-                    <option value="">{form.district ? 'Select barangay' : 'Select a district first'}</option>
-                    {barangaysOf(form.district).map((b) => <option key={b} value={b}>{b}</option>)}
-                  </>
-                )}
-              </select>
+              />
               <FieldError msg={fieldErrors.barangay} />
             </div>
 
@@ -397,7 +393,7 @@ export default function AssistedSignup({ kiosk = null }) {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-md shadow-blue-500/20"
+            className="w-full bg-brand hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-md shadow-blue-500/20"
           >
             {submitting ? <Loader2 size={18} className="animate-spin" /> : <UserPlus size={18} />}
             Submit for Verification

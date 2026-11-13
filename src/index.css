@@ -10,9 +10,12 @@
    defaults so legibility doesn't drop).
    ──────────────────────────────────────────────────────────────────────── */
 @theme {
-  --color-white:    #fdfcfa;
-  --color-gray-50:  #f7f6f2;
-  --color-gray-100: #efeee7;
+  --color-white:    oklch(99.1% 0.003 84.6);
+  --color-gray-50:  oklch(97.3% 0.005 95.1);
+  --color-gray-100: oklch(94.8% 0.009 100);
+  /* Brand blue (was #0f52ba / #0c3f91), in OKLCH so tints and hovers stay even. */
+  --color-brand:      oklch(46.7% 0.176 260);
+  --color-brand-dark: oklch(39% 0.145 260.2);
 }
 
 /* Enable class-based dark mode (Tailwind v4). Toggling `.dark` on <html>

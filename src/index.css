@@ -16,6 +16,8 @@
   /* Brand blue (was #0f52ba / #0c3f91), in OKLCH so tints and hovers stay even. */
   --color-brand:      oklch(46.7% 0.176 260);
   --color-brand-dark: oklch(39% 0.145 260.2);
+  /* x-height: Atkinson Hyperlegible has tall, open letters and distinct shapes, easier for older eyes. */
+  --font-sans: "Atkinson Hyperlegible", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
 /* Enable class-based dark mode (Tailwind v4). Toggling `.dark` on <html>
@@ -147,6 +149,13 @@ html.dark {
 
 /* Kerning + legible rendering for every piece of text. */
 body { font-kerning: normal; text-rendering: optimizeLegibility; }
+
+/* Optical centering: a round or pointy icon beside text sits a hair high, so nudge it down.
+   Opt in per button with class "icon-btn" (icon + text buttons only). */
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; }
+.icon-btn > svg { translate: 0 0.5px; flex-shrink: 0; }
+.icon-btn > svg:first-child:not(:last-child) { margin-inline-start: -1px; }
+.icon-btn > svg:last-child:not(:first-child)  { margin-inline-end: -1px; }
 
 /* Layout shift: reserve the scrollbar's width so opening a modal or a long list never nudges
    the page sideways. */

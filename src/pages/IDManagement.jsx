@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ShieldCheck, Clock as ClockIcon, CheckCircle2, XCircle, Eye,
   Loader2, Trash2, AlertTriangle, X, User, Search, Database,
@@ -197,7 +197,7 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <ShieldCheck size={20} className="text-[#0f52ba]" />
+              <ShieldCheck size={20} className="text-brand" />
               <h3 className="text-lg font-bold text-gray-900">{t.oscaVerifTitle}</h3>
             </div>
             <p className="text-xs text-gray-400">{t.oscaVerifSubtitle}</p>
@@ -288,7 +288,7 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <FileText size={18} className="text-[#0f52ba]" /> {t.physicalIdReqTitle}
+              <FileText size={18} className="text-brand" /> {t.physicalIdReqTitle}
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">{t.reviewReqDetails}</p>
           </div>
@@ -425,7 +425,7 @@ function ReleaseModal({ record, office, onClose, onRelease, processing }) {
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Send size={18} className="text-[#0f52ba]" /> {t.releasePhysicalId}
+              <Send size={18} className="text-brand" /> {t.releasePhysicalId}
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">{t.finalVerificationSubtitle}</p>
           </div>
@@ -522,7 +522,7 @@ function ReleaseModal({ record, office, onClose, onRelease, processing }) {
           <button
             disabled={processing || !hasAllInfo || !verified}
             onClick={() => onRelease(record, { controlNumber: cleanControlNo, dateIssued: issuedDate, pickup })}
-            className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 text-white font-semibold text-sm disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 py-3 rounded-xl bg-brand hover:bg-blue-700 text-white font-semibold text-sm disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
           >
             {processing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             {L(t, 'markReady', 'Mark ready to claim')}
@@ -545,7 +545,7 @@ function RescheduleModal({ record, office, onClose, onConfirm, processing }) {
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <CalendarDays size={18} className="text-[#0f52ba]" /> {record.pickup?.date ? L(t, 'rescheduleTitle', 'Reschedule pickup') : L(t, 'setPickupTitle', 'Set pickup time')}
+              <CalendarDays size={18} className="text-brand" /> {record.pickup?.date ? L(t, 'rescheduleTitle', 'Reschedule pickup') : L(t, 'setPickupTitle', 'Set pickup time')}
             </h3>
             <p className="text-xs text-gray-400 mt-0.5"><span className="font-mono">{referenceCode(record.uid || record.id)}</span>{record.pickup?.date ? ` · ${L(t, 'currentlyLabel', 'now')}: ${formatPickup(record.pickup)}` : ''}</p>
           </div>
@@ -556,7 +556,7 @@ function RescheduleModal({ record, office, onClose, onConfirm, processing }) {
         <div className="flex gap-3 mt-6">
           <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50">Cancel</button>
           <button disabled={processing || !ready || unchanged} onClick={() => onConfirm(record, pickup)}
-            className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 text-white font-semibold text-sm disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+            className="flex-1 py-3 rounded-xl bg-brand hover:bg-blue-700 text-white font-semibold text-sm disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
             {processing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} {L(t, 'confirmPickup', 'Confirm pickup time')}
           </button>
         </div>
@@ -575,7 +575,7 @@ function RequestDetailModal({ record, onClose, onApprove, onReject, processing }
       <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-8 max-w-lg w-full max-h-[90dvh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><FileText size={18} className="text-[#0f52ba]" /> {t.physicalIdReqTitle}</h3>
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><FileText size={18} className="text-brand" /> {t.physicalIdReqTitle}</h3>
             <p className="text-xs text-gray-400 mt-0.5">{t.reviewVerifyBeforeApproving}</p>
           </div>
           <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
@@ -643,7 +643,7 @@ function RequestRow({ r, status, sub, actions, tone = 'border-gray-100' }) {
           {sub ? ` · ${sub}` : ''}
         </p>
         {r.pickup?.date && (
-          <p className="text-xs text-[#0f52ba] font-semibold mt-0.5 flex items-center gap-1">
+          <p className="text-xs text-brand font-semibold mt-0.5 flex items-center gap-1">
             <CalendarDays size={11} /> {formatPickup(r.pickup)}
           </p>
         )}
@@ -669,19 +669,21 @@ export default function IDManagement() {
   const [mainTab, setMainTab]       = useState('verification'); // 'verification' | 'release'
 
   /* ── Verification state ── */
-  const [submissions, setSubmissions]   = useState([]);
-  const [physicalReqs, setPhysicalReqs] = useState([]);
+  const [submissionsRaw, setSubmissions]   = useState([]);
+  const [physicalReqsRaw, setPhysicalReqs] = useState([]);
+  // Optimistic changes not yet confirmed by the server: { 'collection/id': { status } | { deleted: true } }
+  const [optimistic, setOptimistic] = useState({});
   const [loadingVerif, setLoadingVerif] = useState(true);
   const [verifTab, setVerifTab]         = useState('submissions');
   const [selected, setSelected]         = useState(null);
   const [processing, setProcessing]     = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting]         = useState(false);
+  const deleting = false; // deletes close at once (optimistic)
   const [verifSearch, setVerifSearch]   = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
   /* ── Release state ── */
-  const [idRequests, setIdRequests]     = useState([]);
+  const [idRequestsRaw, setIdRequests]     = useState([]);
   const [releasedIDs, setReleasedIDs]   = useState([]);
   const [loadingRel, setLoadingRel]     = useState(true);
   const [releaseTab, setReleaseTab]     = useState('requests');
@@ -756,61 +758,97 @@ export default function IDManagement() {
     role: isSuperAdmin ? 'super_admin' : 'sub_admin',
   });
 
+  /* ── Optimistic overlay: show a decision or delete at once; roll back if the server refuses ── */
+  const withOpt = (col, list) => list
+    .filter(r => !optimistic[`${col}/${r.id}`]?.deleted)
+    .map(r => (optimistic[`${col}/${r.id}`] ? { ...r, ...optimistic[`${col}/${r.id}`] } : r));
+  const submissions = useMemo(() => withOpt('id_verifications', submissionsRaw), [submissionsRaw, optimistic]); // eslint-disable-line react-hooks/exhaustive-deps
+  const physicalReqs = useMemo(() => withOpt('id_requests', physicalReqsRaw), [physicalReqsRaw, optimistic]); // eslint-disable-line react-hooks/exhaustive-deps
+  const idRequests = useMemo(() => withOpt('id_requests', idRequestsRaw), [idRequestsRaw, optimistic]); // eslint-disable-line react-hooks/exhaustive-deps
+  const setOpt = (col, id, patch) => setOptimistic(p => ({ ...p, [`${col}/${id}`]: patch }));
+  const dropOpt = (col, id, delay = 0) => {
+    const f = () => setOptimistic(p => { const n = { ...p }; delete n[`${col}/${id}`]; return n; });
+    if (delay) setTimeout(f, delay); else f();
+  };
+
   /* ── Verification decision handler ── */
   async function handleDecision(id, decision, collectionName = 'id_verifications', record = null) {
+    // Optimistic: the row shows its new status and the panel closes at once; both are undone if the server refuses.
+    const failMsg = L(t, 'toastStatusFailed', 'Could not update the status. Please try again.');
+    setOpt(collectionName, id, { status: decision });
+    setSelected(null);
     setProcessing(true);
     try {
       // Verifying an uploaded ID: one server call approves it, replaces the senior's
       // temporary OSCA ID with the number on the card (login + lookup move with it),
       // marks them verified and issues the digital ID.
       if (decision === 'approved' && collectionName === 'id_verifications') {
-        try {
-          const res = await approveIdVerificationFn({ verificationId: id });
-          setSelected(null);
-          showToast(res.data?.replacedTempId
-            ? L(t, 'toastVerifiedIdReplaced', 'Verified — the temporary OSCA ID was replaced with the ID on the card.')
-            : t.toastApprovedQueued);
-        } catch (e) {
-          console.error(e);
-          showToast(e?.message || L(t, 'toastStatusFailed', 'Could not update the status. Please try again.'), 'error');
-        }
+        const res = await approveIdVerificationFn({ verificationId: id });
+        dropOpt(collectionName, id, 4000);
+        showToast(res.data?.replacedTempId
+          ? L(t, 'toastVerifiedIdReplaced', 'Verified — the temporary OSCA ID was replaced with the ID on the card.')
+          : t.toastApprovedQueued);
         return;
       }
 
-      await updateDoc(doc(db, collectionName, id), { status: decision, reviewedAt: serverTimestamp() });
-
-      // NOTE: approving a physical request no longer auto-releases it — it now goes Approved → Processing → Delivered → Received → Claimed
-      setSelected(null);
       showToast(decision === 'approved' ? t.toastApprovedQueued : t.toastRequestRejected);
+      await updateDoc(doc(db, collectionName, id), { status: decision, reviewedAt: serverTimestamp() });
+      dropOpt(collectionName, id, 4000);
+      // NOTE: approving a physical request no longer auto-releases it — it now goes Approved → Processing → Delivered → Received → Claimed
+    } catch (e) {
+      console.error(e);
+      dropOpt(collectionName, id);
+      showToast(failMsg, 'error');
     } finally { setProcessing(false); }
   }
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    setDeleting(true);
+    // Optimistic: the row disappears and the dialog closes at once; the row returns with an error if the delete fails.
+    const { col, id, name } = deleteTarget;
+    setOpt(col, id, { deleted: true });
+    setDeleteTarget(null);
+    showToast(`"${name}" ${t.deleteRequestFor}`);
     try {
-      await deleteDoc(doc(db, deleteTarget.col, deleteTarget.id));
-      showToast(`"${deleteTarget.name}" ${t.deleteRequestFor}`);
-      setDeleteTarget(null);
-    } finally { setDeleting(false); }
+      await deleteDoc(doc(db, col, id));
+      dropOpt(col, id, 4000);
+    } catch (e) {
+      console.error(e);
+      dropOpt(col, id);
+      showToast(L(t, 'toastDeleteFailed', 'Could not delete, so the request was restored. Please try again.'), 'error');
+    }
   }
 
   /* ── Release handlers ── */
   async function handleApprove(record) {
+    // Optimistic: approve at once, undo if the server refuses.
+    setOpt('id_requests', record.id, { status: 'approved' });
+    setDetailRecord(null);
+    showToast(`${t.toastRequestForPrefix} ${record.seniorName || record.fullName} ${t.toastRequestForSuffix}`);
     setProcessing(true);
     try {
       await updateDoc(doc(db, 'id_requests', record.id), { status: 'approved', reviewedAt: serverTimestamp() });
-      setDetailRecord(null);
-      showToast(`${t.toastRequestForPrefix} ${record.seniorName || record.fullName} ${t.toastRequestForSuffix}`);
+      dropOpt('id_requests', record.id, 4000);
+    } catch (e) {
+      console.error(e);
+      dropOpt('id_requests', record.id);
+      showToast(L(t, 'toastStatusFailed', 'Could not update the status. Please try again.'), 'error');
     } finally { setProcessing(false); }
   }
 
   async function handleReject(id) {
+    // Optimistic: reject at once, undo if the server refuses.
+    setOpt('id_requests', id, { status: 'rejected' });
+    setDetailRecord(null);
+    showToast(t.toastRequestRejected);
     setProcessing(true);
     try {
       await updateDoc(doc(db, 'id_requests', id), { status: 'rejected', reviewedAt: serverTimestamp() });
-      setDetailRecord(null);
-      showToast(t.toastRequestRejected);
+      dropOpt('id_requests', id, 4000);
+    } catch (e) {
+      console.error(e);
+      dropOpt('id_requests', id);
+      showToast(L(t, 'toastStatusFailed', 'Could not update the status. Please try again.'), 'error');
     } finally { setProcessing(false); }
   }
 
@@ -1050,10 +1088,10 @@ export default function IDManagement() {
       {/* Page header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <CreditCard size={24} className="text-[#0f52ba]" /> {t.idManagement}
+          <CreditCard size={24} className="text-brand" /> {t.idManagement}
         </h1>
         <p className="text-sm text-gray-500 mt-1 flex items-center gap-1.5">
-          <ShieldCheck size={13} className="text-[#0f52ba]" />
+          <ShieldCheck size={13} className="text-brand" />
           {t.idMgmtSubtitle}
         </p>
       </div>
@@ -1067,7 +1105,7 @@ export default function IDManagement() {
             className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${mainTab === tab.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
           >
             {tab.label}
-            {tab.badge > 0 && <span className="ml-1.5 bg-[#0f52ba] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
+            {tab.badge > 0 && <span className="ml-1.5 bg-brand text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
           </button>
         ))}
       </div>
@@ -1112,7 +1150,7 @@ export default function IDManagement() {
               <button key={tab.key} onClick={() => { setVerifTab(tab.key); setVerifSearch(''); setFilterStatus('all'); }}
                 className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${verifTab === tab.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                 {tab.label}
-                {tab.badge > 0 && <span className="ml-1.5 bg-[#0f52ba] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
+                {tab.badge > 0 && <span className="ml-1.5 bg-brand text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
               </button>
             ))}
           </div>
@@ -1164,7 +1202,7 @@ export default function IDManagement() {
                                 ? <img src={r.idImageUrl ?? `data:image/jpeg;base64,${r.imageBase64}`} alt="ID" className="w-16 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
                                 : <div className="w-16 h-10 rounded-lg bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center shrink-0"><FileImage size={14} className="text-gray-400" /></div>
                             ) : (
-                              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0"><FileText size={16} className="text-[#0f52ba]" /></div>
+                              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0"><FileText size={16} className="text-brand" /></div>
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -1187,7 +1225,7 @@ export default function IDManagement() {
                             <StatusBadge status={isVoid ? 'void' : (r.status || 'pending')} />
                             {!isVoid && (
                               <button onClick={() => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' })}
-                                className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline">
+                                className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline">
                                 <Eye size={14} /> {t.reviewAction}
                               </button>
                             )}
@@ -1229,7 +1267,7 @@ export default function IDManagement() {
                           </div>
                           <div className="flex items-center gap-2 ml-4 shrink-0">
                             <StatusBadge status={r.status} />
-                            <button onClick={() => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' })} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#0f52ba]"><Eye size={13} /> {t.view}</button>
+                            <button onClick={() => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' })} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-brand"><Eye size={13} /> {t.view}</button>
                             <button onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
                           </div>
                         </div>
@@ -1278,7 +1316,7 @@ export default function IDManagement() {
               <button key={tab.key} onClick={() => setReleaseTab(tab.key)}
                 className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${releaseTab === tab.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                 {tab.label}
-                {tab.badge > 0 && <span className="ml-1.5 bg-[#0f52ba] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
+                {tab.badge > 0 && <span className="ml-1.5 bg-brand text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
               </button>
             ))}
           </div>
@@ -1320,7 +1358,7 @@ export default function IDManagement() {
                             </div>
                             <div className="flex items-center gap-2 ml-4 shrink-0">
                               <StatusBadge status={isVoid ? 'void' : 'pending'} />
-                              {!isVoid && <button onClick={() => setDetailRecord(r)} className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline"><Eye size={14} /> {t.reviewAction}</button>}
+                              {!isVoid && <button onClick={() => setDetailRecord(r)} className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline"><Eye size={14} /> {t.reviewAction}</button>}
                               <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
                             </div>
                           </div>
@@ -1426,7 +1464,7 @@ export default function IDManagement() {
                             actions={
                               <>
                                 <button disabled={processing} onClick={() => setReleaseRecord(r)}
-                                  className="flex items-center gap-1.5 bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors">
+                                  className="flex items-center gap-1.5 bg-brand hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors">
                                   <Send size={13} /> {L(t, 'markReady', 'Mark ready to claim')}
                                 </button>
                                 <CancelBtn r={r} />

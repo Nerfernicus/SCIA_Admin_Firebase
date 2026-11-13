@@ -38,7 +38,7 @@ function AnnouncementBanner({ announcements }) {
   const a = announcements[current];
 
   return (
-    <div className="relative bg-linear-to-r from-[#0f52ba] to-blue-500 rounded-2xl px-5 py-4 shadow-md shadow-blue-500/20 flex items-start gap-4 overflow-hidden">
+    <div className="relative bg-linear-to-r from-brand to-blue-500 rounded-2xl px-5 py-4 shadow-md shadow-blue-500/20 flex items-start gap-4 overflow-hidden">
       <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
       <div className="absolute -right-2 -bottom-6 w-20 h-20 bg-white/5 rounded-full pointer-events-none" />
       <div className="bg-white/20 rounded-xl p-2.5 shrink-0 mt-0.5">
@@ -70,12 +70,12 @@ function AnnouncementBanner({ announcements }) {
   );
 }
 
-function EditModal({ announcement, onClose, onSaved }) {
+function EditModal({ announcement, onClose, onSaved, onFailed }) {
   const { t } = useLang();
   const [title, setTitle] = useState(announcement.Title);
   const [body, setBody] = useState(announcement.Body);
   const [audience, setAudience] = useState(announcement.Audience);
-  const [saving, setSaving] = useState(false);
+  const saving = false; // edits close at once (optimistic), so there is no waiting state
   const [error, setError] = useState('');
 
   const handleSave = async () => {
@@ -83,17 +83,15 @@ function EditModal({ announcement, onClose, onSaved }) {
       setError('Title and body are required.');
       return;
     }
-    setSaving(true);
+    // Optimistic: show the edit and close at once; the parent restores the old text if the save fails.
+    const updates = { Title: title.trim(), Body: body.trim(), Audience: audience };
+    onSaved({ ...announcement, ...updates });
+    onClose();
     try {
-      const updates = { Title: title.trim(), Body: body.trim(), Audience: audience };
       await updateDoc(doc(db, COLLECTION_ID, announcement.id), updates);
-      onSaved({ ...announcement, ...updates });
-      onClose();
     } catch (err) {
       console.error(err);
-      setError('Failed to update. Try again.');
-    } finally {
-      setSaving(false);
+      onFailed(announcement, 'edit');
     }
   };
 
@@ -149,7 +147,7 @@ function EditModal({ announcement, onClose, onSaved }) {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+            className="flex-1 py-3 rounded-xl bg-brand hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             Save Changes
@@ -160,20 +158,19 @@ function EditModal({ announcement, onClose, onSaved }) {
   );
 }
 
-function DeleteModal({ announcement, onClose, onDeleted }) {
+function DeleteModal({ announcement, onClose, onDeleted, onFailed }) {
   const { t } = useLang();
-  const [deleting, setDeleting] = useState(false);
+  const deleting = false; // deletes close at once (optimistic)
 
   const handleDelete = async () => {
-    setDeleting(true);
+    // Optimistic: the card disappears and the dialog closes at once; it comes back with an error if the delete fails.
+    onDeleted(announcement.id);
+    onClose();
     try {
       await deleteDoc(doc(db, COLLECTION_ID, announcement.id));
-      onDeleted(announcement.id);
-      onClose();
     } catch (err) {
       console.error(err);
-    } finally {
-      setDeleting(false);
+      onFailed(announcement, 'delete');
     }
   };
 
@@ -216,6 +213,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [editTarget, setEditTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [notice, setNotice] = useState('');
 
   const [sosAlerts, setSosAlerts] = useState([]);
   const [sosLoading, setSosLoading] = useState(true);
@@ -307,6 +305,16 @@ export default function Dashboard() {
     setAnnouncements((prev) => prev.filter((a) => a.id !== id));
   };
 
+  // Roll back an optimistic edit or delete and tell the admin.
+  const handleFailed = (original, what) => {
+    setAnnouncements((prev) => {
+      const without = prev.filter((a) => a.id !== original.id);
+      return [...without, original].sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+    });
+    setNotice(`Could not ${what} the announcement, so it was restored.`);
+    setTimeout(() => setNotice(''), 4500);
+  };
+
   const activeSosCount = sosAlerts.filter((a) => a.status !== 'resolved').length;
   const pendingSosCount = sosAlerts.filter((a) => a.status === 'pending').length;
   const dispatchedCount = sosAlerts.filter((a) => a.status === 'dispatched').length;
@@ -345,8 +353,11 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-full bg-gray-50 p-4 md:p-8 font-sans text-gray-900">
-      {editTarget && <EditModal announcement={editTarget} onClose={() => setEditTarget(null)} onSaved={handleSaved} />}
-      {deleteTarget && <DeleteModal announcement={deleteTarget} onClose={() => setDeleteTarget(null)} onDeleted={handleDeleted} />}
+      {editTarget && <EditModal announcement={editTarget} onClose={() => setEditTarget(null)} onSaved={handleSaved} onFailed={handleFailed} />}
+      {deleteTarget && <DeleteModal announcement={deleteTarget} onClose={() => setDeleteTarget(null)} onDeleted={handleDeleted} onFailed={handleFailed} />}
+      {notice && (
+        <div role="status" className="fixed bottom-6 right-6 z-[60] max-w-xs rounded-xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white shadow-lg">{notice}</div>
+      )}
 
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-gray-200 pb-4 gap-4">
@@ -459,7 +470,7 @@ export default function Dashboard() {
             title={t.seniorRecords}
           >
             <div className="flex justify-between items-center mb-4">
-              <BadgeCheck size={18} className="text-[#0f52ba]" />
+              <BadgeCheck size={18} className="text-brand" />
               {recordsLoading ? (
                 <span className="h-5 w-16 rounded bg-gray-100 animate-pulse" />
               ) : (

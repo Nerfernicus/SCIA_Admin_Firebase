@@ -69,7 +69,7 @@
   text-align: left;
   width: 100%;
   transition: all 0.12s;
-  font-family: 'DM Sans', sans-serif;
+  font-family: inherit;
 }
 
 .nav-item:hover {
@@ -118,7 +118,7 @@
   color: var(--text-secondary);
   cursor: pointer;
   text-align: left;
-  font-family: 'DM Sans', sans-serif;
+  font-family: inherit;
   border-radius: var(--radius-sm);
   transition: color 0.12s;
 }

@@ -211,6 +211,7 @@ export default function AdminAccounts() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const [lockedLocal, setLockedLocal] = useState(() => ({})); // optimistic lock states not yet confirmed: { [uid]: boolean }
   const [formFor, setFormFor] = useState(undefined); // undefined = closed, null = add, row = edit
 
   useEffect(() => {
@@ -238,33 +239,41 @@ export default function AdminAccounts() {
 
   const showToast = (msg) => {
     setToast(msg);
-    setTimeout(() => setToast(''), 3000);
+    setTimeout(() => setToast(''), 4500);
   };
 
   const confirm = async () => {
     if (!target) return;
     setBusy(true);
     setError('');
+    // Optimistic: the row flips and the dialog closes at once; if the server refuses, the row goes back and an error shows.
+    const who = target.name || target.email;
+    const next = !target.locked;
+    const drop = () => setLockedLocal((p) => { const n = { ...p }; delete n[target.id]; return n; });
+    setLockedLocal((p) => ({ ...p, [target.id]: next }));
+    setTarget(null);
+    showToast(`${who} ${next ? 'locked' : 'unlocked'}.`);
     try {
-      await setAdminLock({ uid: target.id, locked: !target.locked });
-      showToast(`${target.name || target.email} ${target.locked ? 'unlocked' : 'locked'}.`);
-      setTarget(null);
+      await setAdminLock({ uid: target.id, locked: next });
+      setTimeout(drop, 3000); // let the live snapshot catch up first
     } catch (e) {
-      setError(e?.message?.replace(/^.*?:\s*/, '') || 'Something went wrong. Please try again.');
+      drop();
+      showToast(`Could not ${next ? 'lock' : 'unlock'} ${who}, so it was restored. ${e?.message?.replace(/^.*?:\s*/, '') || 'Please try again.'}`);
     } finally {
       setBusy(false);
     }
   };
 
+  const view = admins.map((a) => (a.id in lockedLocal ? { ...a, locked: lockedLocal[a.id] } : a));
   const s = search.trim().toLowerCase();
-  const rows = admins.filter(
+  const rows = view.filter(
     (a) =>
       !s ||
       String(a.name || '').toLowerCase().includes(s) ||
       String(a.email || '').toLowerCase().includes(s) ||
       String(a.barangay || '').toLowerCase().includes(s),
   );
-  const lockedCount = admins.filter((a) => a.locked).length;
+  const lockedCount = view.filter((a) => a.locked).length;
 
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto font-sans">

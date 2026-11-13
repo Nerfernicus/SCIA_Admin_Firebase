@@ -68,7 +68,7 @@ export default function MissingRequirementsModal({ user, onClose, onDone }) {
         <p className="text-xs font-bold uppercase tracking-wider text-gray-600 mb-2">What is missing?</p>
         <ul className="space-y-2 mb-3">
           {DOCS.map((d) => (
-            <li key={d.kind} className={`rounded-xl border-2 p-3 ${picked[d.kind] ? 'border-[#0f52ba] bg-blue-50' : 'border-gray-200'}`}>
+            <li key={d.kind} className={`rounded-xl border-2 p-3 ${picked[d.kind] ? 'border-brand bg-blue-50' : 'border-gray-200'}`}>
               <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer">
                 <input type="checkbox" checked={!!picked[d.kind]} onChange={() => toggle(d.kind)} className="w-4 h-4" /> {d.label}
               </label>
@@ -76,7 +76,7 @@ export default function MissingRequirementsModal({ user, onClose, onDone }) {
                 <div className="flex gap-1.5 mt-2" role="radiogroup" aria-label={`How to submit ${d.label}`}>
                   {METHODS.map(({ key, label, Icon }) => (
                     <button key={key} type="button" role="radio" aria-checked={picked[d.kind] === key} onClick={() => setMethod(d.kind, key)}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border ${picked[d.kind] === key ? 'bg-[#0f52ba] text-white border-[#0f52ba]' : 'bg-white text-gray-600 border-gray-200'}`}>
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border ${picked[d.kind] === key ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200'}`}>
                       <Icon size={12} /> {label}
                     </button>
                   ))}
@@ -84,14 +84,14 @@ export default function MissingRequirementsModal({ user, onClose, onDone }) {
               )}
             </li>
           ))}
-          <li className={`rounded-xl border-2 p-3 ${picked.other ? 'border-[#0f52ba] bg-blue-50' : 'border-gray-200'}`}>
+          <li className={`rounded-xl border-2 p-3 ${picked.other ? 'border-brand bg-blue-50' : 'border-gray-200'}`}>
             <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer">
               <input type="checkbox" checked={!!picked.other} onChange={() => toggle('other')} className="w-4 h-4" /> <Plus size={13} /> Other document
             </label>
             {picked.other && (
               <>
                 <input value={other} onChange={(e) => setOther(e.target.value)} maxLength={80} placeholder="Name of the document"
-                  className="mt-2 w-full rounded-lg border-2 border-gray-200 bg-white p-2 text-sm outline-none focus:border-[#0f52ba]" />
+                  className="mt-2 w-full rounded-lg border-2 border-gray-200 bg-white p-2 text-sm outline-none focus:border-brand" />
                 <p className="text-xs text-gray-500 mt-1">Other documents are always brought in person.</p>
               </>
             )}
@@ -101,7 +101,7 @@ export default function MissingRequirementsModal({ user, onClose, onDone }) {
         <label htmlFor="mr-note" className="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-1.5">Note for the senior (optional)</label>
         <textarea id="mr-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} rows={2}
           placeholder="e.g. Please bring the original at the OSCA office, Mon–Fri."
-          className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 p-3 text-sm outline-none focus:border-[#0f52ba] mb-4" />
+          className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 p-3 text-sm outline-none focus:border-brand mb-4" />
 
         {err && <p role="alert" className="mb-3 text-sm font-semibold text-red-700 bg-red-50 rounded-xl px-4 py-2 flex items-start gap-2"><X size={14} className="mt-0.5 shrink-0" />{err}</p>}
 

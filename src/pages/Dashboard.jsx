@@ -536,7 +536,7 @@ export default function Dashboard() {
               <h2 className="text-lg font-bold text-gray-900">{t.recentAnnouncements}</h2>
               <button
                 onClick={() => navigate('/announcements')}
-                className="text-blue-600 hover:text-blue-800 text-sm font-semibold transition-colors flex items-center gap-1"
+                className="text-blue-600 hover:text-blue-800 text-sm font-semibold transition-colors flex items-center gap-1 icon-btn"
               >
                 {t.viewAll} <ChevronRight size={14} />
               </button>
@@ -590,13 +590,13 @@ export default function Dashboard() {
                           <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={() => setEditTarget(a)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold transition-colors icon-btn"
                             >
                               <Pencil size={12} /> {t.editProfile.split(' ')[0] /* "Edit" */}
                             </button>
                             <button
                               onClick={() => setDeleteTarget(a)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold transition-colors icon-btn"
                             >
                               <Trash2 size={12} /> {t.delete}
                             </button>

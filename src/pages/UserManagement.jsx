@@ -144,7 +144,7 @@ function ResetPasswordModal({ user, onClose }) {
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={busy ? undefined : onClose} />
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 z-10 text-center">
         <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <KeyRound size={24} className="text-[#0f52ba]" />
+          <KeyRound size={24} className="text-brand" />
         </div>
         {!result ? (
           <>
@@ -157,7 +157,7 @@ function ResetPasswordModal({ user, onClose }) {
             {error && <p role="alert" className="text-xs font-medium text-red-600 mb-3">{error}</p>}
             <div className="flex gap-3">
               <button onClick={onClose} disabled={busy} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors">Cancel</button>
-              <button onClick={run} disabled={busy} className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors">
+              <button onClick={run} disabled={busy} className="flex-1 py-3 rounded-xl bg-brand hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors">
                 {busy ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />} Reset
               </button>
             </div>
@@ -177,10 +177,10 @@ function ResetPasswordModal({ user, onClose }) {
               </div>
             </div>
             <div className="flex gap-3">
-              <button onClick={copy} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2 transition-colors">
+              <button onClick={copy} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2 transition-colors icon-btn">
                 <Copy size={15} /> {copied ? "Copied!" : "Copy"}
               </button>
-              <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 text-white text-sm font-bold transition-colors">Done</button>
+              <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-brand hover:bg-blue-700 text-white text-sm font-bold transition-colors">Done</button>
             </div>
           </>
         )}
@@ -462,9 +462,9 @@ export default function UserManagement() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
         <button
           onClick={() => setStatusFilter("ALL")}
-          className={`bg-white rounded-2xl p-6 shadow-sm border flex items-center gap-4 text-left transition-all ${statusFilter === "ALL" ? "border-[#0f52ba] ring-2 ring-[#0f52ba]/20" : "border-gray-100 hover:border-blue-200"}`}
+          className={`bg-white rounded-2xl p-6 shadow-sm border flex items-center gap-4 text-left transition-all ${statusFilter === "ALL" ? "border-brand ring-2 ring-brand/20" : "border-gray-100 hover:border-blue-200"}`}
         >
-          <div className="bg-blue-50 p-4 rounded-xl text-[#0f52ba]">
+          <div className="bg-blue-50 p-4 rounded-xl text-brand">
             <Users size={24} />
           </div>
           <div>
@@ -533,7 +533,7 @@ export default function UserManagement() {
                 : `${filtered.length} user${filtered.length !== 1 ? "s" : ""}`}
             </p>
             {statusFilter !== "ALL" && (
-              <span className="flex items-center gap-1.5 bg-blue-50 text-[#0f52ba] text-xs font-semibold px-3 py-1 rounded-full">
+              <span className="flex items-center gap-1.5 bg-blue-50 text-brand text-xs font-semibold px-3 py-1 rounded-full">
                 {filterLabels[statusFilter]}
                 <button onClick={() => setStatusFilter("ALL")}>
                   <X size={12} />
@@ -544,7 +544,7 @@ export default function UserManagement() {
           <div className="relative" ref={filterRef}>
             <button
               onClick={() => setFilterOpen((prev) => !prev)}
-              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-gray-200 transition-colors"
+              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-gray-200 transition-colors icon-btn"
             >
               <SlidersHorizontal size={16} /> Filters
               <ChevronDown
@@ -561,10 +561,10 @@ export default function UserManagement() {
                       setStatusFilter(val);
                       setFilterOpen(false);
                     }}
-                    className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-2 ${statusFilter === val ? "text-[#0f52ba]" : "text-gray-700"}`}
+                    className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-2 ${statusFilter === val ? "text-brand" : "text-gray-700"}`}
                   >
                     <span
-                      className={`w-1.5 h-1.5 rounded-full ${statusFilter === val ? "bg-[#0f52ba]" : "bg-transparent"}`}
+                      className={`w-1.5 h-1.5 rounded-full ${statusFilter === val ? "bg-brand" : "bg-transparent"}`}
                     ></span>
                     {label}
                   </button>
@@ -698,7 +698,7 @@ export default function UserManagement() {
                         <button
                           title="View senior profile"
                           onClick={() => setProfileUid(user.id)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold transition-colors border border-gray-200"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold transition-colors border border-gray-200 icon-btn"
                         >
                           <Eye size={13} /> View
                         </button>
@@ -707,7 +707,7 @@ export default function UserManagement() {
                           <button
                             title="Verify this senior's documents in Senior Records"
                             onClick={() => navigate("/senior-records")}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold transition-colors border border-green-200"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold transition-colors border border-green-200 icon-btn"
                           >
                             <ThumbsUp size={13} /> Verify
                           </button>
@@ -716,7 +716,7 @@ export default function UserManagement() {
                           <button
                             title={t.rvRejectBtn}
                             onClick={() => setReview({ user, action: "reject" })}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-colors border border-red-200"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-colors border border-red-200 icon-btn"
                           >
                             <ThumbsDown size={13} /> {t.rvRejectBtn}
                           </button>
@@ -724,7 +724,7 @@ export default function UserManagement() {
                         <button
                           title={user.flagged ? t.rvUnflagBtn : t.rvFlagBtn}
                           onClick={() => setReview({ user, action: user.flagged ? "unflag" : "flag" })}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold transition-colors border border-red-200"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold transition-colors border border-red-200 icon-btn"
                         >
                           <Flag size={13} /> {user.flagged ? t.rvUnflagBtn : t.rvFlagBtn}
                         </button>
@@ -750,7 +750,7 @@ export default function UserManagement() {
                           <button
                             title="Reactivate user"
                             onClick={() => handleReactivate(user.id)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold transition-colors border border-blue-200"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold transition-colors border border-blue-200 icon-btn"
                           >
                             <RotateCcw size={13} /> Reactivate
                           </button>
@@ -760,7 +760,7 @@ export default function UserManagement() {
                         <button
                           title="Reset password"
                           onClick={() => setResetTarget(user)}
-                          className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-[#0f52ba] transition-colors"
+                          className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-brand transition-colors"
                         >
                           <KeyRound size={16} />
                         </button>
@@ -792,7 +792,7 @@ export default function UserManagement() {
           </p>
           <button
             onClick={handleDownloadCSV}
-            className="bg-white border border-[#0f52ba] text-[#0f52ba] px-4 py-2 rounded-full text-sm font-semibold hover:bg-blue-50 transition-colors shadow-sm flex items-center gap-2"
+            className="bg-white border border-brand text-brand px-4 py-2 rounded-full text-sm font-semibold hover:bg-blue-50 transition-colors shadow-sm flex items-center gap-2 icon-btn"
           >
             <Download size={15} /> Download CSV
           </button>

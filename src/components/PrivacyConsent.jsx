@@ -18,13 +18,13 @@ export default function PrivacyConsent({ checked, onChange, error }) {
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
           aria-invalid={!!error}
-          className="mt-1 h-6 w-6 shrink-0 accent-[#0f52ba]"
+          className="mt-1 h-6 w-6 shrink-0 accent-brand"
         />
         <span className="text-sm text-gray-900">
           The senior (or their guardian) has read and agrees to the{' '}
-          <button type="button" onClick={() => setDoc('terms')} className="font-bold text-[#0f52ba] underline">Terms and Conditions</button>
+          <button type="button" onClick={() => setDoc('terms')} className="font-bold text-brand underline">Terms and Conditions</button>
           {' '}and the{' '}
-          <button type="button" onClick={() => setDoc('privacy')} className="font-bold text-[#0f52ba] underline">Data Privacy Policy</button>.
+          <button type="button" onClick={() => setDoc('privacy')} className="font-bold text-brand underline">Data Privacy Policy</button>.
         </span>
       </label>
       {error && <p role="alert" className="mt-2 text-sm font-medium text-red-600">Please tick this box to continue.</p>}
@@ -42,7 +42,7 @@ export default function PrivacyConsent({ checked, onChange, error }) {
                 <p className="text-sm text-gray-700">{body}</p>
               </div>
             ))}
-            <button type="button" onClick={() => setDoc(null)} className="mt-2 w-full rounded-xl bg-[#0f52ba] py-3 text-sm font-bold text-white">Close</button>
+            <button type="button" onClick={() => setDoc(null)} className="mt-2 w-full rounded-xl bg-brand py-3 text-sm font-bold text-white">Close</button>
           </div>
         </div>
       )}

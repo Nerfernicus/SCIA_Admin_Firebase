@@ -47,7 +47,7 @@ export default function AssistedKiosk() {
   if (state.status === 'loading') {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-gray-50">
-        <Loader2 size={28} className="animate-spin text-[#0f52ba]" />
+        <Loader2 size={28} className="animate-spin text-brand" />
       </div>
     );
   }
@@ -70,7 +70,7 @@ export default function AssistedKiosk() {
 
   return (
     <div className="min-h-dvh bg-gray-50">
-      <header className="bg-[#0f52ba] text-white px-6 py-4 flex items-center gap-3">
+      <header className="bg-brand text-white px-6 py-4 flex items-center gap-3">
         <UserPlus size={22} />
         <div>
           <p className="font-bold leading-tight">Senior Citizen Sign-Up</p>

@@ -391,7 +391,7 @@ export default function EventCheckIn() {
     <div className="flex-1 min-w-0 bg-[#f8f9fa] min-h-dvh p-3 sm:p-6 lg:p-8 font-sans">
       <div className="mb-5 sm:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-          <QrCode className="text-[#0f52ba]" size={30} /> Event Check-In
+          <QrCode className="text-brand" size={30} /> Event Check-In
         </h1>
         <p className="text-sm sm:text-base text-gray-500">Scan a senior's account QR to check them in to a joinable event.</p>
       </div>
@@ -424,13 +424,13 @@ export default function EventCheckIn() {
       <div className="flex flex-wrap gap-2 mb-4 sm:mb-6">
         <button
           onClick={() => changeTab("scan")}
-          className={`px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-2 ${tab === "scan" ? "bg-[#0f52ba] text-white" : "bg-white text-gray-500 border border-gray-100"}`}
+          className={`px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-2 ${tab === "scan" ? "bg-brand text-white" : "bg-white text-gray-500 border border-gray-100"}`}
         >
           <Camera size={15} /> Scan
         </button>
         <button
           onClick={() => changeTab("attendees")}
-          className={`px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-2 ${tab === "attendees" ? "bg-[#0f52ba] text-white" : "bg-white text-gray-500 border border-gray-100"}`}
+          className={`px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-2 ${tab === "attendees" ? "bg-brand text-white" : "bg-white text-gray-500 border border-gray-100"}`}
         >
           <ListChecks size={15} /> Attendees
         </button>
@@ -449,19 +449,19 @@ export default function EventCheckIn() {
               <div className="flex items-center gap-2">
                 {scanning && (
                   <button onClick={switchCamera}
-                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-full flex items-center gap-2"
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-2 rounded-full flex items-center gap-2 icon-btn"
                     title="Switch between back and front camera">
                     <SwitchCamera size={15} /> <span className="hidden sm:inline">Switch</span>
                   </button>
                 )}
                 {!scanning ? (
                   <button onClick={() => startScanning("environment")} disabled={!selectedEventId}
-                    className="bg-[#0f52ba] disabled:opacity-40 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full flex items-center gap-2">
+                    className="bg-brand disabled:opacity-40 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full flex items-center gap-2 icon-btn">
                     <Camera size={15} /> Start
                   </button>
                 ) : (
                   <button onClick={() => stopScanning()}
-                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-full flex items-center gap-2">
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-full flex items-center gap-2 icon-btn">
                     <CameraOff size={15} /> Stop
                   </button>
                 )}
@@ -501,7 +501,7 @@ export default function EventCheckIn() {
                   placeholder="Paste QR text or OSCA ID number"
                   className="flex-1 min-w-0 bg-gray-50 rounded-xl py-2.5 px-4 text-base sm:text-sm border border-gray-100 outline-none"
                 />
-                <button type="submit" className="bg-gray-900 hover:bg-black text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold">
+                <button type="submit" className="bg-gray-900 hover:bg-black text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold icon-btn">
                   <Search size={15} /> Look up
                 </button>
               </div>
@@ -531,7 +531,7 @@ export default function EventCheckIn() {
 
             {!lookingUp && result?.status === "already" && (
               <ResultCard tone="amber" icon={Clock} title="Already checked in" name={result.name}>
-                <button onClick={() => undoCheckIn(result.uid)} className="mt-3 text-xs font-semibold text-gray-500 hover:text-red-500 flex items-center gap-1.5">
+                <button onClick={() => undoCheckIn(result.uid)} className="mt-3 text-xs font-semibold text-gray-500 hover:text-red-500 flex items-center gap-1.5 icon-btn">
                   <RotateCcw size={13} /> Undo check-in
                 </button>
               </ResultCard>
@@ -591,7 +591,7 @@ export default function EventCheckIn() {
                   ) : (
                     <button
                       onClick={() => manualCheckIn(a.id)}
-                      className="text-xs font-semibold bg-[#0f52ba] hover:bg-blue-700 text-white px-3 py-1.5 rounded-full"
+                      className="text-xs font-semibold bg-brand hover:bg-blue-700 text-white px-3 py-1.5 rounded-full"
                     >
                       Check in
                     </button>

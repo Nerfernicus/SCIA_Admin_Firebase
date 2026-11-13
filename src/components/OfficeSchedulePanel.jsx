@@ -132,7 +132,7 @@ export default function OfficeSchedulePanel({ idRequests, actorUid, onToast, onR
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <ClockIcon size={16} className="text-[#0f52ba]" /> Office status
+              <ClockIcon size={16} className="text-brand" /> Office status
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">Seniors see this in the app when they choose a pickup time.</p>
           </div>
@@ -154,14 +154,14 @@ export default function OfficeSchedulePanel({ idRequests, actorUid, onToast, onR
         <input
           value={note} onChange={e => setNote(e.target.value)} maxLength={80}
           placeholder='Note for seniors, e.g. "Back at 1:00 PM" (used for On break / Closed)'
-          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#0f52ba]"
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand"
         />
       </div>
 
       {/* ── Office hours ── */}
       <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
         <h2 className="text-base font-bold text-gray-900 flex items-center gap-2 mb-4">
-          <CalendarDays size={16} className="text-[#0f52ba]" /> Pickup hours
+          <CalendarDays size={16} className="text-brand" /> Pickup hours
         </h2>
 
         <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Days seniors can pick up</p>
@@ -170,7 +170,7 @@ export default function OfficeSchedulePanel({ idRequests, actorUid, onToast, onR
             <button
               key={w} onClick={() => toggleDay(i)}
               className={`w-14 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                draft.schedule.days.includes(i) ? 'bg-[#0f52ba] text-white border-[#0f52ba]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#0f52ba]'
+                draft.schedule.days.includes(i) ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-brand'
               }`}
             >{w}</button>
           ))}
@@ -227,13 +227,13 @@ export default function OfficeSchedulePanel({ idRequests, actorUid, onToast, onR
           <input type="date" min={phToday()} max={addDays(phToday(), 365)} value={newClosed} onChange={e => setNewClosed(e.target.value)}
             className="border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900" />
           <button onClick={addClosed} disabled={!newClosed}
-            className="flex items-center gap-1.5 border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 text-xs font-bold px-3 py-2 rounded-xl">
+            className="flex items-center gap-1.5 border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 text-xs font-bold px-3 py-2 rounded-xl icon-btn">
             <Plus size={12} /> Add closed date
           </button>
         </div>
 
         <button onClick={saveHours} disabled={saving}
-          className="flex items-center gap-2 bg-[#0f52ba] hover:bg-[#0c44a0] disabled:opacity-60 text-white text-sm font-bold px-5 py-2.5 rounded-xl">
+          className="flex items-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-60 text-white text-sm font-bold px-5 py-2.5 rounded-xl">
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save pickup hours
         </button>
         <p className="text-xs text-gray-400 mt-2">Seniors already booked keep their time. Changes apply to new bookings.</p>
@@ -242,7 +242,7 @@ export default function OfficeSchedulePanel({ idRequests, actorUid, onToast, onR
       {/* ── Queue ── */}
       <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
         <h2 className="text-base font-bold text-gray-900 flex items-center gap-2 mb-1">
-          <Users size={16} className="text-[#0f52ba]" /> Pickup queue
+          <Users size={16} className="text-brand" /> Pickup queue
         </h2>
         <p className="text-xs text-gray-500 mb-4">Everyone who will come to City Hall, by day and time.</p>
 
@@ -260,7 +260,7 @@ export default function OfficeSchedulePanel({ idRequests, actorUid, onToast, onR
                   <div key={r.id} className="flex items-center justify-between gap-3 border border-gray-100 rounded-xl px-4 py-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-gray-900 truncate">
-                        <span className="text-[#0f52ba] mr-2">{formatTime12(r.pickup.time)}</span>
+                        <span className="text-brand mr-2">{formatTime12(r.pickup.time)}</span>
                         {r.seniorName || r.fullName || 'Senior'}
                       </p>
                       <p className="text-xs text-gray-400 mt-0.5">
@@ -288,7 +288,7 @@ export default function OfficeSchedulePanel({ idRequests, actorUid, onToast, onR
                 <div key={r.id} className="flex items-center justify-between gap-3 border border-orange-100 bg-orange-50/40 rounded-xl px-4 py-3">
                   <p className="text-sm font-semibold text-gray-800 truncate">{r.seniorName || r.fullName || 'Senior'}</p>
                   <button onClick={() => onReschedule(r)}
-                    className="shrink-0 text-xs font-bold bg-[#0f52ba] text-white hover:bg-[#0c44a0] px-3 py-2 rounded-xl">
+                    className="shrink-0 text-xs font-bold bg-brand text-white hover:bg-brand-dark px-3 py-2 rounded-xl">
                     Set time
                   </button>
                 </div>

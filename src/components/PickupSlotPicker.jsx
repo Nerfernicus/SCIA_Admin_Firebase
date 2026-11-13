@@ -47,8 +47,8 @@ export default function PickupSlotPicker({ office, value, onChange, ownSlot }) {
               onClick={() => onChange({ date: d, time: value?.date === d ? value.time : '' })}
               className={`px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
                 selectedDate === d
-                  ? 'bg-[#0f52ba] text-white border-[#0f52ba]'
-                  : 'bg-white text-gray-700 border-gray-200 hover:border-[#0f52ba]'
+                  ? 'bg-brand text-white border-brand'
+                  : 'bg-white text-gray-700 border-gray-200 hover:border-brand'
               }`}
             >
               {formatDateShort(d)}
@@ -73,10 +73,10 @@ export default function PickupSlotPicker({ office, value, onChange, ownSlot }) {
                   onClick={() => onChange({ date: selectedDate, time: tm })}
                   className={`px-2 py-2 rounded-xl text-sm border transition-colors ${
                     active
-                      ? 'bg-[#0f52ba] text-white border-[#0f52ba]'
+                      ? 'bg-brand text-white border-brand'
                       : disabled
                         ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
-                        : 'bg-white text-gray-700 border-gray-200 hover:border-[#0f52ba]'
+                        : 'bg-white text-gray-700 border-gray-200 hover:border-brand'
                   }`}
                 >
                   <span className="font-semibold block">{formatTime12(tm)}</span>

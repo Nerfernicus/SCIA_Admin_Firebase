@@ -223,14 +223,14 @@ export default function DocumentCapture({ value, onChange }) {
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {[['auto', 'Auto'], ['id', 'ID card'], ['document', 'Document']].map(([k, l]) => (
               <button key={k} type="button" onClick={() => { setMode(k); votes.current = []; }}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${mode === k ? 'bg-[#0f52ba] text-white border-[#0f52ba]' : 'bg-white text-gray-600 border-gray-200'}`}>{l}</button>
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${mode === k ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200'}`}>{l}</button>
             ))}
             <label className="ml-2 flex items-center gap-1 text-xs text-gray-600">
               <input type="checkbox" checked={autoShot} onChange={(e) => setAutoShot(e.target.checked)} /> Take it when steady
             </label>
             <div className="ml-auto flex gap-2">
               <button type="button" onClick={stop} className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700">Cancel</button>
-              <button type="button" onClick={() => capture(box, kind)} className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-bold flex items-center gap-1"><Camera size={14} /> Capture</button>
+              <button type="button" onClick={() => capture(box, kind)} className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-bold flex items-center gap-1 icon-btn"><Camera size={14} /> Capture</button>
             </div>
           </div>
         </div>
@@ -239,7 +239,7 @@ export default function DocumentCapture({ value, onChange }) {
       {!live && (
         <div className="flex flex-wrap gap-2">
           <button type="button" disabled={full || starting} onClick={start}
-            className="px-4 py-2 rounded-lg bg-[#0f52ba] hover:bg-[#0c3f91] text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50">
+            className="px-4 py-2 rounded-lg bg-brand hover:bg-brand-dark text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50">
             {starting ? <Loader2 size={15} className="animate-spin" /> : value.length ? <RefreshCw size={15} /> : <Camera size={15} />} {value.length ? 'Scan another' : 'Scan with camera'}
           </button>
           <button type="button" disabled={full || busy} onClick={() => fileRef.current?.click()}

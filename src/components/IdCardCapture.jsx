@@ -205,7 +205,7 @@ export default function IdCardCapture({ value, onChange, later, onLaterChange })
         <button
           type="button"
           onClick={() => { onLaterChange(false); autoTried.current = false; }}
-          className="text-xs font-bold text-[#0f52ba] underline"
+          className="text-xs font-bold text-brand underline"
         >
           Take the photo now instead
         </button>
@@ -230,10 +230,10 @@ export default function IdCardCapture({ value, onChange, later, onLaterChange })
             <Check size={14} /> Photo ready. Check that the ID number and name can be read.
           </p>
           <div className="flex gap-4">
-            <button type="button" onClick={retake} className="text-xs font-bold text-[#0f52ba] underline flex items-center gap-1">
+            <button type="button" onClick={retake} className="text-xs font-bold text-brand underline flex items-center gap-1 icon-btn">
               <RefreshCw size={12} /> Retake
             </button>
-            <button type="button" onClick={() => fileRef.current?.click()} className="text-xs font-bold text-[#0f52ba] underline flex items-center gap-1">
+            <button type="button" onClick={() => fileRef.current?.click()} className="text-xs font-bold text-brand underline flex items-center gap-1 icon-btn">
               <ImagePlus size={12} /> Choose a different file
             </button>
           </div>
@@ -270,10 +270,10 @@ export default function IdCardCapture({ value, onChange, later, onLaterChange })
           )}
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <button type="button" onClick={takePhoto} className="flex-1 py-2.5 rounded-xl bg-[#0f52ba] hover:bg-blue-700 text-white text-sm font-bold flex items-center justify-center gap-2">
+            <button type="button" onClick={takePhoto} className="flex-1 py-2.5 rounded-xl bg-brand hover:bg-blue-700 text-white text-sm font-bold flex items-center justify-center gap-2 icon-btn">
               <Camera size={16} /> Take photo
             </button>
-            <button type="button" onClick={() => { stopStream(); fileRef.current?.click(); }} className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2">
+            <button type="button" onClick={() => { stopStream(); fileRef.current?.click(); }} className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2 icon-btn">
               <ImagePlus size={16} /> Choose from files instead
             </button>
           </div>
@@ -287,10 +287,10 @@ export default function IdCardCapture({ value, onChange, later, onLaterChange })
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={(e) => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files && e.dataTransfer.files[0]); }}
-            className={`w-full rounded-xl border-2 border-dashed p-6 flex flex-col items-center gap-2 text-center transition-colors ${dragging ? 'border-[#0f52ba] bg-blue-50' : 'border-gray-300 bg-gray-50 hover:bg-gray-100'}`}
+            className={`w-full rounded-xl border-2 border-dashed p-6 flex flex-col items-center gap-2 text-center transition-colors ${dragging ? 'border-brand bg-blue-50' : 'border-gray-300 bg-gray-50 hover:bg-gray-100'}`}
           >
             <span className="w-14 h-14 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-lg font-extrabold text-gray-500">
-              {starting || cameras === null ? <Loader2 size={22} className="animate-spin text-[#0f52ba]" /> : 'ID'}
+              {starting || cameras === null ? <Loader2 size={22} className="animate-spin text-brand" /> : 'ID'}
             </span>
             <span className="text-base font-bold text-gray-700">Upload ID Photo</span>
             <span className="text-xs text-gray-500">
@@ -300,14 +300,14 @@ export default function IdCardCapture({ value, onChange, later, onLaterChange })
 
           {cameras === null && <p className="text-xs text-gray-500">Checking for a camera…</p>}
           {hasCamera && !starting && (
-            <button type="button" onClick={() => startCamera(deviceId || undefined)} className="text-xs font-bold text-[#0f52ba] underline flex items-center gap-1">
+            <button type="button" onClick={() => startCamera(deviceId || undefined)} className="text-xs font-bold text-brand underline flex items-center gap-1 icon-btn">
               <Camera size={12} /> Start camera
             </button>
           )}
           {cameras && cameras.length === 0 && (
             <p className="text-xs text-gray-500 flex items-center gap-1.5">
               <CameraOff size={12} /> No camera found on this PC. Plug one in and it will open here, or choose the photo from the files.{' '}
-              <button type="button" onClick={() => startCamera()} className="font-bold text-[#0f52ba] underline">Try the camera anyway</button>
+              <button type="button" onClick={() => startCamera()} className="font-bold text-brand underline">Try the camera anyway</button>
             </p>
           )}
         </div>

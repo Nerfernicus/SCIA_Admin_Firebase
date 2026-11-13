@@ -240,7 +240,7 @@ export default function Sidebar({ children }) {
               transition: 'padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
               background: 'linear-gradient(135deg, var(--color-brand) 0%, #1a6fd4 100%)',
             }}
-            className="w-full flex items-center gap-3 rounded-xl text-sm font-semibold text-white shadow-md shadow-blue-500/25 hover:shadow-blue-500/40 hover:brightness-110 transition-all duration-150"
+            className="w-full flex items-center gap-3 rounded-xl text-sm font-semibold text-white shadow-md shadow-blue-500/25 hover:shadow-blue-500/40 hover:brightness-110 transition-all duration-150 icon-btn"
           >
             <FileText size={18} className="shrink-0 text-white/90" />
             <span style={labelStyle(expanded)}>{t.generateReport}</span>

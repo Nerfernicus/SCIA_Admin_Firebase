@@ -90,9 +90,9 @@ export default function AccountCreationPanel() {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                   <button onClick={() => setProfileId(a.id)}
-                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-bold flex items-center gap-1"><Eye size={13} /> View</button>
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-bold flex items-center gap-1 icon-btn"><Eye size={13} /> View</button>
                   <button onClick={() => { setErr(''); setTarget(a); }}
-                    className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-bold flex items-center gap-1">
+                    className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-bold flex items-center gap-1 icon-btn">
                     <UserPlus size={13} /> Create account
                   </button>
                   </div>
@@ -134,10 +134,10 @@ export default function AccountCreationPanel() {
               <div><p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Temporary password</p><p className="text-xl font-mono font-bold text-gray-900">{creds.tempPassword}</p></div>
             </div>
             <div className="mt-4 flex gap-2">
-              <button onClick={copy} className="flex-1 py-2.5 rounded-lg border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"><Copy size={15} /> {copied ? 'Copied!' : 'Copy'}</button>
-              <button onClick={() => slip(creds.app, creds)} className="flex-1 py-2.5 rounded-lg border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"><Printer size={15} /> Print slip</button>
+              <button onClick={copy} className="flex-1 py-2.5 rounded-lg border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 icon-btn"><Copy size={15} /> {copied ? 'Copied!' : 'Copy'}</button>
+              <button onClick={() => slip(creds.app, creds)} className="flex-1 py-2.5 rounded-lg border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 icon-btn"><Printer size={15} /> Print slip</button>
             </div>
-            <button onClick={() => setCreds(null)} className="mt-3 w-full py-2.5 rounded-lg bg-[#0f52ba] hover:bg-blue-700 text-white text-sm font-bold">Done</button>
+            <button onClick={() => setCreds(null)} className="mt-3 w-full py-2.5 rounded-lg bg-brand hover:bg-blue-700 text-white text-sm font-bold">Done</button>
           </div>
         </div>
       )}

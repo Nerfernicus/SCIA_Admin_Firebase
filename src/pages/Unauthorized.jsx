@@ -22,7 +22,7 @@ export default function Unauthorized() {
         </p>
         <button
           onClick={() => navigate('/')}
-          className="inline-flex items-center gap-2 bg-[#0f52ba] hover:bg-blue-700 text-white px-6 py-3 rounded-xl text-sm font-semibold transition-colors"
+          className="inline-flex items-center gap-2 bg-brand hover:bg-blue-700 text-white px-6 py-3 rounded-xl text-sm font-semibold transition-colors icon-btn"
         >
           <ArrowLeft size={16} />
           Back to Dashboard

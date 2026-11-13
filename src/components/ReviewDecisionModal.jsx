@@ -25,7 +25,7 @@ const TONE = {
   green: { bubble: 'bg-green-100 text-green-600', btn: 'bg-green-600 hover:bg-green-700' },
   red: { bubble: 'bg-red-100 text-red-600', btn: 'bg-red-600 hover:bg-red-700' },
   amber: { bubble: 'bg-amber-100 text-amber-600', btn: 'bg-amber-500 hover:bg-amber-600' },
-  blue: { bubble: 'bg-blue-100 text-blue-600', btn: 'bg-[#0f52ba] hover:bg-blue-700' },
+  blue: { bubble: 'bg-blue-100 text-blue-600', btn: 'bg-brand hover:bg-blue-700' },
 };
 
 export default function ReviewDecisionModal({ action, user, users, busy, onClose, onConfirm }) {
@@ -131,7 +131,7 @@ export default function ReviewDecisionModal({ action, user, users, busy, onClose
               maxLength={500}
               rows={3}
               placeholder={t.rvReasonPlaceholder}
-              className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 p-3 text-sm text-gray-900 outline-none focus:border-[#0f52ba]"
+              className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 p-3 text-sm text-gray-900 outline-none focus:border-brand"
             />
           </div>
         )}

@@ -314,7 +314,7 @@ export default function AdminAccounts() {
         <div className="flex items-center gap-3 flex-wrap">
         <button
           onClick={() => setFormFor(null)}
-          className="inline-flex items-center gap-2 bg-brand hover:bg-blue-800 text-white text-sm font-bold rounded-xl px-4 py-2.5 transition-colors"
+          className="inline-flex items-center gap-2 bg-brand hover:bg-blue-800 text-white text-sm font-bold rounded-xl px-4 py-2.5 transition-colors icon-btn"
         >
           <UserPlus size={16} /> Add Sub Admin
         </button>
@@ -377,7 +377,7 @@ export default function AdminAccounts() {
                   <td className="py-3.5 px-5 text-right whitespace-nowrap">
                     <button
                       onClick={() => setFormFor(a)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 mr-2 rounded-lg text-xs font-bold border transition-colors bg-blue-50 hover:bg-blue-100 text-brand border-blue-200"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 mr-2 rounded-lg text-xs font-bold border transition-colors bg-blue-50 hover:bg-blue-100 text-brand border-blue-200 icon-btn"
                     >
                       <Pencil size={13} /> Edit
                     </button>

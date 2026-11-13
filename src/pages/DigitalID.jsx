@@ -66,7 +66,7 @@ function IDTemplatePreview() {
     <div className="mb-6">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 text-sm font-semibold text-[#0f52ba] hover:text-blue-800 transition-colors"
+        className="flex items-center gap-2 text-sm font-semibold text-brand hover:text-blue-800 transition-colors icon-btn"
       >
         <CreditCard size={15} />
         {open ? t.hideTemplate : t.viewTemplate}
@@ -132,7 +132,7 @@ function DigitalIDCard({ senior }) {
 
       <button
         onClick={handlePrint}
-        className="w-full flex items-center justify-center gap-2 bg-[#0a3d91] hover:bg-blue-800 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+        className="w-full flex items-center justify-center gap-2 bg-[#0a3d91] hover:bg-blue-800 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors icon-btn"
       >
         <Download size={15} /> {t.downloadPrintId}
       </button>
@@ -271,7 +271,7 @@ export default function DigitalID() {
           <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-8 max-w-2xl w-full max-h-[92dvh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <CreditCard size={18} className="text-[#0f52ba]" /> {t.digitalId}
+                <CreditCard size={18} className="text-brand" /> {t.digitalId}
               </h3>
               <button onClick={() => setPreviewID(null)} className="text-gray-400 hover:text-gray-600">
                 <X size={18} />
@@ -297,7 +297,7 @@ export default function DigitalID() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <CreditCard size={24} className="text-[#0f52ba]" /> {t.digitalIdsTitle}
+          <CreditCard size={24} className="text-brand" /> {t.digitalIdsTitle}
         </h1>
         <p className="text-sm text-gray-500 mt-1">
           {t.digitalIdsSubtitle}
@@ -423,7 +423,7 @@ export default function DigitalID() {
                   <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 hover:border-blue-200 transition-colors">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
-                        <User2 size={18} className="text-[#0f52ba]" />
+                        <User2 size={18} className="text-brand" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-gray-900">{r.fullName}</p>
@@ -437,7 +437,7 @@ export default function DigitalID() {
                       <StatusBadge status={r.status || 'released'} />
                       <button
                         onClick={() => setPreviewID(r)}
-                        className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline"
+                        className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline icon-btn"
                       >
                         <Eye size={14} /> {t.viewId}
                       </button>

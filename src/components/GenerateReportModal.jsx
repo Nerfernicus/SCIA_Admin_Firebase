@@ -91,8 +91,8 @@ const GenerateReportModal = ({ isOpen, onClose, isSuperAdmin }) => {
 
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="bg-[#0f52ba]/10 p-2 rounded-xl">
-              <FileText size={20} className="text-[#0f52ba]" />
+            <div className="bg-brand/10 p-2 rounded-xl">
+              <FileText size={20} className="text-brand" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">Generate Report</h2>
@@ -113,13 +113,13 @@ const GenerateReportModal = ({ isOpen, onClose, isSuperAdmin }) => {
               <button key={type.id} onClick={() => setSelectedType(type.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all text-sm ${
                   selectedType === type.id
-                    ? 'border-[#0f52ba] bg-[#0f52ba]/5 text-[#0f52ba]'
+                    ? 'border-brand bg-brand/5 text-brand'
                     : 'border-gray-100 text-gray-600 hover:border-gray-200 hover:bg-gray-50'
                 }`}>
-                <div className={`w-2 h-2 rounded-full shrink-0 ${selectedType === type.id ? 'bg-[#0f52ba]' : 'bg-gray-300'}`} />
+                <div className={`w-2 h-2 rounded-full shrink-0 ${selectedType === type.id ? 'bg-brand' : 'bg-gray-300'}`} />
                 <div>
                   <p className="font-medium">{type.label}</p>
-                  <p className={`text-xs ${selectedType === type.id ? 'text-[#0f52ba]/70' : 'text-gray-400'}`}>{type.description}</p>
+                  <p className={`text-xs ${selectedType === type.id ? 'text-brand/70' : 'text-gray-400'}`}>{type.description}</p>
                 </div>
               </button>
             ))}
@@ -132,12 +132,12 @@ const GenerateReportModal = ({ isOpen, onClose, isSuperAdmin }) => {
             <div className="flex-1">
               <label className="text-xs text-gray-400 mb-1 block">From</label>
               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0f52ba]/30 focus:border-[#0f52ba]" />
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
             </div>
             <div className="flex-1">
               <label className="text-xs text-gray-400 mb-1 block">To</label>
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0f52ba]/30 focus:border-[#0f52ba]" />
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
             </div>
           </div>
         </div>
@@ -148,7 +148,7 @@ const GenerateReportModal = ({ isOpen, onClose, isSuperAdmin }) => {
             {FORMATS.map(f => (
               <button key={f} onClick={() => setFormat(f)}
                 className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all ${
-                  format === f ? 'bg-[#0f52ba] text-white border-[#0f52ba] shadow-sm' : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                  format === f ? 'bg-brand text-white border-brand shadow-sm' : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                 }`}>
                 {f}
               </button>
@@ -160,7 +160,7 @@ const GenerateReportModal = ({ isOpen, onClose, isSuperAdmin }) => {
 
         <button onClick={handleGenerate} disabled={status !== 'idle'}
           className={`w-full py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
-            status === 'done' ? 'bg-green-500 text-white' : 'bg-[#0f52ba] hover:bg-blue-700 text-white disabled:opacity-60'
+            status === 'done' ? 'bg-green-500 text-white' : 'bg-brand hover:bg-blue-700 text-white disabled:opacity-60'
           }`}>
           {status === 'idle'    && <><Download size={16} /> Generate & Download</>}
           {status === 'loading' && <><Loader2 size={16} className="animate-spin" /> Generating Report...</>}

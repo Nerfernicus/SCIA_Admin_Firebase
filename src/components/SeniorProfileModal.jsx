@@ -26,7 +26,7 @@ function Category({ icon: Icon, title, children }) {
   return (
     <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
       <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-gray-500">
-        <Icon size={16} className="text-[#0f52ba]" /> {title}
+        <Icon size={16} className="text-brand" /> {title}
       </h3>
       {children}
     </section>

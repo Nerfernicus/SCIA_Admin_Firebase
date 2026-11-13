@@ -152,7 +152,7 @@ function DeleteConfirmModal({ alert, onClose, onConfirm }) {
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+            className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors icon-btn"
           >
             <Trash2 size={14} /> Delete
           </button>
@@ -562,7 +562,7 @@ export default function SOSMap() {
         <div className={`absolute bottom-24 left-4 sm:bottom-8 sm:left-6 flex flex-col gap-3 z-1000 ${sheetOpen ? 'max-sm:hidden' : ''}`}>
           <button onClick={handleLocateMe} disabled={isLocating}
             className={`bg-white/90 backdrop-blur p-3 rounded-2xl shadow-lg border border-gray-100 transition-colors ${
-              isLocating ? 'text-gray-400 cursor-not-allowed' : 'text-[#0f52ba] hover:bg-gray-50'
+              isLocating ? 'text-gray-400 cursor-not-allowed' : 'text-brand hover:bg-gray-50'
             }`} title="Locate me">
             <Crosshair size={20} className={isLocating ? 'animate-spin' : ''} />
           </button>

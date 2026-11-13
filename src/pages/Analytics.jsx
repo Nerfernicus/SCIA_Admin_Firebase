@@ -19,7 +19,7 @@ function PeriodToggle({ value, onChange }) {
           key={p.id}
           onClick={() => onChange(p.id)}
           className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            value === p.id ? 'bg-white text-[#0f52ba] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            value === p.id ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'
           }`}
         >
           {p.label}
@@ -200,7 +200,7 @@ function MiniTrend({ points, color }) {
 const DETAIL_META = {
   announcements: { label: 'Announcements', collectionName: 'editorial_health', icon: Megaphone, iconBg: 'bg-[#eaf1fb]', iconColor: 'text-[#3d74c9]', color: '#5b8fdb' },
   sos: { label: 'SOS Events', collectionName: 'emergencies', icon: Map, iconBg: 'bg-red-50', iconColor: 'text-red-500', color: '#ef4444' },
-  health: { label: 'Health Centers', collectionName: 'health_centers', icon: Building2, iconBg: 'bg-[#eaf1fb]', iconColor: 'text-[#0f52ba]', color: '#0b3d91' },
+  health: { label: 'Health Centers', collectionName: 'health_centers', icon: Building2, iconBg: 'bg-[#eaf1fb]', iconColor: 'text-brand', color: '#0b3d91' },
   users: { label: 'Active Users', collectionName: 'users', icon: Users, iconBg: 'bg-amber-50', iconColor: 'text-amber-500', color: '#f59e0b' },
 };
 
@@ -274,7 +274,7 @@ function DetailModal({ type, onClose, isSuperAdmin, myBarangay, period, periodMe
 
         {loading ? (
           <div className="py-16 flex items-center justify-center">
-            <Loader2 size={24} className="animate-spin text-[#0f52ba]" />
+            <Loader2 size={24} className="animate-spin text-brand" />
           </div>
         ) : (
           <div className="space-y-6">
@@ -318,7 +318,7 @@ function DetailModal({ type, onClose, isSuperAdmin, myBarangay, period, periodMe
                           <span className="font-semibold text-gray-900">{count}</span>
                         </div>
                         <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full bg-[#0f52ba]" style={{ width: `${(count / data.total) * 100}%` }} />
+                          <div className="h-full rounded-full bg-brand" style={{ width: `${(count / data.total) * 100}%` }} />
                         </div>
                       </div>
                     ))}
@@ -517,15 +517,15 @@ export default function Analytics() {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <BarChart3 size={24} className="text-[#0f52ba]" /> Analytics & Reports
+            <BarChart3 size={24} className="text-brand" /> Analytics & Reports
           </h1>
           <p className="text-sm text-gray-500 mt-1 flex items-center gap-1.5">
             {pageSub}
             <span className="inline-flex items-center gap-1 text-gray-400">
               <span className="text-gray-300">&middot;</span>
               <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0f52ba] opacity-50" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#0f52ba]" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-50" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-brand" />
               </span>
               live
             </span>
@@ -541,7 +541,7 @@ export default function Analytics() {
       ) : (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-            <div className="lg:col-span-2 rounded-2xl p-6 text-white shadow-lg bg-linear-to-br from-[#0f52ba] to-[#1a6fd4]">
+            <div className="lg:col-span-2 rounded-2xl p-6 text-white shadow-lg bg-linear-to-br from-brand to-[#1a6fd4]">
               <div className="flex items-start justify-between mb-1">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-white/70">Total Activity</p>
@@ -605,7 +605,7 @@ export default function Analytics() {
               label="Health Centers"
               value={stats?.healthCenters}
               sub="Listed facilities"
-              gradient="bg-linear-to-br from-[#0a2f6b] to-[#0f52ba]"
+              gradient="bg-linear-to-br from-[#0a2f6b] to-brand"
               onClick={() => setActiveDetail('health')}
             />
             {isSuperAdmin ? (

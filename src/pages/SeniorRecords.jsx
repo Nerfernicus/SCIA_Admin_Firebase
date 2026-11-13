@@ -161,7 +161,7 @@ function VerifyModal({ user, onClose, onDone }) {
           </div>
         ))}
         <button onClick={() => setRows([...rows, { type: 'birth_certificate', number: '' }])}
-          className="text-sm font-semibold text-brand flex items-center gap-1"><Plus size={14} /> Add another document</button>
+          className="text-sm font-semibold text-brand flex items-center gap-1 icon-btn"><Plus size={14} /> Add another document</button>
       </div>
 
       <OscaNumberField value={recordNo} onChange={setRecordNo} />
@@ -550,7 +550,7 @@ export default function SeniorRecords() {
                       <button className={viewBtn} onClick={() => setProfileTarget({ uid: r.id })}><Eye size={13} /> View</button>
                     {r.status === 'active' ? (
                       <>
-                        <button onClick={() => print(r)} className="px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-bold flex items-center gap-1">
+                        <button onClick={() => print(r)} className="px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-bold flex items-center gap-1 icon-btn">
                           <Printer size={13} /> Print ID
                         </button>
                         <button onClick={() => setRevokeTarget(r)} title="Revoke this record" aria-label="Revoke this record"

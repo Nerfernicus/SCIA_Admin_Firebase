@@ -115,18 +115,18 @@ export default function AppDownload() {
           <div className="flex min-w-0 items-center gap-3">
             <img src={logo} alt="" className="h-12 w-12 shrink-0 object-contain" />
             <div className="min-w-0">
-              <p className="text-2xl font-extrabold leading-none text-[#0f52ba]">SCIA</p>
+              <p className="text-2xl font-extrabold leading-none text-brand">SCIA</p>
               <p className="text-xs leading-tight text-gray-600 sm:text-sm">{t.brand}</p>
             </div>
           </div>
-          <div className="flex shrink-0 rounded-full border-2 border-[#0f52ba] bg-white p-1" role="group" aria-label={t.lang}>
+          <div className="flex shrink-0 rounded-full border-2 border-brand bg-white p-1" role="group" aria-label={t.lang}>
             {[['fil', 'Tagalog'], ['en', 'English']].map(([code, label]) => (
               <button
                 key={code}
                 type="button"
                 onClick={() => choose(code)}
                 aria-pressed={lang === code}
-                className={`min-h-11 rounded-full px-3 text-sm font-bold sm:px-4 ${lang === code ? 'bg-[#0f52ba] text-white' : 'text-[#0f52ba]'}`}
+                className={`min-h-11 rounded-full px-3 text-sm font-bold sm:px-4 ${lang === code ? 'bg-brand text-white' : 'text-brand'}`}
               >
                 {label}
               </button>
@@ -161,8 +161,8 @@ export default function AppDownload() {
                   {version && <p className="mt-1 text-base text-gray-700">{t.versionLine(version, sizeMb, released)}</p>}
                 </>
               ) : (
-                <div className="mx-auto max-w-md rounded-3xl border-2 border-dashed border-[#0f52ba] bg-white p-6 text-left">
-                  <p className="mb-1 text-2xl font-extrabold text-[#0f52ba]">{t.soonTitle}</p>
+                <div className="mx-auto max-w-md rounded-3xl border-2 border-dashed border-brand bg-white p-6 text-left">
+                  <p className="mb-1 text-2xl font-extrabold text-brand">{t.soonTitle}</p>
                   <p className="text-lg leading-relaxed text-gray-800">{t.soonBody}</p>
                 </div>
               )}
@@ -173,18 +173,18 @@ export default function AppDownload() {
               className="mx-auto mb-8 w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-lg ring-1 ring-gray-200"
               aria-labelledby="qr-title"
             >
-              <div className="flex items-center justify-center gap-2 bg-[#0f52ba] px-4 py-3 text-white">
+              <div className="flex items-center justify-center gap-2 bg-brand px-4 py-3 text-white">
                 <ScanLine size={24} className="shrink-0" aria-hidden="true" />
                 <h2 id="qr-title" className="text-xl font-extrabold">{t.qrTitle}</h2>
               </div>
 
               <div className="flex flex-col items-center gap-4 px-5 pb-6 pt-5 text-center">
                 <p className="flex items-start gap-2 text-left text-base font-semibold leading-relaxed text-gray-800 sm:text-lg">
-                  <Smartphone size={22} className="mt-1 shrink-0 text-[#0f52ba]" aria-hidden="true" />
+                  <Smartphone size={22} className="mt-1 shrink-0 text-brand" aria-hidden="true" />
                   {t.qrDesc}
                 </p>
 
-                <div className="w-full max-w-56 rounded-3xl border-4 border-[#0f52ba] bg-white p-3 shadow-inner">
+                <div className="w-full max-w-56 rounded-3xl border-4 border-brand bg-white p-3 shadow-inner">
                   <QRCodeSVG
                     value={qrTarget}
                     size={224}
@@ -196,14 +196,14 @@ export default function AppDownload() {
                   />
                 </div>
 
-                <p className="text-base font-extrabold text-[#0f52ba] sm:text-lg">{t.qrCaption}</p>
+                <p className="text-base font-extrabold text-brand sm:text-lg">{t.qrCaption}</p>
 
                 {driveUrl && (
                   <a
                     href={driveUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex min-h-12 items-center gap-2 rounded-2xl border-2 border-[#0f52ba] px-5 text-base font-bold text-[#0f52ba] hover:bg-blue-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-yellow-400"
+                    className="inline-flex min-h-12 items-center gap-2 rounded-2xl border-2 border-brand px-5 text-base font-bold text-brand hover:bg-blue-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-yellow-400"
                   >
                     <ExternalLink size={20} aria-hidden="true" /> {t.qrOpen}
                   </a>
@@ -217,7 +217,7 @@ export default function AppDownload() {
             <ol className="space-y-5">
               {t.steps.map((step, i) => (
                 <li key={step} className="flex items-start gap-3 sm:gap-4">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#0f52ba] text-xl font-extrabold text-white" aria-hidden="true">{i + 1}</span>
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-xl font-extrabold text-white" aria-hidden="true">{i + 1}</span>
                   <p className="min-w-0 pt-1 text-lg leading-relaxed text-gray-900 sm:text-xl"><span className="sr-only">{i + 1}. </span>{step}</p>
                 </li>
               ))}
@@ -227,7 +227,7 @@ export default function AppDownload() {
 
         <div className="lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-stretch lg:gap-10 xl:gap-14">
           <section className="mb-8 flex items-start gap-3 rounded-3xl bg-blue-50 p-5 ring-1 ring-blue-200 lg:mb-0">
-            <ShieldCheck className="mt-1 shrink-0 text-[#0f52ba]" size={26} />
+            <ShieldCheck className="mt-1 shrink-0 text-brand" size={26} />
             <div>
               <h2 className="mb-1 text-xl font-extrabold">{t.safeTitle}</h2>
               <p className="text-lg leading-relaxed text-gray-800">{t.safeBody}</p>
@@ -239,7 +239,7 @@ export default function AppDownload() {
             <h2 className="mb-2 flex items-start gap-2 text-2xl font-extrabold"><MapPin size={24} className="mt-1 shrink-0" /> {t.helpTitle}</h2>
             <p className="mb-4 text-lg leading-relaxed text-gray-800">{t.helpBody}</p>
             {phoneDigits && (
-              <a href={`tel:${phoneDigits}`} className="inline-flex min-h-14 items-center gap-2 rounded-2xl bg-[#0f52ba] px-6 text-lg font-extrabold text-white hover:bg-blue-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-yellow-400">
+              <a href={`tel:${phoneDigits}`} className="inline-flex min-h-14 items-center gap-2 rounded-2xl bg-brand px-6 text-lg font-extrabold text-white hover:bg-blue-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-yellow-400">
                 <Phone size={22} /> {t.call}: {oscaPhone}
               </a>
             )}

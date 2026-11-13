@@ -173,7 +173,7 @@ function NotificationsPanel({ items, loading, isRead, onOpen, onMarkRead, onMark
         <span className={(dark ? 'text-[#f0efec]' : 'text-gray-900') + ' font-bold text-sm'}>{t.notifications}</span>
         <div className="flex items-center gap-3">
           {unreadKeys.length > 0 && (
-            <button onClick={() => onMarkAllRead(unreadKeys)} className="text-[11px] font-semibold text-[#0f52ba] hover:underline">
+            <button onClick={() => onMarkAllRead(unreadKeys)} className="text-[11px] font-semibold text-brand hover:underline">
               Mark all as read
             </button>
           )}
@@ -218,7 +218,7 @@ function NotificationsPanel({ items, loading, isRead, onOpen, onMarkRead, onMark
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <p className={`text-xs text-gray-900 truncate ${unread ? 'font-bold' : 'font-medium'}`}>
-                        {unread && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#0f52ba] mr-1.5 align-middle" />}
+                        {unread && <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand mr-1.5 align-middle" />}
                         {n.title}
                       </p>
                       <span className="text-[10px] text-gray-400 whitespace-nowrap">{timeAgo(n.time)}</span>
@@ -290,7 +290,7 @@ function SettingsToggle({ label, icon: Icon, storageKey, defaultOn = true, check
         aria-checked={on}
         style={{ width: 36, height: 20, minWidth: 36 }}
         className={`relative rounded-full transition-colors duration-200 shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-1 ${
-          on ? 'bg-[#0f52ba]' : 'bg-gray-300'
+          on ? 'bg-brand' : 'bg-gray-300'
         }`}
       >
         <span
@@ -336,7 +336,7 @@ function SettingsPanel({ onClose }) {
               onClick={() => setLang(code)}
               className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-colors ${
                 lang === code
-                  ? 'bg-[#0f52ba] text-white'
+                  ? 'bg-brand text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -431,7 +431,7 @@ function AdminProfileModal({ onClose }) {
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md z-10 overflow-hidden">
 
-        <div className="h-24 bg-linear-to-r from-[#0f52ba] to-blue-400 relative">
+        <div className="h-24 bg-linear-to-r from-brand to-blue-400 relative">
           <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors">
             <X size={20} />
           </button>
@@ -442,7 +442,7 @@ function AdminProfileModal({ onClose }) {
             <div className="w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden bg-gray-100">
               <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${avatarSeed}`} alt="avatar" className="w-full h-full object-cover" />
             </div>
-            <div className="absolute bottom-0 right-0 w-6 h-6 bg-[#0f52ba] rounded-full flex items-center justify-center border-2 border-white">
+            <div className="absolute bottom-0 right-0 w-6 h-6 bg-brand rounded-full flex items-center justify-center border-2 border-white">
               <Camera size={10} className="text-white" />
             </div>
           </div>
@@ -485,7 +485,7 @@ function AdminProfileModal({ onClose }) {
               </div>
             ))}
             <button onClick={handleSaveProfile} disabled={saving}
-              className="w-full py-2.5 rounded-xl bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold flex items-center justify-center gap-2 transition-all">
+              className="w-full py-2.5 rounded-xl bg-brand hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold flex items-center justify-center gap-2 transition-all">
               {saving ? <Loader2 size={15} className="animate-spin" /> : saved ? <Check size={15} /> : <Save size={15} />}
               {saving ? t.saving : saved ? t.saved : t.saveProfile}
             </button>
@@ -507,7 +507,7 @@ function AdminProfileModal({ onClose }) {
               </div>
             ))}
             <button onClick={handleChangePassword} disabled={passSaving}
-              className="w-full py-2.5 rounded-xl border-2 border-[#0f52ba] text-[#0f52ba] hover:bg-blue-50 disabled:opacity-60 text-sm font-bold flex items-center justify-center gap-2 transition-all">
+              className="w-full py-2.5 rounded-xl border-2 border-brand text-brand hover:bg-blue-50 disabled:opacity-60 text-sm font-bold flex items-center justify-center gap-2 transition-all">
               {passSaving ? <Loader2 size={15} className="animate-spin" /> : passSaved ? <Check size={15} /> : <ShieldCheck size={15} />}
               {passSaving ? t.updating : passSaved ? t.passwordUpdated : t.updatePassword}
             </button>
@@ -621,7 +621,7 @@ export default function Header({ onMenuClick }) {
 
           <button
             onClick={() => { setShowProfile(true); setShowNotifs(false); setShowSettings(false); }}
-            className="w-9 h-9 rounded-full overflow-hidden border-2 border-[#0f52ba] hover:opacity-80 transition-opacity shrink-0"
+            className="w-9 h-9 rounded-full overflow-hidden border-2 border-brand hover:opacity-80 transition-opacity shrink-0"
             title={t.editProfile}
           >
             <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${avatarSeed}`} alt="avatar" className="w-full h-full object-cover" />

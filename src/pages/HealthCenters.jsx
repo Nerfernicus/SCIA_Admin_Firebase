@@ -572,7 +572,7 @@ function CenterDetail({ center, onClose }) {
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="font-bold text-gray-900">Appointments</h3>
                                 <button onClick={() => setShowAddAppt(true)}
-                                    className="text-sm bg-brand hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-colors">
+                                    className="text-sm bg-brand hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-colors icon-btn">
                                     <Calendar size={13} /> New
                                 </button>
                             </div>
@@ -597,7 +597,7 @@ function CenterDetail({ center, onClose }) {
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="font-bold text-gray-900">Medication Records</h3>
                                 <button onClick={() => setShowAddMed(true)}
-                                    className="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-colors">
+                                    className="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-colors icon-btn">
                                     <Pill size={13} /> Add
                                 </button>
                             </div>

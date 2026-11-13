@@ -57,7 +57,7 @@ export default function AccessibilityMenu() {
         aria-expanded={open}
         aria-controls="a11y-panel"
         aria-label="Accessibility options"
-        className="safe-br fixed bottom-4 right-4 z-9999 flex items-center gap-2 rounded-full bg-[#0f52ba] px-4 py-3 text-sm font-bold text-white shadow-lg ring-2 ring-white hover:bg-blue-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-yellow-300"
+        className="safe-br fixed bottom-4 right-4 z-9999 flex items-center gap-2 rounded-full bg-brand px-4 py-3 text-sm font-bold text-white shadow-lg ring-2 ring-white hover:bg-blue-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-yellow-300 icon-btn"
       >
         <Eye size={20} /> <span className="hidden sm:inline">Accessibility</span>
       </button>
@@ -89,7 +89,7 @@ export default function AccessibilityMenu() {
                     role="radio"
                     aria-checked={on}
                     onClick={() => set({ mode: m.id })}
-                    className={`flex w-full items-center justify-between rounded-xl border-2 px-3 py-2.5 text-left text-sm font-semibold ${on ? 'border-[#0f52ba] bg-blue-50 text-[#0f52ba]' : 'border-gray-200 hover:bg-gray-50'}`}
+                    className={`flex w-full items-center justify-between rounded-xl border-2 px-3 py-2.5 text-left text-sm font-semibold ${on ? 'border-brand bg-blue-50 text-brand' : 'border-gray-200 hover:bg-gray-50'}`}
                   >
                     <span>{m.label}<span className="block text-xs font-normal text-gray-600">{m.hint}</span></span>
                     {on && <Check size={18} />}
@@ -105,7 +105,7 @@ export default function AccessibilityMenu() {
               aria-checked={settings.narrate}
               disabled={!speechOk}
               onClick={() => set({ narrate: !settings.narrate })}
-              className={`flex w-full items-center justify-between rounded-xl border-2 px-3 py-2.5 text-left text-sm font-semibold disabled:opacity-50 ${settings.narrate ? 'border-[#0f52ba] bg-blue-50 text-[#0f52ba]' : 'border-gray-200 hover:bg-gray-50'}`}
+              className={`flex w-full items-center justify-between rounded-xl border-2 px-3 py-2.5 text-left text-sm font-semibold disabled:opacity-50 ${settings.narrate ? 'border-brand bg-blue-50 text-brand' : 'border-gray-200 hover:bg-gray-50'}`}
             >
               <span className="flex items-center gap-2"><Volume2 size={18} /> Read aloud on hover or focus</span>
               <span>{settings.narrate ? 'On' : 'Off'}</span>
@@ -121,7 +121,7 @@ export default function AccessibilityMenu() {
                   role="radio"
                   aria-checked={settings.voiceLang === id}
                   onClick={() => { stopSpeaking(); set({ voiceLang: id }); }}
-                  className={`flex-1 rounded-xl border-2 px-3 py-2 text-sm font-semibold ${settings.voiceLang === id ? 'border-[#0f52ba] bg-blue-50 text-[#0f52ba]' : 'border-gray-200 hover:bg-gray-50'}`}
+                  className={`flex-1 rounded-xl border-2 px-3 py-2 text-sm font-semibold ${settings.voiceLang === id ? 'border-brand bg-blue-50 text-brand' : 'border-gray-200 hover:bg-gray-50'}`}
                 >{label}</button>
               ))}
             </div>

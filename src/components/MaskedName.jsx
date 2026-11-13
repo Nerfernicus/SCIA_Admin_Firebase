@@ -24,7 +24,7 @@ export default function MaskedName({ id, name, className = '' }) {
         type="button"
         onClick={(e) => { e.stopPropagation(); setShow((s) => !s); }}
         aria-label={show ? 'Hide name' : 'Show name for 10 seconds'}
-        className="ml-2 inline-flex align-middle rounded p-1 text-gray-500 hover:text-[#0f52ba]"
+        className="ml-2 inline-flex align-middle rounded p-1 text-gray-500 hover:text-brand"
       >
         {show ? <EyeOff size={14} /> : <Eye size={14} />}
       </button>

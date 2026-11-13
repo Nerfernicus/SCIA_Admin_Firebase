@@ -650,7 +650,7 @@ function RequestRow({ r, status, sub, actions, tone = 'border-gray-100' }) {
         )}
         <FollowUpNote record={r} />
       </div>
-      <div className="flex items-center gap-2 ml-4 shrink-0">
+      <div className="flex items-center gap-2 ml-4 shrink-0" style={{ gap: '0.5rem' }}>
         <StatusBadge status={status} />
         {actions}
       </div>
@@ -1222,7 +1222,7 @@ export default function IDManagement() {
                               {verifTab === 'physical' && <FollowUpNote record={r} />}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 ml-4 shrink-0">
+                          <div className="flex items-center gap-2 ml-4 shrink-0" style={{ gap: '0.5rem' }}>
                             <StatusBadge status={isVoid ? 'void' : (r.status || 'pending')} />
                             {!isVoid && (
                               <button onClick={(e) => openWithTransition(e.currentTarget.parentElement?.parentElement, () => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' }))}
@@ -1266,7 +1266,7 @@ export default function IDManagement() {
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 ml-4 shrink-0">
+                          <div className="flex items-center gap-2 ml-4 shrink-0" style={{ gap: '0.5rem' }}>
                             <StatusBadge status={r.status} />
                             <button onClick={(e) => openWithTransition(e.currentTarget.parentElement?.parentElement, () => setSelected({ record: r, type: verifTab === 'submissions' ? 'submission' : 'physical' }))} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-brand icon-btn"><Eye size={13} /> {t.view}</button>
                             <button onClick={() => setDeleteTarget({ id: r.id, name: rName, col: verifTab === 'submissions' ? 'id_verifications' : 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
@@ -1357,7 +1357,7 @@ export default function IDManagement() {
                               {r.reason && <p className="text-xs text-gray-400 mt-0.5 italic">{t.reasonLabel}: {r.reason}</p>}
                               <FollowUpNote record={r} />
                             </div>
-                            <div className="flex items-center gap-2 ml-4 shrink-0">
+                            <div className="flex items-center gap-2 ml-4 shrink-0" style={{ gap: '0.5rem' }}>
                               <StatusBadge status={isVoid ? 'void' : 'pending'} />
                               {!isVoid && <button onClick={() => setDetailRecord(r)} className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline icon-btn"><Eye size={14} /> {t.reviewAction}</button>}
                               <button onClick={() => setDeleteTarget({ id: r.id, name: r.seniorName || t.unknownLabel, col: 'id_requests' })} className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>

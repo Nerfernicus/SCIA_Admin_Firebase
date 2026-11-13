@@ -101,7 +101,7 @@ function EditModal({ announcement, onClose, onSaved, onFailed }) {
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 z-10">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold text-gray-900">Edit Announcement</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors">
+          <button aria-label={t.close} onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors">
             <X size={20} />
           </button>
         </div>

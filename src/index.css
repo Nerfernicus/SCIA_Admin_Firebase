@@ -203,6 +203,21 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
   .stagger-item { animation: none; opacity: 1; }
 }
 
+/* Same stagger for rows that are deliberately dimmed (rejected / cancelled): it ends at their
+   60% opacity instead of 100%, so the animation does not undo the dimming. */
+@keyframes stat-card-in-dim {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 0.6; transform: none; }
+}
+.stagger-item-dim {
+  opacity: 0;
+  animation: stat-card-in-dim 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 35ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .stagger-item-dim { animation: none; opacity: 0.6; }
+}
+
 /* ═══ Repo-wide pass: applies the polish to every page, not just Senior Records ═══ */
 
 /* 18 · Interruptible animation, every modal: fade the overlay and scale the panel with CSS

@@ -313,7 +313,7 @@ function SettingsPanel({ onClose }) {
     <div className={(dark ? 'bg-[#202124] border-white/10' : 'bg-white border-gray-100') + ' absolute right-0 top-12 w-72 max-w-[calc(100vw-24px)] rounded-2xl shadow-2xl border z-50 overflow-hidden'}>
       <div className={(dark ? 'border-white/10' : 'border-gray-100') + ' flex items-center justify-between px-4 py-3 border-b'}>
         <span className={(dark ? 'text-[#f0efec]' : 'text-gray-900') + ' font-bold text-sm'}>{t.settings}</span>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+        <button aria-label={t.close} onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
           <X size={16} />
         </button>
       </div>
@@ -432,7 +432,7 @@ function AdminProfileModal({ onClose }) {
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md z-10 overflow-hidden">
 
         <div className="h-24 bg-linear-to-r from-brand to-blue-400 relative">
-          <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors">
+          <button aria-label={t.close} onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors">
             <X size={20} />
           </button>
         </div>
@@ -563,7 +563,7 @@ export default function Header({ onMenuClick }) {
     <>
       <header className={(dark ? 'bg-[#202124] border-white/10' : 'bg-white border-gray-100') + ' sticky top-0 z-30 border-b px-3 sm:px-6 py-3 flex items-center justify-between gap-2 font-sans'}>
         <div className="flex items-center gap-2 min-w-0">
-          <button
+          <button aria-label="Open menu"
             onClick={onMenuClick}
             className={(dark ? 'text-[#96958d] hover:bg-white/5' : 'text-gray-500 hover:bg-gray-100') + ' md:hidden w-9 h-9 flex items-center justify-center rounded-xl shrink-0'}
             title="Menu"

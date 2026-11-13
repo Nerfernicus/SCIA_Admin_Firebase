@@ -560,7 +560,7 @@ export default function SOSMap() {
         </div>
 
         <div className={`absolute bottom-24 left-4 sm:bottom-8 sm:left-6 flex flex-col gap-3 z-1000 ${sheetOpen ? 'max-sm:hidden' : ''}`}>
-          <button onClick={handleLocateMe} disabled={isLocating}
+          <button aria-label="Locate me" onClick={handleLocateMe} disabled={isLocating}
             className={`bg-white/90 backdrop-blur p-3 rounded-2xl shadow-lg border border-gray-100 transition-colors ${
               isLocating ? 'text-gray-400 cursor-not-allowed' : 'text-brand hover:bg-gray-50'
             }`} title="Locate me">

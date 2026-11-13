@@ -357,7 +357,7 @@ function AddAppointmentModal({ centerId, centerName, barangay, onClose }) {
             <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md z-10 p-6">
                 <div className="flex items-center justify-between mb-5">
                     <h3 className="text-lg font-bold text-gray-900">New Appointment</h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+                    <button aria-label="Close" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
                 </div>
                 <p className="text-xs text-brand font-semibold mb-4">{centerName}</p>
                 {error && <p className="text-xs text-red-500 mb-3 font-semibold">{error}</p>}
@@ -421,7 +421,7 @@ function AddMedicationModal({ centerId, centerName, onClose }) {
             <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md z-10 p-6">
                 <div className="flex items-center justify-between mb-5">
                     <h3 className="text-lg font-bold text-gray-900">Add Medication Record</h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+                    <button aria-label="Close" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
                 </div>
                 <p className="text-xs text-brand font-semibold mb-4">{centerName}</p>
                 {error && <p className="text-xs text-red-500 mb-3 font-semibold">{error}</p>}
@@ -502,7 +502,7 @@ function CenterDetail({ center, onClose }) {
                         onError={e => { e.target.src = 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600&q=80'; }}
                     />
                     <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent" />
-                    <button onClick={onClose}
+                    <button aria-label="Close" onClick={onClose}
                         className="absolute top-4 right-4 w-9 h-9 bg-white/20 backdrop-blur rounded-xl text-white hover:bg-white/30 flex items-center justify-center">
                         <X size={18} />
                     </button>

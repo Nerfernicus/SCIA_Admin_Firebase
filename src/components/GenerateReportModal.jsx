@@ -101,7 +101,7 @@ const GenerateReportModal = ({ isOpen, onClose, isSuperAdmin }) => {
               </p>
             </div>
           </div>
-          <button onClick={handleClose} disabled={status === 'loading'} className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40">
+          <button aria-label="Close" onClick={handleClose} disabled={status === 'loading'} className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40">
             <X size={20} />
           </button>
         </div>

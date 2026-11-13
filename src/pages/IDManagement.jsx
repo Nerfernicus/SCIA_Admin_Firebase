@@ -203,7 +203,7 @@ function OSCASubmissionModal({ record, onClose, onDecision, processing }) {
             </div>
             <p className="text-xs text-gray-400">{t.oscaVerifSubtitle}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1"><X size={18} /></button>
+          <button aria-label={t.close} onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1"><X size={18} /></button>
         </div>
 
         {/* Senior info */}
@@ -293,7 +293,7 @@ function PhysicalIDModal({ record, onClose, onDecision, processing }) {
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">{t.reviewReqDetails}</p>
           </div>
-          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+          <button aria-label={t.close} onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
 
         <div className="bg-gray-50 rounded-2xl p-4 space-y-1.5 mb-5">
@@ -430,7 +430,7 @@ function ReleaseModal({ record, office, onClose, onRelease, processing }) {
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">{t.finalVerificationSubtitle}</p>
           </div>
-          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+          <button aria-label={t.close} onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
 
         <div className="mb-5">
@@ -550,7 +550,7 @@ function RescheduleModal({ record, office, onClose, onConfirm, processing }) {
             </h3>
             <p className="text-xs text-gray-400 mt-0.5"><span className="font-mono">{referenceCode(record.uid || record.id)}</span>{record.pickup?.date ? ` · ${L(t, 'currentlyLabel', 'now')}: ${formatPickup(record.pickup)}` : ''}</p>
           </div>
-          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+          <button aria-label={t.close} onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
         <p className="text-xs text-gray-500 mb-4">{L(t, 'rescheduleNote', 'The senior is notified of the new time. Pick a time when the OSCA office is free.')}</p>
         <PickupSlotPicker office={office} value={pickup} onChange={setPickup} ownSlot={record.pickup} />
@@ -579,7 +579,7 @@ function RequestDetailModal({ record, onClose, onApprove, onReject, processing }
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><FileText size={18} className="text-brand" /> {t.physicalIdReqTitle}</h3>
             <p className="text-xs text-gray-400 mt-0.5">{t.reviewVerifyBeforeApproving}</p>
           </div>
-          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+          <button aria-label={t.close} onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
 
         {missingBirthday && (
@@ -1376,8 +1376,8 @@ export default function IDManagement() {
                     <div className="mt-6">
                       <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{t.rejectedSection} ({relRejected.length})</h2>
                       <div className="space-y-2">
-                        {relRejected.map(r => (
-                          <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 opacity-60">
+                        {relRejected.map((r, i) => (
+                          <div key={r.id} style={{ '--i': Math.min(i, 10) }} className="stagger-item-dim bg-white border border-gray-100 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
                             <div>
                               <p className="font-medium text-gray-800">{r.seniorName || r.fullName || t.unknownLabel}</p>
                               <p className="text-xs text-gray-400">{r.seniorId ? `${t.oscaIdPrefix}: ${r.seniorId}` : ''}</p>
@@ -1395,8 +1395,8 @@ export default function IDManagement() {
                     <div className="mt-6">
                       <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{L(t, 'cancelledSection', 'Cancelled')} ({relCancelled.length})</h2>
                       <div className="space-y-2">
-                        {relCancelled.map(r => (
-                          <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 opacity-60">
+                        {relCancelled.map((r, i) => (
+                          <div key={r.id} style={{ '--i': Math.min(i, 10) }} className="stagger-item-dim bg-white border border-gray-100 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
                             <div>
                               <p className="font-medium text-gray-800">{r.seniorName || r.fullName || t.unknownLabel}</p>
                               <p className="text-xs text-gray-400">

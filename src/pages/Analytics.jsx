@@ -1,679 +1,405 @@
 import { useEffect, useState } from 'react';
-import { BarChart3, Users, ShieldCheck, Megaphone, Map, Building2, Loader2, X } from 'lucide-react';
-import { db } from '../lib/firebase';
-import { collection, getCountFromServer, getDocs, query, where } from 'firebase/firestore';
-import { useAuth } from '../context/AuthContext';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { ShieldCheck, Lock, Unlock, Search, X, Loader2, AlertCircle, CheckCircle2, Pencil, UserPlus, Copy } from 'lucide-react';
+import { db, functions } from '../lib/firebase';
+import { DISTRICTS, barangaysOf } from '../lib/barangay';
+import Combobox from '../components/Combobox';
 
-const PERIODS = [
-  { id: 'daily', label: 'Daily', noun: 'day', sub: 'Last 14 days' },
-  { id: 'weekly', label: 'Weekly', noun: 'week', sub: 'Last 8 weeks' },
-  { id: 'monthly', label: 'Monthly', noun: 'month', sub: 'Last 6 months' },
-  { id: 'yearly', label: 'Yearly', noun: 'year', sub: 'Last 5 years' },
-];
+const setAdminLock = httpsCallable(functions, 'setAdminLock');
+const createSubAdmin = httpsCallable(functions, 'createSubAdmin');
+const updateSubAdmin = httpsCallable(functions, 'updateSubAdmin');
 
-function PeriodToggle({ value, onChange }) {
-  return (
-    <div className="inline-flex bg-gray-100 rounded-xl p-1">
-      {PERIODS.map((p) => (
-        <button
-          key={p.id}
-          onClick={() => onChange(p.id)}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            value === p.id ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          {p.label}
-        </button>
-      ))}
-    </div>
-  );
-}
+const errMsg = (e) => e?.message?.replace(/^.*?:\s*/, '') || 'Something went wrong. Please try again.';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const INPUT = 'w-full bg-white text-gray-900 border border-gray-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300';
+const LABEL = 'block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5';
 
-// Gradient metric tile; clickable when onClick is passed, opening DetailModal for that metric
-function GradientStatCard({ icon: Icon, label, value, sub, gradient, onClick }) {
-  const Wrapper = onClick ? 'button' : 'div';
-  return (
-    <Wrapper
-      onClick={onClick}
-      className={`rounded-2xl p-5 text-white shadow-lg text-left w-full ${gradient} ${
-        onClick ? 'cursor-pointer hover:brightness-110 hover:-translate-y-0.5 transition-all' : ''
-      }`}
-    >
-      <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center mb-3">
-        <Icon size={16} className="text-white" />
-      </div>
-      <p className="text-2xl font-bold">{value ?? 'N/A'}</p>
-      <p className="text-xs text-white/85 mt-0.5">{label}</p>
-      {sub && <p className="text-[11px] text-white/60 mt-1">{sub}</p>}
-    </Wrapper>
-  );
-}
-
-// Small SVG area/line chart used inside the hero card (like a sparkline).
-function LineAreaChart({ points, color = '#ffffff', height = 100 }) {
-  if (!points.length || points.every((p) => p.value === 0)) {
-    return <p className="text-xs text-white/60">No data yet for this period</p>;
-  }
-
-  const width = 100;
-  const max = Math.max(...points.map((p) => p.value), 1);
-  const stepX = width / (points.length - 1 || 1);
-  const coords = points.map((p, i) => ({
-    x: i * stepX,
-    y: height - (p.value / max) * (height - 8) - 4,
-  }));
-
-  const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`).join(' ');
-  const areaPath = `${linePath} L ${coords[coords.length - 1].x} ${height} L 0 ${height} Z`;
-  const gradientId = `hero-grad-${color.replace('#', '')}`;
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="w-full" style={{ height }}>
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill={`url(#${gradientId})`} stroke="none" />
-      <path d={linePath} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" />
-      {coords.map((c, i) => (
-        <circle key={i} cx={c.x} cy={c.y} r={i === coords.length - 1 ? 2.5 : 0} fill={color} />
-      ))}
-    </svg>
-  );
-}
-
-function DonutChart({ title, segments, size = 132, thickness = 16 }) {
-  const total = segments.reduce((sum, s) => sum + s.value, 0);
-  const radius = (size - thickness) / 2;
-  const circumference = 2 * Math.PI * radius;
-  let offsetAcc = 0;
-
-  return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-6">
-      <h3 className="text-sm font-semibold text-gray-700 mb-4">{title}</h3>
-      {total === 0 ? (
-        <p className="text-sm text-gray-400">No data yet</p>
-      ) : (
-        <div className="flex items-center gap-5">
-          <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
-            <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
-              <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#f1f5f9" strokeWidth={thickness} />
-              {segments.map((s, i) => {
-                const dash = (s.value / total) * circumference;
-                const circle = (
-                  <circle
-                    key={i}
-                    cx={size / 2}
-                    cy={size / 2}
-                    r={radius}
-                    fill="none"
-                    stroke={s.color}
-                    strokeWidth={thickness}
-                    strokeDasharray={`${dash} ${circumference - dash}`}
-                    strokeDashoffset={-offsetAcc}
-                  />
-                );
-                offsetAcc += dash;
-                return circle;
-              })}
-            </g>
-          </svg>
-          <div className="space-y-2">
-            {segments.map((s, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color }} />
-                <span className="text-gray-600">{s.label}</span>
-                <span className="font-semibold text-gray-900">{Math.round((s.value / total) * 100)}%</span>
-                <span className="text-gray-400">({s.value})</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CategoryBarChart({ title, bars }) {
-  const max = Math.max(...bars.map((b) => b.value), 1);
-  return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-6">
-      <h3 className="text-sm font-semibold text-gray-700 mb-4">{title}</h3>
-      <div className="space-y-4">
-        {bars.map((b, i) => (
-          <div key={i}>
-            <div className="flex justify-between text-xs mb-1.5">
-              <span className="text-gray-600 font-medium">{b.label}</span>
-              <span className="text-gray-900 font-semibold">{b.value}</span>
-            </div>
-            <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all" style={{ width: `${(b.value / max) * 100}%`, background: b.color }} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function TrendChart({ title, points, color = '#0f52ba' }) {
-  const max = Math.max(...points.map((p) => p.value), 1);
-  return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-6">
-      <h3 className="text-sm font-semibold text-gray-700 mb-4">{title}</h3>
-      <div className="flex items-end gap-2 h-32">
-        {points.map((p, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
-            <span className="text-[10px] text-gray-400">{p.value}</span>
-            <div className="w-full flex items-end h-24 bg-gray-50 rounded-md overflow-hidden">
-              <div className="w-full rounded-t-md" style={{ height: `${Math.max((p.value / max) * 100, p.value > 0 ? 6 : 0)}%`, background: color }} />
-            </div>
-            <span className="text-[10px] text-gray-400">{p.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Compact trend chart for inside DetailModal (no card wrapper, already inside one)
-function MiniTrend({ points, color }) {
-  const max = Math.max(...points.map((p) => p.value), 1);
-  return (
-    <div className="flex items-end gap-1.5 h-24">
-      {points.map((p, i) => (
-        <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
-          <span className="text-[9px] text-gray-400">{p.value}</span>
-          <div className="w-full flex items-end h-16 bg-gray-50 rounded overflow-hidden">
-            <div className="w-full rounded-t" style={{ height: `${Math.max((p.value / max) * 100, p.value > 0 ? 6 : 0)}%`, background: color }} />
-          </div>
-          <span className="text-[9px] text-gray-400">{p.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// What each clickable stat tile drills into: its Firestore collection plus matching icon/color
-const DETAIL_META = {
-  announcements: { label: 'Announcements', collectionName: 'editorial_health', icon: Megaphone, iconBg: 'bg-[#eaf1fb]', iconColor: 'text-[#3d74c9]', color: '#5b8fdb' },
-  sos: { label: 'SOS Events', collectionName: 'emergencies', icon: Map, iconBg: 'bg-red-50', iconColor: 'text-red-500', color: '#ef4444' },
-  health: { label: 'Health Centers', collectionName: 'health_centers', icon: Building2, iconBg: 'bg-[#eaf1fb]', iconColor: 'text-brand', color: '#0b3d91' },
-  users: { label: 'Active Users', collectionName: 'users', icon: Users, iconBg: 'bg-amber-50', iconColor: 'text-amber-500', color: '#f59e0b' },
+const fmt = (t) => {
+  const d = t?.toDate ? t.toDate() : null;
+  return d ? d.toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 };
 
-// Barangay admins' queries are pre-scoped to their own barangay, so no per-barangay
-// breakdown shows for them; OSCA (super admin) gets the citywide comparison bar
-function DetailModal({ type, onClose, isSuperAdmin, myBarangay, period, periodMeta }) {
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState(null);
-  const meta = type ? DETAIL_META[type] : null;
+// The OSCA admin and any sub admin with no barangay oversee every barangay.
+const isMasterRow = (a) => a.role === 'super_admin' || !a.barangay;
 
-  useEffect(() => {
-    if (!type) return;
-    let cancelled = false;
-
-    async function load() {
-      setLoading(true);
-      try {
-        const ref = collection(db, meta.collectionName);
-        const conditions = myBarangay ? [where('barangay', '==', myBarangay)] : [];
-        const q = conditions.length ? query(ref, ...conditions) : ref;
-        const snap = await getDocs(q);
-
-        const statusCounts = {};
-        const barangayCounts = {};
-        snap.forEach((doc) => {
-          const d = doc.data();
-          if (d.status) {
-            const s = String(d.status).toLowerCase();
-            statusCounts[s] = (statusCounts[s] || 0) + 1;
-          }
-          if (isSuperAdmin && d.barangay) {
-            barangayCounts[d.barangay] = (barangayCounts[d.barangay] || 0) + 1;
-          }
-        });
-
-        const trendPoints = await fetchTrend(meta.collectionName, period, myBarangay);
-
-        if (!cancelled) setData({ total: snap.size, statusCounts, barangayCounts, trendPoints });
-      } catch (err) {
-        console.error(err);
-        if (!cancelled) setData({ total: 0, statusCounts: {}, barangayCounts: {}, trendPoints: [] });
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [type, myBarangay, period, isSuperAdmin, meta]);
-
-  if (!type) return null;
-
-  const Icon = meta.icon;
-
+function ConfirmModal({ admin, busy, error, onClose, onConfirm }) {
+  const locking = !admin.locked;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85dvh] overflow-y-auto p-4 sm:p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${meta.iconBg}`}>
-              <Icon size={18} className={meta.iconColor} />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">{meta.label}</h2>
-              <p className="text-xs text-gray-400">{myBarangay ? `Brgy. ${myBarangay}` : 'Citywide'}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <X size={20} />
+    <div className="fixed inset-0 z-10000 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={busy ? undefined : onClose} />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 z-10 text-center">
+        <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${locking ? 'bg-red-100' : 'bg-green-100'}`}>
+          {locking ? <Lock size={24} className="text-red-500" /> : <Unlock size={24} className="text-green-600" />}
+        </div>
+        <h2 className="text-lg font-bold text-gray-900 mb-1">{locking ? 'Lock this account?' : 'Unlock this account?'}</h2>
+        <p className="text-sm font-bold text-gray-800">{admin.name || admin.email}</p>
+        <p className="text-xs text-gray-500 mb-4">{isMasterRow(admin) ? 'All barangays (Master)' : `Brgy. ${admin.barangay}`}</p>
+        <p className={`text-xs font-semibold rounded-xl px-4 py-2 mb-5 ${locking ? 'text-red-600 bg-red-50' : 'text-green-700 bg-green-50'}`}>
+          {locking
+            ? 'They will be signed out right away and cannot log in until you unlock the account.'
+            : 'They will be able to log in again.'}
+        </p>
+        {error && (
+          <p role="alert" className="text-xs font-medium text-red-600 mb-3 flex items-center justify-center gap-1">
+            <AlertCircle size={12} /> {error}
+          </p>
+        )}
+        <div className="flex gap-3">
+          <button onClick={onClose} disabled={busy} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            className={`flex-1 py-3 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60 transition-colors ${locking ? 'bg-red-500 hover:bg-red-600' : 'bg-green-600 hover:bg-green-700'}`}
+          >
+            {busy ? <Loader2 size={15} className="animate-spin" /> : locking ? <Lock size={15} /> : <Unlock size={15} />}
+            {locking ? 'Lock' : 'Unlock'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
 
-        {loading ? (
-          <div className="py-16 flex items-center justify-center">
-            <Loader2 size={24} className="animate-spin text-brand" />
+// Add (admin = null) or edit (admin = row) an admin. After a successful
+// create, the temporary password is shown once so OSCA can hand it over.
+// A Master account oversees every barangay, so it has no barangay.
+function AdminFormModal({ admin, onClose, onSaved }) {
+  const editing = !!admin;
+  const isOsca = admin?.role === 'super_admin';
+  const [allBarangays, setAllBarangays] = useState(editing && !admin.barangay);
+  const isMain = isOsca || allBarangays;
+  const [form, setForm] = useState({
+    name: admin?.name || '', email: admin?.email || '', barangay: admin?.barangay || '',
+    contactNumber: admin?.contactNumber || '', position: admin?.position || '',
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [created, setCreated] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (form.name.trim().length < 2) return setError('Enter the admin\'s full name.');
+    if (!EMAIL_RE.test(form.email.trim())) return setError('Enter a valid email address.');
+    if (!isMain && !form.barangay) return setError('Choose a barangay.');
+    setBusy(true);
+    setError('');
+    try {
+      if (editing) {
+        await updateSubAdmin({ uid: admin.id, ...form, barangay: isMain ? '' : form.barangay, allBarangays: isMain });
+        onSaved(`${form.name.trim()} updated.`);
+      } else {
+        const { data } = await createSubAdmin({ ...form, barangay: isMain ? '' : form.barangay, allBarangays: isMain });
+        setCreated(data);
+      }
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyPw = async () => {
+    try { await navigator.clipboard.writeText(created.tempPassword); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* clipboard blocked */ }
+  };
+
+  return (
+    <div className="fixed inset-0 z-10000 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={busy ? undefined : (created ? () => onSaved(`${created.email} created.`) : onClose)} />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 z-10 max-h-[90vh] overflow-y-auto">
+        {created ? (
+          <div className="text-center">
+            <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 size={26} className="text-green-600" />
+            </div>
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Sub Admin account created</h2>
+            <p className="text-sm text-gray-600 mb-4">{created.email}</p>
+            <p className={LABEL}>Temporary password</p>
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <span className="font-mono text-2xl font-bold tracking-wider text-gray-900">{created.tempPassword}</span>
+              <button onClick={copyPw} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600" aria-label="Copy password">
+                {copied ? <CheckCircle2 size={16} className="text-green-600" /> : <Copy size={16} />}
+              </button>
+            </div>
+            <p className="text-xs font-semibold text-amber-700 bg-amber-50 rounded-xl px-4 py-2 mb-5">
+              This password is shown only once. Give it to the admin securely.
+            </p>
+            <button onClick={() => onSaved(`${created.email} created.`)} className="w-full py-3 rounded-xl bg-brand hover:bg-blue-800 text-white text-sm font-bold">Done</button>
           </div>
         ) : (
-          <div className="space-y-6">
-            <div>
-              <p className="text-3xl font-bold text-gray-900">{data.total}</p>
-              <p className="text-xs text-gray-400">Total records</p>
+          <form onSubmit={submit} noValidate>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                {editing ? <Pencil size={18} className="text-brand" /> : <UserPlus size={18} className="text-brand" />}
+                {editing ? (isMain ? 'Edit Master Admin' : 'Edit Barangay Admin') : 'Add Sub Admin'}
+              </h2>
+              <button aria-label="Close" type="button" onClick={onClose} disabled={busy} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
             </div>
-
-            {Object.keys(data.statusCounts).length > 0 && (
+            <div className="space-y-4">
               <div>
-                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">By Status</h3>
-                <div className="space-y-2.5">
-                  {Object.entries(data.statusCounts).map(([status, count]) => (
-                    <div key={status}>
-                      <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="capitalize text-gray-600 font-medium">{status}</span>
-                        <span className="font-semibold text-gray-900">{count}</span>
-                      </div>
-                      <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full"
-                          style={{ width: `${(count / data.total) * 100}%`, background: meta.color }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                <label className={LABEL} htmlFor="sa-name">Full name</label>
+                <input id="sa-name" className={INPUT} value={form.name} onChange={set('name')} maxLength={80} autoComplete="off" />
+              </div>
+              <div>
+                <label className={LABEL} htmlFor="sa-email">Email (login)</label>
+                <input id="sa-email" type="email" className={INPUT} value={form.email} onChange={set('email')} maxLength={120} autoComplete="off" />
+              </div>
+              {!isOsca && (
+                <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={allBarangays}
+                    onChange={(e) => setAllBarangays(e.target.checked)}
+                  />
+                  <span>
+                    <span className="font-bold">Master account</span>
+                    <span className="block text-xs text-gray-500">Oversees every barangay, so no barangay is assigned.</span>
+                  </span>
+                </label>
+              )}
+              {!isMain && (
+                <div>
+                  <label className={LABEL} htmlFor="sa-brgy">Barangay</label>
+                  <Combobox ariaLabel="Barangay" className={INPUT} value={form.barangay}
+                    onChange={(b) => set('barangay')({ target: { value: b } })}
+                    options={DISTRICTS.flatMap((d) => barangaysOf(d))} placeholder="Search or select barangay" />
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={LABEL} htmlFor="sa-phone">Contact number</label>
+                  <input id="sa-phone" className={INPUT} value={form.contactNumber} onChange={set('contactNumber')} placeholder="09XXXXXXXXX" inputMode="tel" maxLength={15} />
+                </div>
+                <div>
+                  <label className={LABEL} htmlFor="sa-pos">Position</label>
+                  <input id="sa-pos" className={INPUT} value={form.position} onChange={set('position')} maxLength={60} />
                 </div>
               </div>
-            )}
-
-            {isSuperAdmin && Object.keys(data.barangayCounts).length > 0 && (
-              <div>
-                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">By Barangay</h3>
-                <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
-                  {Object.entries(data.barangayCounts)
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([brgy, count]) => (
-                      <div key={brgy}>
-                        <div className="flex items-center justify-between text-xs mb-1">
-                          <span className="text-gray-600 font-medium">{brgy}</span>
-                          <span className="font-semibold text-gray-900">{count}</span>
-                        </div>
-                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full bg-brand" style={{ width: `${(count / data.total) * 100}%` }} />
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-
-            <div>
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
-                Trend &middot; {periodMeta.sub}
-              </h3>
-              <MiniTrend points={data.trendPoints} color={meta.color} />
             </div>
-          </div>
+            {!editing && <p className="text-xs text-gray-500 mt-4">A temporary password is generated when you create the account.</p>}
+            {editing && form.email.trim().toLowerCase() !== (admin.email || '').toLowerCase() && (
+              <p className="text-xs font-semibold text-amber-700 bg-amber-50 rounded-xl px-4 py-2 mt-4">Changing the email changes what this admin types to log in.</p>
+            )}
+            {error && (
+              <p role="alert" className="text-xs font-medium text-red-600 mt-4 flex items-center gap-1"><AlertCircle size={12} /> {error}</p>
+            )}
+            <div className="flex gap-3 mt-5">
+              <button type="button" onClick={onClose} disabled={busy} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-60">Cancel</button>
+              <button type="submit" disabled={busy} className="flex-1 py-3 rounded-xl bg-brand hover:bg-blue-800 text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60">
+                {busy && <Loader2 size={15} className="animate-spin" />}
+                {editing ? 'Save changes' : 'Create account'}
+              </button>
+            </div>
+          </form>
         )}
       </div>
     </div>
   );
 }
 
-function countDocs(collectionName, ...conditions) {
-  const ref = collection(db, collectionName);
-  const q = conditions.length ? query(ref, ...conditions) : ref;
-  return getCountFromServer(q).then((snap) => snap.data().count);
-}
-
-// Builds bucket windows for a period (14 days / 8 weeks / 6 months / 5 years), each with a range + label
-function getPeriodBuckets(periodType) {
-  const now = new Date();
-  const buckets = [];
-
-  if (periodType === 'daily') {
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      buckets.push({
-        label: d.toLocaleDateString('default', { month: 'short', day: 'numeric' }),
-        value: 0,
-        start: new Date(d.getFullYear(), d.getMonth(), d.getDate()),
-        end: new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59),
-      });
-    }
-  } else if (periodType === 'weekly') {
-    for (let i = 7; i >= 0; i--) {
-      const end = new Date(now);
-      end.setDate(now.getDate() - i * 7);
-      const start = new Date(end);
-      start.setDate(end.getDate() - 6);
-      buckets.push({
-        label: `${start.getMonth() + 1}/${start.getDate()}`,
-        value: 0,
-        start: new Date(start.getFullYear(), start.getMonth(), start.getDate()),
-        end: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59),
-      });
-    }
-  } else if (periodType === 'yearly') {
-    for (let i = 4; i >= 0; i--) {
-      const y = now.getFullYear() - i;
-      buckets.push({ label: `${y}`, value: 0, start: new Date(y, 0, 1), end: new Date(y, 11, 31, 23, 59, 59) });
-    }
-  } else {
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      buckets.push({
-        label: d.toLocaleString('default', { month: 'short' }),
-        value: 0,
-        start: new Date(d.getFullYear(), d.getMonth(), 1),
-        end: new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59),
-      });
-    }
-  }
-
-  return buckets;
-}
-
-// Buckets doc counts into the period's windows by whichever timestamp field it finds first
-async function fetchTrend(collectionName, periodType, barangayFilter) {
-  const ref = collection(db, collectionName);
-  const conditions = barangayFilter ? [where('barangay', '==', barangayFilter)] : [];
-  const q = conditions.length ? query(ref, ...conditions) : ref;
-  const snap = await getDocs(q);
-  const buckets = getPeriodBuckets(periodType);
-
-  snap.forEach((doc) => {
-    const data = doc.data();
-    const raw = data.createdAt || data.timestamp || data.date || data.created_at;
-    if (!raw) return;
-    const date = typeof raw.toDate === 'function' ? raw.toDate() : new Date(raw);
-    if (isNaN(date)) return;
-    const bucket = buckets.find((b) => date >= b.start && date <= b.end);
-    if (bucket) bucket.value += 1;
-  });
-
-  return buckets.map(({ label, value }) => ({ label, value }));
-}
-
-export default function Analytics() {
-  const { isSuperAdmin, adminData } = useAuth();
-  const myBarangay = adminData?.barangay || null;
-
-  const [stats, setStats] = useState(null);
+export default function AdminAccounts() {
+  const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const [period, setPeriod] = useState('monthly');
-  const [trend, setTrend] = useState(null);
-  const [trendLoading, setTrendLoading] = useState(true);
-
-  const [activeDetail, setActiveDetail] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    let firstLoad = true;
-
-    async function loadStats() {
-      if (firstLoad) setLoading(true);
-      try {
-        const queries = [
-          countDocs('editorial_health', ...(myBarangay ? [where('barangay', '==', myBarangay)] : [])),
-          countDocs('emergencies', ...(myBarangay ? [where('barangay', '==', myBarangay)] : [])),
-          countDocs('health_centers'),
-        ];
-
-        if (isSuperAdmin) {
-          queries.push(
-            countDocs('users'),
-            countDocs('users', where('status', '==', 'ACTIVE')),
-            countDocs('id_verifications', where('status', '==', 'pending')),
-            countDocs('id_verifications', where('status', '==', 'approved')),
-          );
-        }
-
-        const results = await Promise.all(queries);
-        const [announcements, sosEvents, healthCenters, totalUsers, activeUsers, pendingIDs, approvedIDs] = results;
-        if (!cancelled) {
-          setStats({ announcements, sosEvents, healthCenters, totalUsers, activeUsers, pendingIDs, approvedIDs });
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        if (!cancelled && firstLoad) {
-          setLoading(false);
-          firstLoad = false;
-        }
-      }
-    }
-
-    loadStats();
-    // Re-poll every 60s so counts stay live without a manual refresh
-    const interval = setInterval(loadStats, 60000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [isSuperAdmin, myBarangay]);
+  const [loadError, setLoadError] = useState('');
+  const [search, setSearch] = useState('');
+  const [target, setTarget] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [toast, setToast] = useState('');
+  const [lockedLocal, setLockedLocal] = useState(() => ({})); // optimistic lock states not yet confirmed: { [uid]: boolean }
+  const [formFor, setFormFor] = useState(undefined); // undefined = closed, null = add, row = edit
 
   useEffect(() => {
-    async function loadTrend() {
-      setTrendLoading(true);
-      try {
-        const [sosTrend, announcementsTrend] = await Promise.all([
-          fetchTrend('emergencies', period, myBarangay),
-          fetchTrend('editorial_health', period, myBarangay),
-        ]);
-        setTrend({ sosTrend, announcementsTrend });
-      } catch (err) {
+    const unsub = onSnapshot(
+      collection(db, 'admins'),
+      (snap) => {
+        setAdmins(
+          snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((a) => ['sub_admin', 'super_admin'].includes(String(a.role).trim()))
+            .sort((a, b) =>
+              isMasterRow(b) - isMasterRow(a) ||
+              String(a.barangay || '').localeCompare(String(b.barangay || ''))),
+        );
+        setLoading(false);
+      },
+      (err) => {
         console.error(err);
-      } finally {
-        setTrendLoading(false);
-      }
+        setLoadError('Could not load admin accounts.');
+        setLoading(false);
+      },
+    );
+    return () => unsub();
+  }, []);
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 4500);
+  };
+
+  const confirm = async () => {
+    if (!target) return;
+    setBusy(true);
+    setError('');
+    // Optimistic: the row flips and the dialog closes at once; if the server refuses, the row goes back and an error shows.
+    const who = target.name || target.email;
+    const next = !target.locked;
+    const drop = () => setLockedLocal((p) => { const n = { ...p }; delete n[target.id]; return n; });
+    setLockedLocal((p) => ({ ...p, [target.id]: next }));
+    setTarget(null);
+    showToast(`${who} ${next ? 'locked' : 'unlocked'}.`);
+    try {
+      await setAdminLock({ uid: target.id, locked: next });
+      setTimeout(drop, 3000); // let the live snapshot catch up first
+    } catch (e) {
+      drop();
+      showToast(`Could not ${next ? 'lock' : 'unlock'} ${who}, so it was restored. ${e?.message?.replace(/^.*?:\s*/, '') || 'Please try again.'}`);
+    } finally {
+      setBusy(false);
     }
-    loadTrend();
-  }, [period, myBarangay]);
+  };
 
-  const activitySub = myBarangay ? 'In your barangay' : 'Citywide';
-  const activeUserPercent = stats?.totalUsers ? Math.round((stats.activeUsers / stats.totalUsers) * 100) : null;
-  const idsProcessedTotal = (stats?.approvedIDs ?? 0) + (stats?.pendingIDs ?? 0);
-  const approvedIDPercent = idsProcessedTotal ? Math.round((stats.approvedIDs / idsProcessedTotal) * 100) : null;
-
-  const periodMeta = PERIODS.find((p) => p.id === period);
-
-  const heroTrend = (trend?.sosTrend ?? []).map((p, i) => ({
-    label: p.label,
-    value: p.value + (trend?.announcementsTrend?.[i]?.value ?? 0),
-  }));
-  const heroTotal = heroTrend.length ? heroTrend[heroTrend.length - 1].value : 0;
-  const heroPrev = heroTrend.length > 1 ? heroTrend[heroTrend.length - 2].value : null;
-  const heroDelta = heroPrev ? Math.round(((heroTotal - heroPrev) / heroPrev) * 100) : null;
-
-  const pageSub = isSuperAdmin
-    ? 'Full system overview across all departments'
-    : myBarangay
-    ? `Activity overview for Brgy. ${myBarangay}`
-    : 'Activity overview across all barangays';
+  const view = admins.map((a) => (a.id in lockedLocal ? { ...a, locked: lockedLocal[a.id] } : a));
+  const s = search.trim().toLowerCase();
+  const rows = view.filter(
+    (a) =>
+      !s ||
+      String(a.name || '').toLowerCase().includes(s) ||
+      String(a.email || '').toLowerCase().includes(s) ||
+      String(a.barangay || '').toLowerCase().includes(s),
+  );
+  const lockedCount = view.filter((a) => a.locked).length;
 
   return (
-    <div className="p-4 sm:p-8 max-w-6xl mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <BarChart3 size={24} className="text-brand" /> Analytics & Reports
-          </h1>
-          <p className="text-sm text-gray-500 mt-1 flex items-center gap-1.5">
-            {pageSub}
-            <span className="inline-flex items-center gap-1 text-gray-400">
-              <span className="text-gray-300">&middot;</span>
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-50" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-brand" />
-              </span>
-              live
-            </span>
-          </p>
-        </div>
-        <PeriodToggle value={period} onChange={setPeriod} />
-      </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center py-24">
-          <Loader2 size={28} className="animate-spin text-blue-500" />
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-            <div className="lg:col-span-2 rounded-2xl p-6 text-white shadow-lg bg-linear-to-br from-brand to-[#1a6fd4]">
-              <div className="flex items-start justify-between mb-1">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-white/70">Total Activity</p>
-                  <p className="text-3xl font-bold mt-1">{heroTotal}</p>
-                </div>
-                {heroDelta !== null && (
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-white/20">
-                    {heroDelta >= 0 ? '▲' : '▼'} {Math.abs(heroDelta)}% vs last {periodMeta.noun}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-white/60 mb-4">SOS reports + announcements &middot; {periodMeta.sub}</p>
-              {trendLoading ? (
-                <div className="h-25 flex items-center justify-center">
-                  <Loader2 size={20} className="animate-spin text-white/70" />
-                </div>
-              ) : (
-                <LineAreaChart points={heroTrend} color="#ffffff" height={100} />
-              )}
-            </div>
-
-            {isSuperAdmin && idsProcessedTotal > 0 ? (
-              <DonutChart
-                title="ID Verification Status"
-                segments={[
-                  { label: 'Approved', value: stats.approvedIDs, color: '#0f52ba' },
-                  { label: 'Pending', value: stats.pendingIDs, color: '#f59e0b' },
-                ]}
-              />
-            ) : (
-              <DonutChart
-                title="Activity Mix"
-                segments={[
-                  { label: 'SOS Events', value: stats?.sosEvents ?? 0, color: '#ef4444' },
-                  { label: 'Announcements', value: stats?.announcements ?? 0, color: '#5b8fdb' },
-                  { label: 'Health Centers', value: stats?.healthCenters ?? 0, color: '#0b3d91' },
-                ]}
-              />
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <GradientStatCard
-              icon={Megaphone}
-              label="Announcements"
-              value={stats?.announcements}
-              sub={activitySub}
-              gradient="bg-linear-to-br from-[#3d74c9] to-[#5b8fdb]"
-              onClick={() => setActiveDetail('announcements')}
-            />
-            <GradientStatCard
-              icon={Map}
-              label="SOS Events"
-              value={stats?.sosEvents}
-              sub={activitySub}
-              gradient="bg-linear-to-br from-red-500 to-red-600"
-              onClick={() => setActiveDetail('sos')}
-            />
-            <GradientStatCard
-              icon={Building2}
-              label="Health Centers"
-              value={stats?.healthCenters}
-              sub="Listed facilities"
-              gradient="bg-linear-to-br from-[#0a2f6b] to-brand"
-              onClick={() => setActiveDetail('health')}
-            />
-            {isSuperAdmin ? (
-              <GradientStatCard
-                icon={Users}
-                label="Active Users"
-                value={stats?.activeUsers}
-                sub={activeUserPercent !== null ? `${activeUserPercent}% of total` : undefined}
-                gradient="bg-linear-to-br from-amber-400 to-amber-500"
-                onClick={() => setActiveDetail('users')}
-              />
-            ) : (
-              <GradientStatCard
-                icon={ShieldCheck}
-                label="Barangay"
-                value={myBarangay ?? 'All'}
-                sub="Your assigned area"
-                gradient="bg-linear-to-br from-amber-400 to-amber-500"
-              />
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            {isSuperAdmin && (
-              <DonutChart
-                title="User Status"
-                segments={[
-                  { label: 'Active', value: stats.activeUsers, color: '#0f52ba' },
-                  { label: 'Inactive', value: Math.max(stats.totalUsers - stats.activeUsers, 0), color: '#e5e7eb' },
-                ]}
-              />
-            )}
-            <CategoryBarChart
-              title="Activity by Category"
-              bars={[
-                { label: 'Announcements', value: stats?.announcements ?? 0, color: '#5b8fdb' },
-                { label: 'SOS Events', value: stats?.sosEvents ?? 0, color: '#ef4444' },
-                { label: 'Health Centers', value: stats?.healthCenters ?? 0, color: '#0b3d91' },
-              ]}
-            />
-          </div>
-
-          <div className="mb-6">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">
-              Trends &middot; {periodMeta.sub}
-            </h2>
-            {trendLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 size={22} className="animate-spin text-blue-500" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <TrendChart title="SOS Events" points={trend?.sosTrend ?? []} color="#ef4444" />
-                <TrendChart title="Announcements" points={trend?.announcementsTrend ?? []} color="#5b8fdb" />
-              </div>
-            )}
-          </div>
-        </>
+    <div className="p-4 sm:p-8 max-w-5xl mx-auto font-sans">
+      {target && (
+        <ConfirmModal
+          admin={target}
+          busy={busy}
+          error={error}
+          onClose={() => { setTarget(null); setError(''); }}
+          onConfirm={confirm}
+        />
       )}
 
-      <DetailModal
-        type={activeDetail}
-        onClose={() => setActiveDetail(null)}
-        isSuperAdmin={isSuperAdmin}
-        myBarangay={myBarangay}
-        period={period}
-        periodMeta={periodMeta}
-      />
+      {formFor !== undefined && (
+        <AdminFormModal
+          admin={formFor}
+          onClose={() => setFormFor(undefined)}
+          onSaved={(msg) => { setFormFor(undefined); showToast(msg); }}
+        />
+      )}
+
+      {toast && (
+        <div className="fixed top-6 right-6 z-10001 bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3">
+          <CheckCircle2 size={16} className="text-green-400" /> {toast}
+          <button onClick={() => setToast('')}><X size={14} className="text-white/60 hover:text-white" /></button>
+        </div>
+      )}
+
+      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <ShieldCheck size={22} className="text-brand" /> Barangay Admin Accounts
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Add Sub Admin accounts and edit their details. Lock an account that is unattended, compromised or no longer needed. Locked admins are signed out and cannot log in until unlocked.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+        <button
+          onClick={() => setFormFor(null)}
+          className="inline-flex items-center gap-2 bg-brand hover:bg-blue-800 text-white text-sm font-bold rounded-xl px-4 py-2.5 transition-colors icon-btn"
+        >
+          <UserPlus size={16} /> Add Sub Admin
+        </button>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search admins..."
+            className="bg-white text-gray-900 border border-gray-200 rounded-xl py-2.5 pl-9 pr-3 w-64 focus:ring-2 focus:ring-blue-100 focus:border-blue-300 outline-none text-sm"
+          />
+        </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100 text-sm text-gray-500 font-medium">
+          {loading ? 'Loading...' : `${rows.length} admin${rows.length !== 1 ? 's' : ''}`}
+          {!loading && lockedCount > 0 && <span className="ml-2 text-red-600 font-semibold">{lockedCount} locked</span>}
+        </div>
+
+        {loadError && <p className="p-6 text-sm text-red-600">{loadError}</p>}
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-gray-100">
+                {['Admin', 'Barangay', 'Status', 'Action'].map((h, i) => (
+                  <th key={h} className={`py-3 px-5 text-xs font-bold text-gray-400 uppercase tracking-wider ${i === 3 ? 'text-right' : ''}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {!loading && rows.length === 0 && !loadError && (
+                <tr><td colSpan={4} className="py-10 text-center text-gray-400 text-sm">No Barangay admin accounts found.</td></tr>
+              )}
+              {rows.map((a) => (
+                <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                  <td className="py-3.5 px-5">
+                    <p className="font-bold text-gray-900 text-sm">{a.name || 'Unnamed admin'}</p>
+                    <p className="text-xs text-gray-500">{a.email}</p>
+                  </td>
+                  <td className="py-3.5 px-5 text-sm text-gray-700">
+                    {isMasterRow(a) ? 'All barangays (Master)' : `Brgy. ${a.barangay}`}
+                  </td>
+                  <td className="py-3.5 px-5">
+                    {a.locked ? (
+                      <div>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600">
+                          <span className="w-2 h-2 rounded-full bg-red-500" /> LOCKED
+                        </span>
+                        {a.lockedAt && <p className="text-[11px] text-gray-400 mt-0.5">{fmt(a.lockedAt)}</p>}
+                      </div>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-green-600">
+                        <span className="w-2 h-2 rounded-full bg-green-500" /> ACTIVE
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3.5 px-5 text-right whitespace-nowrap">
+                    <button
+                      onClick={() => setFormFor(a)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 mr-2 rounded-lg text-xs font-bold border transition-colors bg-blue-50 hover:bg-blue-100 text-brand border-blue-200 icon-btn"
+                    >
+                      <Pencil size={13} /> Edit
+                    </button>
+                    {a.role !== 'super_admin' && (
+                      <button
+                        onClick={() => { setError(''); setTarget(a); }}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                          a.locked
+                            ? 'bg-green-50 hover:bg-green-100 text-green-700 border-green-200'
+                            : 'bg-red-50 hover:bg-red-100 text-red-600 border-red-200'
+                        }`}
+                      >
+                        {a.locked ? <><Unlock size={13} /> Unlock</> : <><Lock size={13} /> Lock</>}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

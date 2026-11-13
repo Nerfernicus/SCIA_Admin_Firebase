@@ -12,6 +12,7 @@ import { db, auth } from '../lib/firebase';
 import { RULES, sanitize, validate } from '../lib/validators';
 import { useAuth } from '../context/AuthContext';
 import { sameBarangay, barangayVariants, displayBarangay } from '../lib/barangay';
+import Combobox from '../components/Combobox';
 
 // Name inputs (patient / prescriber) only accept letters, spaces and . ' -
 // Anything else is removed as it is typed and the form says why.
@@ -98,8 +99,8 @@ function AppointmentRow({ appt, onUpdate }) {
     return (
         <div className="flex items-start justify-between p-4 rounded-2xl bg-gray-50 border border-gray-100 hover:bg-white transition-colors">
             <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-full bg-[#0f52ba]/10 flex items-center justify-center shrink-0">
-                    <User size={16} className="text-[#0f52ba]" />
+                <div className="w-9 h-9 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
+                    <User size={16} className="text-brand" />
                 </div>
                 <div>
                     <p className="font-bold text-gray-900 text-sm">{displayName}</p>
@@ -109,7 +110,7 @@ function AppointmentRow({ appt, onUpdate }) {
                     {appt.notes && <p className="text-xs text-gray-400 mt-0.5 italic">{appt.notes}</p>}
                     {appt.seniorId && <p className="text-xs text-gray-400 mt-0.5">ID: {appt.seniorId}</p>}
                     {appt.barangay && (
-                        <span className="inline-block mt-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-[#0f52ba]/10 text-[#0f52ba]">
+                        <span className="inline-block mt-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-brand/10 text-brand">
                             Brgy. {displayBarangay(appt.barangay)}
                         </span>
                     )}
@@ -185,7 +186,7 @@ function MedicineReviewModal({ request, decision, onClose }) {
                     onChange={(e) => { setRemarks(e.target.value); setError(''); }}
                     rows={3}
                     placeholder={approving ? 'e.g. Claim at the 3S Center until Friday, 4 PM' : 'e.g. Out of stock, please see your doctor'}
-                    className="w-full mt-1 border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f52ba]/30"
+                    className="w-full mt-1 border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
                 />
                 {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
                 <div className="flex gap-2 mt-4">
@@ -244,7 +245,7 @@ function MedicineRequestRow({ r, onReview }) {
                     </p>
                     {r.adminRemarks && <p className="text-xs text-gray-400 mt-0.5 italic">Note: {r.adminRemarks}</p>}
                     {r.barangay && (
-                        <span className="inline-block mt-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-[#0f52ba]/10 text-[#0f52ba]">
+                        <span className="inline-block mt-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-brand/10 text-brand">
                             Brgy. {displayBarangay(r.barangay)}
                         </span>
                     )}
@@ -358,7 +359,7 @@ function AddAppointmentModal({ centerId, centerName, barangay, onClose }) {
                     <h3 className="text-lg font-bold text-gray-900">New Appointment</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
                 </div>
-                <p className="text-xs text-[#0f52ba] font-semibold mb-4">{centerName}</p>
+                <p className="text-xs text-brand font-semibold mb-4">{centerName}</p>
                 {error && <p className="text-xs text-red-500 mb-3 font-semibold">{error}</p>}
                 <div className="space-y-3">
                     {[
@@ -379,7 +380,7 @@ function AddAppointmentModal({ centerId, centerName, barangay, onClose }) {
                             className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 resize-none" />
                     </div>
                     <button onClick={handleSave} disabled={saving}
-                        className="w-full py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold flex items-center justify-center gap-2">
+                        className="w-full py-3 rounded-xl bg-brand hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold flex items-center justify-center gap-2">
                         {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                         {saving ? 'Saving…' : 'Book Appointment'}
                     </button>
@@ -422,7 +423,7 @@ function AddMedicationModal({ centerId, centerName, onClose }) {
                     <h3 className="text-lg font-bold text-gray-900">Add Medication Record</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
                 </div>
-                <p className="text-xs text-[#0f52ba] font-semibold mb-4">{centerName}</p>
+                <p className="text-xs text-brand font-semibold mb-4">{centerName}</p>
                 {error && <p className="text-xs text-red-500 mb-3 font-semibold">{error}</p>}
                 <div className="space-y-3">
                     {[
@@ -543,7 +544,7 @@ function CenterDetail({ center, onClose }) {
                 <div className="flex border-b border-gray-100 shrink-0">
                     <button onClick={() => setTab('appointments')}
                         className={`flex-1 py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
-                            tab === 'appointments' ? 'text-[#0f52ba] border-b-2 border-[#0f52ba]' : 'text-gray-400 hover:text-gray-600'
+                            tab === 'appointments' ? 'text-brand border-b-2 border-brand' : 'text-gray-400 hover:text-gray-600'
                         }`}>
                         <Calendar size={15} /> Appointments
                         {pendingCount > 0 && (
@@ -554,7 +555,7 @@ function CenterDetail({ center, onClose }) {
                     </button>
                     <button onClick={() => setTab('medications')}
                         className={`flex-1 py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
-                            tab === 'medications' ? 'text-[#0f52ba] border-b-2 border-[#0f52ba]' : 'text-gray-400 hover:text-gray-600'
+                            tab === 'medications' ? 'text-brand border-b-2 border-brand' : 'text-gray-400 hover:text-gray-600'
                         }`}>
                         <Pill size={15} /> Medications
                         {activeMedsCount > 0 && (
@@ -571,7 +572,7 @@ function CenterDetail({ center, onClose }) {
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="font-bold text-gray-900">Appointments</h3>
                                 <button onClick={() => setShowAddAppt(true)}
-                                    className="text-sm bg-[#0f52ba] hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-colors">
+                                    className="text-sm bg-brand hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-colors">
                                     <Calendar size={13} /> New
                                 </button>
                             </div>
@@ -716,7 +717,7 @@ export default function HealthCenters() {
                     </div>
                     <div className="flex items-baseline gap-2">
                         <h2 className="text-4xl font-bold text-gray-900">{visibleCenters.length}</h2>
-                        <span className="text-sm font-medium text-[#0f52ba]">All Active</span>
+                        <span className="text-sm font-medium text-brand">All Active</span>
                     </div>
                 </div>
                 <div className="bg-[#ffc107] rounded-3xl p-6 shadow-sm text-gray-900">
@@ -729,7 +730,7 @@ export default function HealthCenters() {
                         <span className="text-sm font-medium text-yellow-900/80">Awaiting Confirmation</span>
                     </div>
                 </div>
-                <div className="bg-[#0f52ba] rounded-3xl p-6 shadow-sm text-white">
+                <div className="bg-brand rounded-3xl p-6 shadow-sm text-white">
                     <div className="flex justify-between items-start mb-4">
                         <div className="bg-white/20 p-3 rounded-xl text-white"><Pill size={24} /></div>
                         <span className="text-xs font-bold text-blue-100 uppercase tracking-wider">Active Medications</span>
@@ -754,13 +755,9 @@ export default function HealthCenters() {
                     </div>
                     <div className="flex items-center gap-2">
                         {!myBarangay && (
-                            <select value={filterBgy} onChange={e => setFilterBgy(e.target.value)}
-                                className="text-sm bg-gray-50 border border-gray-200 rounded-xl py-1.5 px-3 text-gray-700">
-                                <option value="all">All barangays</option>
-                                {barangayOptions.map(b => (
-                                    <option key={b || 'none'} value={b}>{b ? `Brgy. ${b}` : 'No barangay (older bookings)'}</option>
-                                ))}
-                            </select>
+                            <Combobox ariaLabel="Filter by barangay" className="text-sm bg-gray-50 border border-gray-200 rounded-xl py-1.5 px-3 text-gray-700 w-52"
+                                value={filterBgy} onChange={setFilterBgy}
+                                options={[{ value: 'all', label: 'All barangays' }, ...barangayOptions.map((b) => ({ value: b, label: b ? `Brgy. ${b}` : 'No barangay (older bookings)' }))]} />
                         )}
                         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
                             className="text-sm bg-gray-50 border border-gray-200 rounded-xl py-1.5 px-3 text-gray-700">
@@ -801,13 +798,9 @@ export default function HealthCenters() {
                     </div>
                     <div className="flex items-center gap-2">
                         {!myBarangay && (
-                            <select value={medFilterBgy} onChange={e => setMedFilterBgy(e.target.value)}
-                                className="text-sm bg-gray-50 border border-gray-200 rounded-xl py-1.5 px-3 text-gray-700">
-                                <option value="all">All barangays</option>
-                                {medBarangayOptions.map(b => (
-                                    <option key={b || 'none'} value={b}>{b ? `Brgy. ${b}` : 'No barangay'}</option>
-                                ))}
-                            </select>
+                            <Combobox ariaLabel="Filter by barangay" className="text-sm bg-gray-50 border border-gray-200 rounded-xl py-1.5 px-3 text-gray-700 w-52"
+                                value={medFilterBgy} onChange={setMedFilterBgy}
+                                options={[{ value: 'all', label: 'All barangays' }, ...medBarangayOptions.map((b) => ({ value: b, label: b ? `Brgy. ${b}` : 'No barangay' }))]} />
                         )}
                         <select value={medFilterStatus} onChange={e => setMedFilterStatus(e.target.value)}
                             className="text-sm bg-gray-50 border border-gray-200 rounded-xl py-1.5 px-3 text-gray-700">
@@ -852,7 +845,7 @@ export default function HealthCenters() {
                             />
                             <div className="absolute inset-0 bg-linear-to-t from-black/50 to-transparent" />
                             <div className="absolute top-3 left-3">
-                                <span className="bg-white text-[#0f52ba] text-[10px] font-bold uppercase px-2.5 py-1 rounded-full shadow-sm">
+                                <span className="bg-white text-brand text-[10px] font-bold uppercase px-2.5 py-1 rounded-full shadow-sm">
                                     Brgy. {center.barangay} · 3S
                                 </span>
                             </div>
@@ -876,7 +869,7 @@ export default function HealthCenters() {
                             <div className="grid grid-cols-2 gap-3 mb-4">
                                 <div className="bg-gray-50 rounded-2xl p-3 text-center">
                                     <div className="flex items-center justify-center gap-1 mb-1">
-                                        <Calendar size={13} className="text-[#0f52ba]" />
+                                        <Calendar size={13} className="text-brand" />
                                         <span className="text-lg font-bold text-gray-900">{apptCounts[center.id] || 0}</span>
                                     </div>
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Pending Appts</p>

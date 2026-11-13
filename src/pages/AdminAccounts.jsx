@@ -4,6 +4,7 @@ import { httpsCallable } from 'firebase/functions';
 import { ShieldCheck, Lock, Unlock, Search, X, Loader2, AlertCircle, CheckCircle2, Pencil, UserPlus, Copy } from 'lucide-react';
 import { db, functions } from '../lib/firebase';
 import { DISTRICTS, barangaysOf } from '../lib/barangay';
+import Combobox from '../components/Combobox';
 
 const setAdminLock = httpsCallable(functions, 'setAdminLock');
 const createSubAdmin = httpsCallable(functions, 'createSubAdmin');
@@ -127,13 +128,13 @@ function AdminFormModal({ admin, onClose, onSaved }) {
             <p className="text-xs font-semibold text-amber-700 bg-amber-50 rounded-xl px-4 py-2 mb-5">
               This password is shown only once. Give it to the admin securely.
             </p>
-            <button onClick={() => onSaved(`${created.email} created.`)} className="w-full py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-800 text-white text-sm font-bold">Done</button>
+            <button onClick={() => onSaved(`${created.email} created.`)} className="w-full py-3 rounded-xl bg-brand hover:bg-blue-800 text-white text-sm font-bold">Done</button>
           </div>
         ) : (
           <form onSubmit={submit} noValidate>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                {editing ? <Pencil size={18} className="text-[#0f52ba]" /> : <UserPlus size={18} className="text-[#0f52ba]" />}
+                {editing ? <Pencil size={18} className="text-brand" /> : <UserPlus size={18} className="text-brand" />}
                 {editing ? (isMain ? 'Edit Master Admin' : 'Edit Barangay Admin') : 'Add Sub Admin'}
               </h2>
               <button type="button" onClick={onClose} disabled={busy} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
@@ -164,14 +165,9 @@ function AdminFormModal({ admin, onClose, onSaved }) {
               {!isMain && (
                 <div>
                   <label className={LABEL} htmlFor="sa-brgy">Barangay</label>
-                  <select id="sa-brgy" className={INPUT} value={form.barangay} onChange={set('barangay')}>
-                    <option value="">Select barangay</option>
-                    {DISTRICTS.map((d) => (
-                      <optgroup key={d} label={d}>
-                        {barangaysOf(d).map((b) => <option key={b} value={b}>{b}</option>)}
-                      </optgroup>
-                    ))}
-                  </select>
+                  <Combobox ariaLabel="Barangay" className={INPUT} value={form.barangay}
+                    onChange={(b) => set('barangay')({ target: { value: b } })}
+                    options={DISTRICTS.flatMap((d) => barangaysOf(d))} placeholder="Search or select barangay" />
                 </div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -194,7 +190,7 @@ function AdminFormModal({ admin, onClose, onSaved }) {
             )}
             <div className="flex gap-3 mt-5">
               <button type="button" onClick={onClose} disabled={busy} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-60">Cancel</button>
-              <button type="submit" disabled={busy} className="flex-1 py-3 rounded-xl bg-[#0f52ba] hover:bg-blue-800 text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60">
+              <button type="submit" disabled={busy} className="flex-1 py-3 rounded-xl bg-brand hover:bg-blue-800 text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60">
                 {busy && <Loader2 size={15} className="animate-spin" />}
                 {editing ? 'Save changes' : 'Create account'}
               </button>
@@ -300,7 +296,7 @@ export default function AdminAccounts() {
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <ShieldCheck size={22} className="text-[#0f52ba]" /> Barangay Admin Accounts
+            <ShieldCheck size={22} className="text-brand" /> Barangay Admin Accounts
           </h1>
           <p className="text-sm text-gray-500 mt-1">
             Add Sub Admin accounts and edit their details. Lock an account that is unattended, compromised or no longer needed. Locked admins are signed out and cannot log in until unlocked.
@@ -309,7 +305,7 @@ export default function AdminAccounts() {
         <div className="flex items-center gap-3 flex-wrap">
         <button
           onClick={() => setFormFor(null)}
-          className="inline-flex items-center gap-2 bg-[#0f52ba] hover:bg-blue-800 text-white text-sm font-bold rounded-xl px-4 py-2.5 transition-colors"
+          className="inline-flex items-center gap-2 bg-brand hover:bg-blue-800 text-white text-sm font-bold rounded-xl px-4 py-2.5 transition-colors"
         >
           <UserPlus size={16} /> Add Sub Admin
         </button>
@@ -372,7 +368,7 @@ export default function AdminAccounts() {
                   <td className="py-3.5 px-5 text-right whitespace-nowrap">
                     <button
                       onClick={() => setFormFor(a)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 mr-2 rounded-lg text-xs font-bold border transition-colors bg-blue-50 hover:bg-blue-100 text-[#0f52ba] border-blue-200"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 mr-2 rounded-lg text-xs font-bold border transition-colors bg-blue-50 hover:bg-blue-100 text-brand border-blue-200"
                     >
                       <Pencil size={13} /> Edit
                     </button>

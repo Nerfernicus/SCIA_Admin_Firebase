@@ -190,3 +190,67 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   .stagger-item { animation: none; opacity: 1; }
 }
+
+/* ═══ Repo-wide pass: applies the polish to every page, not just Senior Records ═══ */
+
+/* 18 · Interruptible animation, every modal: fade the overlay and scale the panel with CSS
+   transitions (not keyframes), so any change mid-way reverses smoothly. */
+div.fixed.inset-0 { transition: opacity 150ms ease-out; }
+div.fixed.inset-0 > [class*="rounded-2xl"],
+div.fixed.inset-0 > [class*="rounded-xl"],
+div.fixed.inset-0 > [class*="rounded-3xl"] {
+  transition: opacity 180ms ease-out, transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@starting-style {
+  div.fixed.inset-0 { opacity: 0; }
+  div.fixed.inset-0 > [class*="rounded-2xl"],
+  div.fixed.inset-0 > [class*="rounded-xl"],
+  div.fixed.inset-0 > [class*="rounded-3xl"] { opacity: 0; transform: scale(0.96) translateY(6px); }
+}
+
+/* 10 · Origin-aware: dropdowns and menus grow from the edge they hang off (top-right). */
+.absolute.right-0.top-12, .absolute.right-0.top-full {
+  transform-origin: top right;
+  transition: opacity 150ms ease-out, transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@starting-style {
+  .absolute.right-0.top-12, .absolute.right-0.top-full { opacity: 0; transform: scale(0.95); }
+}
+
+/* 8 · Touch targets, every page: 44px on touch screens only (map controls excluded). */
+@media (pointer: coarse) {
+  button:not(.leaflet-container *), select,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]) { min-height: 44px; }
+  button[aria-label]:not(.leaflet-container *) { min-width: 44px; }
+}
+
+/* 13 · Safe area, every page: toasts and the header keep clear of the notch / home bar. */
+.fixed.top-4   { top: max(1rem, env(safe-area-inset-top)); }
+.fixed.top-6   { top: max(1.5rem, env(safe-area-inset-top)); }
+.fixed.bottom-4 { bottom: max(1rem, env(safe-area-inset-bottom)); }
+.fixed.bottom-6 { bottom: max(1.5rem, env(safe-area-inset-bottom)); }
+.fixed.right-4 { right: max(1rem, env(safe-area-inset-right)); }
+.fixed.right-6 { right: max(1.5rem, env(safe-area-inset-right)); }
+header { padding-top: env(safe-area-inset-top); }
+
+/* 14 · Stagger, every table: first 10 rows rise in one after another. */
+tbody > tr:not(.stagger-item):nth-child(-n+10) {
+  animation: stat-card-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+tbody > tr:nth-child(2) { animation-delay: 35ms; }
+tbody > tr:nth-child(3) { animation-delay: 70ms; }
+tbody > tr:nth-child(4) { animation-delay: 105ms; }
+tbody > tr:nth-child(5) { animation-delay: 140ms; }
+tbody > tr:nth-child(6) { animation-delay: 175ms; }
+tbody > tr:nth-child(7) { animation-delay: 210ms; }
+tbody > tr:nth-child(8) { animation-delay: 245ms; }
+tbody > tr:nth-child(9) { animation-delay: 280ms; }
+tbody > tr:nth-child(10) { animation-delay: 315ms; }
+
+/* 15 · Line length, every page: running text caps at ~65 characters (centered text excluded). */
+p:not([class*="text-center"]):not([class*="text-right"]) { max-inline-size: 65ch; }
+
+@media (prefers-reduced-motion: reduce) {
+  div.fixed.inset-0, div.fixed.inset-0 > *, .absolute.right-0.top-12, .absolute.right-0.top-full { transition: none; }
+  tbody > tr { animation: none !important; }
+}

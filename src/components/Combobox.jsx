@@ -4,6 +4,7 @@ import { ChevronDown, Check } from 'lucide-react';
 // Searchable single-select (WAI-ARIA 1.2 combobox with a listbox popup).
 // Type to filter, ↑/↓ to move, Enter to pick, Esc to close. The value can only
 // be one of `options`, so a half-typed name never reaches the form.
+// `options` may be strings or { value, label } objects.
 export default function Combobox({
   value, onChange, options, placeholder = 'Select…', disabled = false,
   className = '', emptyText = 'No match', ariaLabel, invalid = false,
@@ -16,10 +17,13 @@ export default function Combobox({
   const uid = useId();
   const listId = `${uid}-list`;
 
+  const opts = useMemo(
+    () => options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o)), [options]);
+  const selected = opts.find((o) => o.value === value);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? options.filter((o) => o.toLowerCase().includes(q)) : options;
-  }, [options, query]);
+    return q ? opts.filter((o) => o.label.toLowerCase().includes(q)) : opts;
+  }, [opts, query]);
 
   // Close on outside click.
   useEffect(() => {
@@ -38,9 +42,9 @@ export default function Combobox({
   function openList() {
     if (disabled) return;
     setOpen(true);
-    setActive(Math.max(0, options.indexOf(value)));
+    setActive(Math.max(0, opts.findIndex((o) => o.value === value)));
   }
-  function pick(o) { onChange(o); close(); }
+  function pick(o) { onChange(o.value); close(); }
 
   function onKeyDown(e) {
     if (disabled) return;
@@ -64,8 +68,8 @@ export default function Combobox({
         aria-invalid={invalid || undefined}
         autoComplete="off"
         disabled={disabled}
-        placeholder={open && value ? value : placeholder}
-        value={open ? query : (value || '')}
+        placeholder={open && selected ? selected.label : placeholder}
+        value={open ? query : (selected ? selected.label : '')}
         onFocus={openList}
         onClick={openList}
         onChange={(e) => { setQuery(e.target.value); setActive(0); if (!open) setOpen(true); }}
@@ -80,11 +84,11 @@ export default function Combobox({
           style={{ transformOrigin: 'top' }}>
           {filtered.length === 0 && <li className="px-3 py-2 text-gray-500">{emptyText}</li>}
           {filtered.map((o, i) => (
-            <li key={o} id={`${uid}-opt-${i}`} role="option" aria-selected={o === value}
+            <li key={o.value || 'none'} id={`${uid}-opt-${i}`} role="option" aria-selected={o.value === value}
               onMouseDown={(e) => e.preventDefault()} onClick={() => pick(o)} onMouseEnter={() => setActive(i)}
               className={`flex min-h-10 cursor-pointer items-center justify-between px-3 py-2 text-gray-900 ${i === active ? 'bg-gray-100' : ''}`}>
-              <span>{o}</span>
-              {o === value && <Check size={14} className="text-brand" aria-hidden="true" />}
+              <span>{o.label}</span>
+              {o.value === value && <Check size={14} className="text-brand" aria-hidden="true" />}
             </li>
           ))}
         </ul>

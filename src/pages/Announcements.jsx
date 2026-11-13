@@ -7,6 +7,7 @@ import { db } from '../lib/firebase';
 import { collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
+import Combobox from '../components/Combobox';
 
 const COLLECTION_ID = 'editorial_health';
 
@@ -273,7 +274,7 @@ export default function Announcements() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{t.announcements}</h1>
           <p className="text-gray-500">{t.announcementsPageSubtitle}</p>
         </div>
-        <button onClick={handleNewAnnouncement} className="bg-[#0f52ba] hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-medium flex items-center justify-center gap-2 transition-colors shadow-sm self-start sm:self-auto">
+        <button onClick={handleNewAnnouncement} className="bg-brand hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-medium flex items-center justify-center gap-2 transition-colors shadow-sm self-start sm:self-auto">
           <Plus size={18} /> {t.newAnnouncement}
         </button>
       </div>
@@ -282,7 +283,7 @@ export default function Announcements() {
         <div className="xl:col-span-2 space-y-6">
           <div className="bg-white rounded-3xl p-4 sm:p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center gap-2 mb-6 text-gray-800 font-bold text-lg">
-              <AlignLeft size={20} className="text-[#0f52ba]" /> {t.eventDetails}
+              <AlignLeft size={20} className="text-brand" /> {t.eventDetails}
             </div>
 
             <div className="mb-5">
@@ -356,12 +357,12 @@ export default function Announcements() {
           <div className="bg-white rounded-3xl p-4 sm:p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2 text-gray-800 font-bold text-lg">
-                <QrCode size={20} className="text-[#0f52ba]" /> {t.joinableEvent}
+                <QrCode size={20} className="text-brand" /> {t.joinableEvent}
               </div>
               <button
                 type="button"
                 onClick={() => setIsJoinable((v) => !v)}
-                className={`relative w-12 h-7 rounded-full transition-colors ${isJoinable ? 'bg-[#0f52ba]' : 'bg-gray-200'}`}
+                className={`relative w-12 h-7 rounded-full transition-colors ${isJoinable ? 'bg-brand' : 'bg-gray-200'}`}
               >
                 <span className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${isJoinable ? 'translate-x-5' : ''}`} />
               </button>
@@ -457,7 +458,7 @@ export default function Announcements() {
                           <button
                             type="button"
                             onClick={() => addFieldOption(field.id)}
-                            className="flex items-center gap-1.5 text-xs font-semibold text-[#0f52ba] hover:underline pt-1"
+                            className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline pt-1"
                           >
                             <Plus size={13} /> {t.addOption || 'Add option'}
                           </button>
@@ -467,7 +468,7 @@ export default function Announcements() {
                   ))}
                 </div>
 
-                <button type="button" onClick={addFormField} className="flex items-center gap-2 text-sm font-semibold text-[#0f52ba] hover:underline">
+                <button type="button" onClick={addFormField} className="flex items-center gap-2 text-sm font-semibold text-brand hover:underline">
                   <ListPlus size={16} /> {t.addSignupField}
                 </button>
               </>
@@ -477,7 +478,7 @@ export default function Announcements() {
           <div className="bg-white rounded-3xl p-4 sm:p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-bold text-gray-900 text-lg">{t.recentActivity}</h3>
-              <button className="text-sm font-semibold text-[#0f52ba] hover:underline">{t.viewArchive}</button>
+              <button className="text-sm font-semibold text-brand hover:underline">{t.viewArchive}</button>
             </div>
             <div className="space-y-4">
               {recentActivity.length === 0 && (
@@ -505,9 +506,9 @@ export default function Announcements() {
         <div className="space-y-6">
           <div className="bg-white rounded-3xl p-4 sm:p-6 border border-gray-100 shadow-sm">
             <h3 className="font-bold text-gray-900 mb-3">{t.audienceTitle}</h3>
-            <div className="flex items-center gap-3 p-3.5 rounded-xl bg-blue-50 border-2 border-[#0f52ba]">
-              <div className="w-8 h-8 rounded-full bg-[#0f52ba] flex items-center justify-center text-white text-sm">👴</div>
-              <span className="text-sm font-bold text-[#0f52ba]">{t.seniorCitizensOnly}</span>
+            <div className="flex items-center gap-3 p-3.5 rounded-xl bg-blue-50 border-2 border-brand">
+              <div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-white text-sm">👴</div>
+              <span className="text-sm font-bold text-brand">{t.seniorCitizensOnly}</span>
             </div>
             <p className="text-xs text-gray-400 mt-3">
               {myBarangay
@@ -520,7 +521,7 @@ export default function Announcements() {
             <h3 className="font-bold text-gray-900 mb-4">{t.schedulingTitle}</h3>
             <div className="space-y-4 mb-6">
               {myBarangay ? (
-                <div className="w-full bg-blue-50 border-2 border-[#0f52ba] rounded-xl py-2.5 px-3 text-sm font-bold text-[#0f52ba] flex items-center gap-2">
+                <div className="w-full bg-blue-50 border-2 border-brand rounded-xl py-2.5 px-3 text-sm font-bold text-brand flex items-center gap-2">
                   <MapPin size={14} /> {t.postingToBarangayOnlyPrefix} {myBarangay} {t.onlySuffix}
                 </div>
               ) : (
@@ -537,19 +538,11 @@ export default function Announcements() {
                   </select>
 
                   {audience === 'BARANGAY' && (
-                    <select
-                      value={barangay}
-                      onChange={(e) => setBarangay(e.target.value)}
-                      className="w-full bg-gray-100 rounded-xl py-2 px-3 mt-2"
-                    >
-                      <option value="">{t.selectBarangay}</option>
-                      <optgroup label={t.district1}>
-                        {DISTRICT_1_BARANGAYS.map((b) => (<option key={b} value={b}>{b}</option>))}
-                      </optgroup>
-                      <optgroup label={t.district2}>
-                        {DISTRICT_2_BARANGAYS.map((b) => (<option key={b} value={b}>{b}</option>))}
-                      </optgroup>
-                    </select>
+                    <div className="mt-2">
+                      <Combobox ariaLabel={t.selectBarangay} className="w-full bg-gray-100 rounded-xl py-2 px-3"
+                        value={barangay} onChange={setBarangay}
+                        options={[...DISTRICT_1_BARANGAYS, ...DISTRICT_2_BARANGAYS]} placeholder={t.selectBarangay} />
+                    </div>
                   )}
                 </>
               )}
@@ -583,7 +576,7 @@ export default function Announcements() {
             <button
               onClick={saveDocument}
               disabled={saving}
-              className="w-full bg-[#0f52ba] hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-md shadow-blue-500/20"
+              className="w-full bg-brand hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-md shadow-blue-500/20"
             >
               {saving ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
               {t.publishAnnouncement}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Navigate, useBlocker } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -186,6 +186,24 @@ const Seg = ({ value, options, onChange }) => (
   </div>
 );
 
+// One transparent hit target per element. Memoized, so while you drag only the moving one re-renders.
+const HitBox = memo(function HitBox({ el, zoom, onDown, onEnter, onLeave, onDouble }) {
+  const hh = Math.max(el.height, 10 / zoom);
+  return (
+    <div
+      onPointerDown={(ev) => onDown(ev, el, 'move')}
+      onPointerEnter={() => onEnter(el.id)}
+      onPointerLeave={onLeave}
+      onDoubleClick={() => onDouble(el)}
+      style={{
+        position: 'absolute', left: el.x, top: el.y - (hh - el.height) / 2, width: el.width, height: hh,
+        transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined, zIndex: el.zIndex,
+        cursor: el.locked ? 'default' : 'move',
+      }}
+    />
+  );
+});
+
 // ═════════════════════════════════════════════════════════════════════════════
 export default function IdDesigner() {
   const { isSuperAdmin, loading: authLoading } = useAuth();
@@ -205,6 +223,8 @@ export default function IdDesigner() {
   const [snap, setSnap] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
   const [guides, setGuides] = useState(null);
+  const [hoverId, setHoverId] = useState(null);
+  const [editingId, setEditingId] = useState(null); // inline text editing (double-click / Enter)
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
 
@@ -218,6 +238,7 @@ export default function IdDesigner() {
   const fileRef = useRef(null);
   const fileTarget = useRef(null); // 'add' | 'replace' | 'background'
   const dragRef = useRef(null);
+  const pinch = useRef({ pts: new Map(), dist: 1, zoom: 1 });
   const live = useRef({});
   live.current = { tpl, side, zoom, snap, selId };
 
@@ -359,24 +380,33 @@ export default function IdDesigner() {
   };
 
   // ── pointer gestures (move / resize / rotate) ───────────────────────────────
-  const toDoc = (e) => {
+  const toDoc = useCallback((e) => {
     const r = canvasRef.current.getBoundingClientRect();
     return { x: (e.clientX - r.left) / live.current.zoom, y: (e.clientY - r.top) / live.current.zoom };
-  };
+  }, []);
 
-  const startGesture = (e, el, kind, handle) => {
-    if (e.button > 0) return; // primary button / touch only
+  const startGesture = useCallback((e, el, kind, handle) => {
+    if (e.button > 0 || pinch.current.pts.size >= 2) return; // primary button / one finger only
     e.preventDefault();
     e.stopPropagation();
     document.activeElement?.blur?.(); // so arrow keys / Delete act on the card, not a text box
     setSelId(el.id);
     if (el.locked) return;
     dispatch({ type: 'gestureStart' });
-    dragRef.current = { kind, handle, id: el.id, orig: { ...el }, start: toDoc(e) };
-  };
+    dragRef.current = { kind, handle, id: el.id, orig: { ...el }, start: toDoc(e), active: kind !== 'move' };
+  }, [toDoc]);
+
+  const onHoverEnter = useCallback((id) => { if (!dragRef.current) setHoverId(id); }, []);
+  const onHoverLeave = useCallback(() => setHoverId(null), []);
+  const onDouble = useCallback((el) => { if (el.type === 'text' && !el.locked) setEditingId(el.id); }, []);
+  const startEdit = useCallback(() => {
+    const { tpl: t, side: sd, selId: id } = live.current;
+    const el = t[sd].elements.find((x) => x.id === id);
+    if (el && el.type === 'text' && !el.locked) setEditingId(id);
+  }, []);
 
   useEffect(() => {
-    const onMove = (e) => {
+    const process = (e) => {
       const d = dragRef.current;
       if (!d) return;
       const { side: sd, zoom: z, snap: sn, tpl: t } = live.current;
@@ -384,6 +414,10 @@ export default function IdDesigner() {
       const p = toDoc(e);
       const dx = p.x - d.start.x;
       const dy = p.y - d.start.y;
+      if (!d.active) { // a click is not a drag: ignore the first 3 screen pixels
+        if (Math.hypot(dx, dy) * z < 3) return;
+        d.active = true;
+      }
       const free = e.altKey; // hold Alt to move without snapping
       const targets = guideTargets(t[sd].elements.filter((x) => x.id !== d.id));
       const thr = SNAP_PX / z;
@@ -464,7 +498,18 @@ export default function IdDesigner() {
       dispatch({ type: 'live', fn: (tt) => mapEls(tt, sd, (x) => (x.id === d.id ? { ...x, ...patch } : x)) });
       setGuides(g.v.length || g.h.length ? g : null);
     };
+    let raf = 0;
+    let pendingEv = null;
+    // At most one update per screen frame, however fast the pointer reports.
+    const onMove = (e) => {
+      if (pinch.current.pts.size >= 2 || !dragRef.current) return;
+      pendingEv = { clientX: e.clientX, clientY: e.clientY, altKey: e.altKey, shiftKey: e.shiftKey };
+      if (!raf) raf = requestAnimationFrame(() => { raf = 0; const ev = pendingEv; pendingEv = null; if (ev) process(ev); });
+    };
     const onUp = () => {
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      if (pendingEv && dragRef.current) process(pendingEv);
+      pendingEv = null;
       if (!dragRef.current) return;
       dragRef.current = null;
       dispatch({ type: 'gestureEnd' });
@@ -474,6 +519,7 @@ export default function IdDesigner() {
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
     return () => {
+      if (raf) cancelAnimationFrame(raf);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
@@ -482,7 +528,7 @@ export default function IdDesigner() {
 
   // ── keyboard: arrows nudge, Delete, Ctrl+Z / Y / D / S ──────────────────────
   const actions = useRef({});
-  actions.current = { removeSel, duplicateSel, nudge, save };
+  actions.current = { removeSel, duplicateSel, nudge, save, startEdit };
   useEffect(() => {
     const onKey = (e) => {
       const t = e.target;
@@ -496,6 +542,7 @@ export default function IdDesigner() {
       if (mod && k === 'd') { e.preventDefault(); actions.current.duplicateSel(); return; }
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); actions.current.removeSel(); return; }
       if (e.key === 'Escape') { setSelId(null); return; }
+      if (e.key === 'Enter') { e.preventDefault(); actions.current.startEdit(); return; }
       const step = e.shiftKey ? 10 : 1;
       const mv = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
       if (mv) { e.preventDefault(); actions.current.nudge(mv[0], mv[1]); }
@@ -503,6 +550,47 @@ export default function IdDesigner() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // Ctrl/Cmd + wheel (and trackpad pinch) zooms; two fingers pinch-zoom on touch screens.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return undefined;
+    const P = pinch.current;
+    const clampZ = (z) => Math.min(3, Math.max(0.5, Math.round(z * 100) / 100));
+    const dist = () => { const [a, b] = [...P.pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
+    const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setZoom((z) => clampZ(z * Math.exp(-e.deltaY * 0.01)));
+    };
+    const down = (e) => {
+      if (e.pointerType !== 'touch') return;
+      P.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (P.pts.size === 2) {
+        if (dragRef.current) { dragRef.current = null; dispatch({ type: 'gestureEnd' }); setGuides(null); }
+        P.dist = dist();
+        P.zoom = live.current.zoom;
+      }
+    };
+    const move = (e) => {
+      if (!P.pts.has(e.pointerId)) return;
+      P.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (P.pts.size === 2) setZoom(clampZ((P.zoom * dist()) / P.dist));
+    };
+    const up = (e) => { P.pts.delete(e.pointerId); };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('pointerdown', down, true);
+    el.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('pointerdown', down, true);
+      el.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+  }, [loadState]);
 
   if (!authLoading && !isSuperAdmin) return <Navigate to="/unauthorized" replace />;
 
@@ -514,6 +602,8 @@ export default function IdDesigner() {
   const isText = sel && (sel.type === 'text' || DYNAMIC_TEXT_TYPES.includes(sel.type));
   const hasBox = sel && !['line', 'seal'].includes(sel.type);
   const st = sel?.style || {};
+  const editEl = editingId ? els.find((e) => e.id === editingId && e.type === 'text') || null : null;
+  const hoverEl = hoverId && hoverId !== selId ? els.find((e) => e.id === hoverId) : null;
 
   if (loadState !== 'ready') {
     return (
@@ -560,7 +650,7 @@ export default function IdDesigner() {
 
       {/* option bar */}
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-gray-200 bg-white px-4 py-2.5">
-        <Seg value={side} onChange={(v) => { setSide(v); setSelId(null); }} options={[{ v: 'front', label: 'Front' }, { v: 'back', label: 'Back' }]} />
+        <Seg value={side} onChange={(v) => { setSide(v); setSelId(null); setEditingId(null); }} options={[{ v: 'front', label: 'Front' }, { v: 'back', label: 'Back' }]} />
         <Seg value={mode} onChange={setMode} options={[{ v: 'digital', label: 'Digital' }, { v: 'physical', label: 'Physical' }]} />
         <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700"><input type="checkbox" checked={preview} onChange={(e) => setPreview(e.target.checked)} /> Preview with sample data</label>
         <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700"><input type="checkbox" checked={snap} onChange={(e) => setSnap(e.target.checked)} /> Snap to grid</label>
@@ -577,7 +667,7 @@ export default function IdDesigner() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[230px_minmax(0,1fr)_300px] items-start">
         {/* left: add + layers */}
-        <aside className="order-2 lg:order-1 rounded-2xl border border-gray-200 bg-white p-4">
+        <aside className="order-2 lg:order-1 rounded-2xl border border-gray-200 bg-white p-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
           <Section title="Filled from the senior">
             <div className="grid grid-cols-2 gap-1.5">
               {DYNAMIC_TYPES.map((tp) => (
@@ -621,7 +711,7 @@ export default function IdDesigner() {
           <div
             ref={stageRef}
             className="overflow-auto rounded-2xl border border-gray-200 p-6"
-            style={{ background: 'repeating-conic-gradient(#f3f4f6 0% 25%, #e9ebef 0% 50%) 0 0 / 20px 20px' }}
+            style={{ background: 'repeating-conic-gradient(#f3f4f6 0% 25%, #e9ebef 0% 50%) 0 0 / 20px 20px', touchAction: 'pan-x pan-y' }}
           >
             <div
               ref={canvasRef}
@@ -634,20 +724,36 @@ export default function IdDesigner() {
                 {/* overlays live outside the clipped card face so edge handles stay visible */}
                 <div style={{ position: 'absolute', inset: 0 }}>
                   {/* hit targets: same stacking order as the artwork */}
-                  {els.map((e) => {
-                    const hh = Math.max(e.height, 10 / zoom);
-                    return (
-                      <div
-                        key={e.id}
-                        onPointerDown={(ev) => startGesture(ev, e, 'move')}
-                        style={{
-                          position: 'absolute', left: e.x, top: e.y - (hh - e.height) / 2, width: e.width, height: hh,
-                          transform: e.rotation ? `rotate(${e.rotation}deg)` : undefined, zIndex: e.zIndex,
-                          cursor: e.locked ? 'default' : 'move',
-                        }}
-                      />
-                    );
-                  })}
+                  {els.map((e) => (
+                    <HitBox key={e.id} el={e} zoom={zoom} onDown={startGesture} onEnter={onHoverEnter} onLeave={onHoverLeave} onDouble={onDouble} />
+                  ))}
+                  {hoverEl && (
+                    <div style={{
+                      position: 'absolute', left: hoverEl.x, top: hoverEl.y, width: hoverEl.width, height: hoverEl.height, pointerEvents: 'none', zIndex: 99980,
+                      transform: hoverEl.rotation ? `rotate(${hoverEl.rotation}deg)` : undefined, outline: `${1.5 / zoom}px solid rgba(37,99,235,0.55)`,
+                    }} />
+                  )}
+                  {editEl && (
+                    <textarea
+                      autoFocus
+                      value={editEl.content || ''}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => patchEl(editEl.id, { content: e.target.value.slice(0, 2000) }, `${editEl.id}:content`)}
+                      onBlur={() => setEditingId(null)}
+                      onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Escape') setEditingId(null); }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      style={{
+                        position: 'absolute', left: editEl.x, top: editEl.y, width: editEl.width, height: editEl.height, zIndex: 100001,
+                        transform: editEl.rotation ? `rotate(${editEl.rotation}deg)` : undefined, boxSizing: 'border-box',
+                        margin: 0, padding: 0, border: 0, resize: 'none', overflow: 'hidden', touchAction: 'auto',
+                        outline: `${1.5 / zoom}px solid #2563eb`, background: 'rgba(255,255,255,0.95)',
+                        fontFamily: FONT_FAMILIES[editEl.style?.fontFamily] || FONT_FAMILIES.Arial, fontSize: editEl.style?.fontSize || 12,
+                        fontWeight: editEl.style?.fontWeight || 400, fontStyle: editEl.style?.fontStyle || 'normal', color: editEl.style?.color || '#111111',
+                        textAlign: editEl.style?.align || 'left', letterSpacing: editEl.style?.letterSpacing ? `${editEl.style.letterSpacing}px` : undefined,
+                        lineHeight: editEl.style?.lineHeight || 1.2,
+                      }}
+                    />
+                  )}
                   {showGrid && (
                     <div style={{
                       position: 'absolute', inset: 0, zIndex: 99990, pointerEvents: 'none',
@@ -668,7 +774,7 @@ export default function IdDesigner() {
                         transform: sel.rotation ? `rotate(${sel.rotation}deg)` : undefined, outline: `${1.5 / zoom}px solid #2563eb`,
                       }}
                     >
-                      {!sel.locked && HANDLES.map((h) => (
+                      {!sel.locked && !editEl && HANDLES.map((h) => (
                         <div
                           key={h.k}
                           onPointerDown={(ev) => startGesture(ev, sel, 'resize', h.k)}
@@ -680,7 +786,7 @@ export default function IdDesigner() {
                           <div style={{ width: hs, height: hs, background: '#fff', border: `${1.5 / zoom}px solid #2563eb`, borderRadius: 2 / zoom }} />
                         </div>
                       ))}
-                      {!sel.locked && (
+                      {!sel.locked && !editEl && (
                         <div
                           onPointerDown={(ev) => startGesture(ev, sel, 'rotate')}
                           title="Rotate (Shift = 15° steps)"
@@ -699,12 +805,12 @@ export default function IdDesigner() {
             </div>
           </div>
           <p className="mt-2 text-[11px] text-gray-500">
-            Drag to move · corner/edge handles resize (Shift keeps proportions) · top dot rotates · arrow keys nudge 1 px (Shift = 10) · Alt = move without snapping · Delete removes · Ctrl+Z / Ctrl+Y undo / redo · Ctrl+D duplicates.
+            Drag to move · double-click text (or Enter) to type on the card · Ctrl + wheel or two-finger pinch zooms · corner/edge handles resize (Shift keeps proportions) · top dot rotates · arrow keys nudge 1 px (Shift = 10) · Alt = move without snapping · Delete removes · Ctrl+Z / Ctrl+Y undo / redo · Ctrl+D duplicates.
           </p>
         </main>
 
         {/* right: properties */}
-        <aside className="order-3 rounded-2xl border border-gray-200 bg-white p-4">
+        <aside className="order-3 rounded-2xl border border-gray-200 bg-white p-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
           {!sel ? (
             <>
               <Section title={`${side === 'front' ? 'Front' : 'Back'} background`}>

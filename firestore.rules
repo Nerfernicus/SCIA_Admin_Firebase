@@ -339,6 +339,17 @@ service cloud.firestore {
       allow write: if isSuperAdmin();
     }
 
+    // ── /settings ────────────────────────────────────────────────────────
+    // settings/idTemplate = the OSCA ID design (front + back, see src/lib/idTemplate.js).
+    // Any signed-in user may READ it, because every screen and app that draws an ID needs it.
+    // Nobody may write it from a browser: only the saveIdTemplate Cloud Function (Admin SDK) can,
+    // and that function accepts the OSCA Super Admin only, validates the design, and writes the
+    // admin_audit entry in the same batch.
+    match /settings/{docId} {
+      allow read: if request.auth != null && docId == 'idTemplate';
+      allow write: if false;
+    }
+
     // ── /pickup_slots ────────────────────────────────────────────────────
     // pickup_slots/{YYYY-MM-DD} = { counts: { "08:00": 2 } }. Read-only for
     // clients; the bookIdPickup Cloud Function is the only writer, so a full

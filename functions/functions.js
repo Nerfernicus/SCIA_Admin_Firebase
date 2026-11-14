@@ -393,6 +393,9 @@ exports.deactivateInactiveUser = accountControls.deactivateInactiveUser;
 exports.requestPasswordResetOtp = accountControls.requestPasswordResetOtp;
 exports.resetPasswordWithOtp = accountControls.resetPasswordWithOtp;
 
+// Super admin saves the OSCA ID design (settings/idTemplate) and the save is audited.
+exports.saveIdTemplate = require("./idTemplate").saveIdTemplate;
+
 
    // Tagalog voice guide: Gemini on Vertex AI, called server-side so no browser needs App Check.
 const guideAI = require("./guideAI");

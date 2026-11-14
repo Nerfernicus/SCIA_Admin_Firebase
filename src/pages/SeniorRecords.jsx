@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { collection, getDocs, onSnapshot, query, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
 import {
   ClipboardCheck, CheckCircle2, XCircle, Loader2, Printer, Ban, Search, QrCode, Plus, X, Download, Eye, BellRing,
@@ -11,11 +9,11 @@ import { db, functions } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import Combobox from '../components/Combobox';
 import { ID_TYPES, idTypeLabel, RECORD_RE } from '../lib/seniorRecord';
-import Code39 from '../components/Code39';
 import MaskedName from '../components/MaskedName';
 import SeniorProfileModal from '../components/SeniorProfileModal';
 import MissingRequirementsModal from '../components/MissingRequirementsModal';
-import vallogo from '../assets/vallogo.png';
+import { loadIdTemplate, recordToCardData } from '../lib/idTemplate';
+import { printIdCard } from '../lib/printIdCard';
 
 const call = (name) => httpsCallable(functions, name);
 const nameOf = (u) => [u.firstName, u.midName, u.lastName].filter(Boolean).join(' ');
@@ -34,45 +32,11 @@ const viewBtn = 'px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hov
 const primaryBtn = 'px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-bold flex items-center gap-1 disabled:opacity-50';
 const ghostBtn = 'px-4 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50';
 
-// ── Printable ID (CR80, 85.6 x 54 mm). Opens its own window so only the card prints. ──
-function cardMarkup(r) {
-  return renderToStaticMarkup(
-    <div className="card">
-      <div className="top">
-        <img src={vallogo} alt="" />
-        <div><b>CITY OF VALENZUELA</b><br />Office of Senior Citizens Affairs (OSCA)</div>
-      </div>
-      <div className="body">
-        <div className="info">
-          <div className="lbl">Name</div><div className="val">{r.fullName}</div>
-          <div className="lbl">Barangay</div><div className="val">{r.barangay || '-'}</div>
-          <div className="row">
-            <div><div className="lbl">Birthdate</div><div className="val">{r.dob || '-'}</div></div>
-            <div><div className="lbl">Sex</div><div className="val">{r.sex || '-'}</div></div>
-          </div>
-          <div className="lbl">OSCA No.</div><div className="val mono">{r.recordNo}</div>
-        </div>
-        <QRCodeSVG value={r.qrValue || r.recordNo} size={88} level="M" />
-      </div>
-      <div className="bar"><Code39 value={r.recordNo} height={26} /></div>
-    </div>,
-  );
-}
-
+// ── Printable ID ─────────────────────────────────────────────────────────────
+// Prints the saved OSCA ID template (src/lib/idTemplate.js, edited in ID Designer) at CR80 size,
+// 85.6 x 54 mm: front page, then back page. Opens its own window so only the card prints.
 function printCard(r) {
-  const w = window.open('', '_blank', 'width=520,height=360');
-  if (!w) return false;
-  w.document.write(`<html><head><title>${r.recordNo}</title><style>
-    @page{size:85.6mm 54mm;margin:0} *{box-sizing:border-box} body{margin:0;font-family:Arial,sans-serif}
-    .card{width:85.6mm;height:54mm;padding:3mm;border:.3mm solid #999;display:flex;flex-direction:column;justify-content:space-between}
-    .top{display:flex;gap:2mm;align-items:center;font-size:7pt;border-bottom:.4mm solid #166534;padding-bottom:1mm}
-    .top img{height:9mm}.body{display:flex;justify-content:space-between;gap:2mm}
-    .info{flex:1;font-size:7pt}.lbl{font-size:5pt;color:#555;text-transform:uppercase;margin-top:.8mm}
-    .val{font-weight:700;font-size:8pt}.mono{font-family:monospace}.row{display:flex;gap:4mm}
-    .bar{height:7mm}
-  </style></head><body>${cardMarkup(r)}<script>window.onload=()=>{window.print()}</script></body></html>`);
-  w.document.close();
-  return true;
+  return printIdCard({ data: recordToCardData(r), mode: 'physical', title: r.recordNo });
 }
 
 function Modal({ children, wide }) {
@@ -346,6 +310,7 @@ function ScanPanel() {
 
 // ── Page ────────────────────────────────────────────────────────────────────
 export default function SeniorRecords() {
+  useEffect(() => { loadIdTemplate(); }, []); // so Print uses the saved design right away
   const { isSuperAdmin } = useAuth();
   const [tab, setTab] = useState(isSuperAdmin ? 'pending' : 'scan');
   const [filter, setFilter] = useState('all');

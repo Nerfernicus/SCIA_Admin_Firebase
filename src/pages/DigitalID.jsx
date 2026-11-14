@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import OSCAIdCard from '../components/Oscaidcard';
+import { printIdCard } from '../lib/printIdCard';
 
 const fmt = (ts) => ts?.toDate?.()?.toLocaleDateString('en-PH') ?? 'N/A';
 
@@ -105,17 +106,14 @@ function DigitalIDCard({ senior }) {
   const { t } = useLang();
   const cardRef = useRef(null);
 
+  // Prints the same saved ID template the card shows (front + back, 85.6 x 54 mm).
   const handlePrint = () => {
-    const content = cardRef.current?.innerHTML;
-    if (!content) return;
-    const w = window.open('', '_blank');
-    w.document.write(`
-      <html><head><title>OSCA Digital ID – ${senior.fullName}</title>
-      <style>* { box-sizing: border-box; margin: 0; padding: 0; } body { font-family: Arial, sans-serif; background: #f3f4f6; display: flex; justify-content: center; padding: 40px; }</style>
-      </head><body><div>${content}</div></body></html>
-    `);
-    w.document.close();
-    w.print();
+    const p = seniorToCardProps(senior);
+    printIdCard({
+      data: { ...p, qrValue: p.controlNo, barcodeValue: p.controlNo },
+      mode: 'digital',
+      title: `OSCA Digital ID – ${senior.fullName || ''}`,
+    });
   };
 
   const props = seniorToCardProps(senior);

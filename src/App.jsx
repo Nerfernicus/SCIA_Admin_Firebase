@@ -21,6 +21,7 @@ import AssistedKiosk from './pages/AssistedKiosk';
 import AppDownload from './pages/AppDownload';
 import AdminAccounts from './pages/AdminAccounts';
 import SeniorRecords from './pages/SeniorRecords';
+import IdDesigner from './pages/IdDesigner';
 
 
 function Layout() {
@@ -64,6 +65,15 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={['super_admin']}>
             <DigitalID />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        // Drag-and-drop editor for the OSCA ID design. OSCA Super Admin only.
+        path: 'id-designer',
+        element: (
+          <ProtectedRoute allowedRoles={['super_admin']}>
+            <IdDesigner />
           </ProtectedRoute>
         ),
       },

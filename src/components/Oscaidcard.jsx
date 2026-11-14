@@ -1,10 +1,12 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
-import { ShieldCheck } from "lucide-react";
-import valLogo from "../assets/vallogo.png";
+import { IdFace } from "./IdTemplateFace";
+import { CARD_W, CARD_H, useIdTemplate } from "../lib/idTemplate";
 import "./Oscaidcard.css";
 
 /**
  * OSCAIdCard
+ * Draws both sides of the ID from the saved template (settings/idTemplate), or from the
+ * built-in default design when none is saved / the load fails.
  * Props:
  *   mode        : "digital" | "physical"
  *   name        : string
@@ -15,9 +17,6 @@ import "./Oscaidcard.css";
  *   controlNo   : string
  *   photoUrl    : string  (URL or base64)
  */
-const CARD_W = 540;
-const CARD_H = 340;
-
 const OSCAIdCard = ({
   mode = "digital",
   name = "",
@@ -31,6 +30,7 @@ const OSCAIdCard = ({
   const [flipped, setFlipped] = useState(false);
   const wrapRef = useRef(null);
   const [scale, setScale] = useState(1);
+  const template = useIdTemplate();
 
   // Fit the 540px-wide card to the space it is given (page, modal, phone...).
   useLayoutEffect(() => {
@@ -49,168 +49,30 @@ const OSCAIdCard = ({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const isDigital = mode === "digital";
+
+  const data = {
+    name, address, dateOfBirth, sex, dateIssued, controlNo, photoUrl,
+    qrValue: controlNo, barcodeValue: controlNo,
+  };
 
   return (
     <div className="osca-id-wrapper" ref={wrapRef}>
       {/* The card is designed at 540x340. This box takes the SCALED size so it
           fits whatever width the page/modal gives it (no fixed phone breakpoints). */}
       <div className="osca-scale-box" style={{ width: CARD_W * scale, height: CARD_H * scale }}>
-      <div
-        className={`osca-flip-container${flipped ? " flipped" : ""}`}
-        style={{ "--osca-scale": scale }}
-        onClick={() => setFlipped((f) => !f)}
-        title={flipped ? "Click to see front" : "Click to see back (benefits)"}
-      >
-        <div className="osca-card osca-card-front">
-          <div className="front-header">
-            <div className="front-header-logo">
-              <img src={valLogo} alt="Valenzuela City Government Seal" />
-            </div>
-            <div className="front-header-center">
-              <p className="header-republic">Republic of the Philippines</p>
-              <p className="header-city">CITY OF VALENZUELA</p>
-              <p className="header-osca">Office of the Senior Citizens Affairs (OSCA)</p>
-              {isDigital && <span className="digital-badge">DIGITAL ID</span>}
-            </div>
-            <div className="front-header-logo" aria-hidden="true" />
+        <div
+          className={`osca-flip-container${flipped ? " flipped" : ""}`}
+          style={{ "--osca-scale": scale }}
+          onClick={() => setFlipped((f) => !f)}
+          title={flipped ? "Click to see front" : "Click to see back (benefits)"}
+        >
+          <div className="osca-card osca-card-front">
+            <IdFace template={template} side="front" data={data} mode={mode} />
           </div>
-
-          <div className="front-body">
-            <div className="front-fields">
-              <div className="field-row">
-                <span className="field-label">Name:</span>
-                <span className="field-value">{name}</span>
-              </div>
-              <div className="field-row">
-                <span className="field-label">Address:</span>
-                <span className="field-value address-value">
-                  {address.split("\n").map((line, i, arr) => (
-                    <React.Fragment key={i}>
-                      {line}
-                      {i < arr.length - 1 && <br />}
-                    </React.Fragment>
-                  ))}
-                </span>
-              </div>
-
-              <div className="front-meta">
-                <div className="meta-block">
-                  <div className="meta-val">{dateOfBirth}</div>
-                  <div className="meta-lbl">Date of Birth</div>
-                </div>
-                <div className="meta-block">
-                  <div className="meta-val">{sex}</div>
-                  <div className="meta-lbl">Sex</div>
-                </div>
-                <div className="meta-block">
-                  <div className="meta-val">{dateIssued}</div>
-                  <div className="meta-lbl">Date Issued</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="front-photo">
-              <div className="photo-box">
-                {photoUrl ? (
-                  <img src={photoUrl} alt="Member photo" className="photo-img" />
-                ) : (
-                  <svg width="46" height="56" viewBox="0 0 50 60" aria-hidden="true">
-                    <circle cx="25" cy="20" r="14" fill="#bbb" />
-                    <ellipse cx="25" cy="54" rx="20" ry="12" fill="#bbb" />
-                  </svg>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="front-bottom">
-            <div className="sig-area">
-              <div className="sig-line" />
-              <div className="sig-label">Signature / Thumbmark</div>
-            </div>
-
-            {/* Fakes Valenzuela's tamper-resistant hologram seal with a CSS conic-gradient */}
-            <div className="holo-seal" title="Holographic security seal — verify at valid.valenzuela.gov.ph">
-              <div className="holo-seal-inner">
-                <ShieldCheck size={14} />
-              </div>
-            </div>
-
-            <div className="control-area">
-              <div className="control-no">{controlNo}</div>
-              <div className="control-label">Control No.</div>
-            </div>
-          </div>
-
-          <div className="front-footer">
-            <span>This card is non-transferable &nbsp;·&nbsp; Verify at valid.valenzuela.gov.ph</span>
+          <div className="osca-card osca-card-back">
+            <IdFace template={template} side="back" data={data} mode={mode} />
           </div>
         </div>
-
-        <div className="osca-card osca-card-back">
-          <div className="back-top-stripe" />
-
-          <div className="back-title-bar">
-            <h2 className="back-title">Benefits and Privileges under R.A. 9994</h2>
-          </div>
-
-          <div className="back-body">
-            <ol className="benefits-list">
-              <li>Free medical / dental, diagnostic &amp; laboratory services in all government facilities</li>
-              <li>20% discount for medicines</li>
-              <li>20% discount in hotels, restaurants &amp; recreation centers</li>
-              <li>20% discount in theaters, cinema houses &amp; concert halls</li>
-              <li>20% discount in medical / dental services, diagnostic &amp; laboratory fees in private facilities</li>
-              <li>20% discount in fare for domestic air, sea travel &amp; public land transportations</li>
-              <li>5% discount in basic necessities &amp; primary commodities</li>
-              <li>
-                12% VAT-exemption on the purchase of goods &amp; services which are entitled to the 20% discount
-              </li>
-              <li>
-                5% discount for the monthly utilization of water &amp; electricity, provided that the water &amp;
-                electricity meter bases are under the name of the senior citizens.
-              </li>
-            </ol>
-
-            <div className="back-notice">
-              <p>Persons and corporations violating R.A. 9994 shall be penalized.</p>
-              <p>Only for the exclusive use of senior citizens; abuse of privileges is punishable by law.</p>
-            </div>
-
-            <div className="back-signers">
-              <div className="signer">
-                <div className="signer-sig-space" />
-                <div className="signer-line" />
-                <div className="signer-name">Dorothy G. Evangelista</div>
-                <div className="signer-title">OSCA Head</div>
-              </div>
-              <div className="signer">
-                <div className="signer-sig-space" />
-                <div className="signer-line" />
-                <div className="signer-name">WES Gatchalian</div>
-                <div className="signer-title">City Mayor</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="back-footer">
-            <div className="back-footer-left">
-              <div className="progreso-text">
-                <span className="progreso-tuloy">Tuloy-PROGRESO,</span>
-                <br />
-                <span className="progreso-city">Valenzuela!</span>
-              </div>
-            </div>
-            <div className="back-footer-right">
-              <div className="footer-web">www.valenzuela.gov.ph</div>
-              <div className="footer-socials">
-                ✉ info@valenzuela.gov.ph &nbsp; f Valenzuela City &nbsp; @ valenzuelacity
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
       </div>
 
       <p style={{ fontSize: "11px", color: "#9ca3af", marginTop: "6px", userSelect: "none" }}>

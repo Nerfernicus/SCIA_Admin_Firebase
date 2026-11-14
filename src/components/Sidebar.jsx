@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Map, Megaphone, Users,
   Building2, LogOut, Crown, User2, CreditCard,
   PanelLeftClose, PanelLeftOpen, FileText, Contact,
-  QrCode, UserPlus, ClipboardCheck, ShieldCheck, ExternalLink,
+  QrCode, UserPlus, ClipboardCheck, ShieldCheck, ExternalLink, PenTool,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -78,6 +78,7 @@ export default function Sidebar({ children }) {
     { key: 'assistedSignup', icon: UserPlus,        path: '/assisted-signup' },
     { key: 'seniorRecords', icon: ClipboardCheck, path: '/senior-records' },
     { key: 'digitalId',      icon: Contact,         path: '/digital-id' },
+    { key: 'idDesigner',     icon: PenTool,         path: '/id-designer', label: 'ID Designer' }, // super admin only
     { key: 'userManagement', icon: Users,           path: '/users' },
     { key: 'adminAccounts',  icon: ShieldCheck,     path: '/admin-accounts' },
     { key: 'analytics',      icon: LayoutDashboard, path: '/analytics' },
@@ -190,7 +191,7 @@ export default function Sidebar({ children }) {
                   type="button"
                   onClick={launchAssistedKiosk}
                   disabled={kioskBusy}
-                  title={!expanded ? (t[item.key] || item.key) : 'Opens in a new tab and signs you out'}
+                  title={!expanded ? (t[item.key] || item.label || item.key) : 'Opens in a new tab and signs you out'}
                   style={{
                     padding: expanded ? '10px 16px' : '10px',
                     justifyContent: expanded ? 'flex-start' : 'center',
@@ -201,7 +202,7 @@ export default function Sidebar({ children }) {
                   }`}
                 >
                   <Icon size={18} className={`shrink-0 ${dark ? 'text-[#7a7970]' : 'text-gray-400'}`} />
-                  <span style={labelStyle(expanded)}>{t[item.key] || item.key}</span>
+                  <span style={labelStyle(expanded)}>{t[item.key] || item.label || item.key}</span>
                   {expanded && <ExternalLink size={14} className="ml-auto shrink-0 opacity-50" />}
                 </button>
               );
@@ -211,7 +212,7 @@ export default function Sidebar({ children }) {
                 key={item.key}
                 to={item.path}
                 onClick={() => setMobileOpen(false)}
-                title={!expanded ? (t[item.key] || item.key) : undefined}
+                title={!expanded ? (t[item.key] || item.label || item.key) : undefined}
                 style={{
                   padding: expanded ? '10px 16px' : '10px',
                   justifyContent: expanded ? 'flex-start' : 'center',
@@ -224,7 +225,7 @@ export default function Sidebar({ children }) {
                 }`}
               >
                 <Icon size={18} className={`shrink-0 ${isActive ? 'text-white' : (dark ? 'text-[#7a7970]' : 'text-gray-400')}`} />
-                <span style={labelStyle(expanded)}>{t[item.key] || item.key}</span>
+                <span style={labelStyle(expanded)}>{t[item.key] || item.label || item.key}</span>
               </Link>
             );
           })}

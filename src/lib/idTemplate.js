@@ -156,6 +156,14 @@ export function normalizeTemplate(raw) {
 }
 
 export const cloneTemplate = (t) => JSON.parse(JSON.stringify(t));
+
+/** An empty design: white card, nothing on it (the "Create new design" start). */
+export const blankTemplate = () => ({
+  version: TEMPLATE_VERSION,
+  canvas: { width: CARD_W, height: CARD_H },
+  front: { background: { color: '#ffffff', image: null }, elements: [] },
+  back: { background: { color: '#ffffff', image: null }, elements: [] },
+});
 export const templateJson = (t) => JSON.stringify(t);
 
 // ── default template: the old hard-coded 540x340 design, as absolute elements ──

@@ -5,14 +5,16 @@ import { httpsCallable } from 'firebase/functions';
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Barcode, Copy, Image as ImageIcon, Layers, Loader2,
   Lock, Minus, QrCode, RotateCcw, Save, Square, Stamp, Trash2, Type, Undo2, Redo2, Unlock, UserSquare,
-  ZoomIn, ZoomOut, Maximize,
+  ZoomIn, ZoomOut, Maximize, Eye, Magnet, Grid3x3, Bold, Italic, FilePlus, Upload,
 } from 'lucide-react';
 import { db, functions } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { IdFace } from '../components/IdTemplateFace';
+import IdDesignerStart from '../components/IdDesignerStart';
+import { importSvgFile, summarizeImport } from '../lib/importSvg';
 import {
   CARD_W, CARD_H, DEFAULT_ID_TEMPLATE, DYNAMIC_TEXT_TYPES, DYNAMIC_TYPES, FONT_FAMILIES, MAX_ELEMENTS_PER_SIDE,
-  MAX_IMAGE_CHARS, TYPE_LABELS, cloneTemplate, getSampleCardData, isColor, normalizeTemplate, setCachedIdTemplate,
+  MAX_IMAGE_CHARS, TYPE_LABELS, blankTemplate, cloneTemplate, getSampleCardData, isColor, normalizeTemplate, setCachedIdTemplate,
 } from '../lib/idTemplate';
 
 const GRID = 5;          // snap step, in card pixels
@@ -186,6 +188,22 @@ const Seg = ({ value, options, onChange }) => (
   </div>
 );
 
+const iconBtn = 'h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed';
+const addBtn = 'h-10 w-full inline-flex items-center gap-2 px-2.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:border-blue-300 whitespace-nowrap';
+const ctxSel = 'h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs font-semibold text-gray-700';
+const thinScroll = { scrollbarWidth: 'thin' };
+const hexOf = (v) => (/^#[0-9a-f]{6}$/i.test(v || '') ? v : '#000000');
+const ADD_LABELS = { name: 'Name', address: 'Address', dateOfBirth: 'Birth date', sex: 'Sex', dateIssued: 'Date issued', controlNo: 'Control no.', photo: 'Photo', barcode: 'Barcode', qr: 'QR code' };
+
+function IconToggle({ on, onClick, title, children }) {
+  return (
+    <button
+      type="button" title={title} aria-label={title} aria-pressed={on} onClick={onClick}
+      className={`h-8 inline-flex items-center gap-1.5 px-2.5 rounded-lg border text-xs font-semibold ${on ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
+    >{children}</button>
+  );
+}
+
 // One transparent hit target per element. Memoized, so while you drag only the moving one re-renders.
 const HitBox = memo(function HitBox({ el, zoom, onDown, onEnter, onLeave, onDouble }) {
   const hh = Math.max(el.height, 10 / zoom);
@@ -223,6 +241,12 @@ export default function IdDesigner() {
   const [snap, setSnap] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
   const [guides, setGuides] = useState(null);
+  const [started, setStarted] = useState(false);   // false = show the start screen (new / upload / current)
+  const [importing, setImporting] = useState(false);
+  const [startError, setStartError] = useState('');
+  const [leftTab, setLeftTab] = useState('add');
+  const [fitMode, setFitMode] = useState(true);   // canvas auto-fits the window until you zoom yourself
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches);
   const [hoverId, setHoverId] = useState(null);
   const [editingId, setEditingId] = useState(null); // inline text editing (double-click / Enter)
   const [saving, setSaving] = useState(false);
@@ -236,6 +260,7 @@ export default function IdDesigner() {
   const canvasRef = useRef(null);
   const stageRef = useRef(null);
   const fileRef = useRef(null);
+  const svgRef = useRef(null);
   const fileTarget = useRef(null); // 'add' | 'replace' | 'background'
   const dragRef = useRef(null);
   const pinch = useRef({ pts: new Map(), dist: 1, zoom: 1 });
@@ -258,11 +283,37 @@ export default function IdDesigner() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const fitZoom = useCallback(() => {
-    const w = stageRef.current?.clientWidth || 600;
-    setZoom(Math.max(0.5, Math.min(3, Math.floor(((w - 56) / CARD_W) * 20) / 20)));
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const h = () => setIsDesktop(mq.matches);
+    mq.addEventListener('change', h);
+    return () => mq.removeEventListener('change', h);
   }, []);
-  useEffect(() => { if (loadState === 'ready') fitZoom(); }, [loadState, fitZoom]);
+
+  // Fit the card to the free space (width AND height) until the user zooms by hand.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || !fitMode) return undefined;
+    const fit = () => {
+      const w = el.clientWidth - 64;
+      const h = el.clientHeight - 64;
+      if (w <= 0 || h <= 0) return;
+      setZoom(Math.max(0.5, Math.min(3, Math.floor(Math.min(w / CARD_W, h / CARD_H) * 100) / 100)));
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loadState, fitMode, isDesktop, started]);
+
+  const manualZoom = useCallback((fn) => { setFitMode(false); setZoom(fn); }, []);
+
+  // messages are toasts that clear themselves
+  useEffect(() => {
+    if (!msg) return undefined;
+    const t = setTimeout(() => setMsg(null), msg.ms || (msg.ok ? 3500 : 8000));
+    return () => clearTimeout(t);
+  }, [msg]);
 
   // leaving with unsaved changes
   useEffect(() => {
@@ -341,6 +392,8 @@ export default function IdDesigner() {
     const t = live.current.tpl;
     const clean = normalizeTemplate(t);
     if (!clean) { setMsg({ ok: false, text: 'This design is not valid and cannot be saved.' }); return; }
+    const empty = ['front', 'back'].filter((k) => clean[k].elements.length === 0);
+    if (empty.length && !window.confirm(`The ${empty.join(' and ')} side is empty. Save anyway?`)) return;
     if (JSON.stringify(clean).length > 900000) { setMsg({ ok: false, text: 'The design is too large. Use smaller images.' }); return; }
     setSaving(true); setMsg(null);
     try {
@@ -353,6 +406,50 @@ export default function IdDesigner() {
     }
     setSaving(false);
   }, []);
+
+  // ── start screen actions ─────────────────────────────────────────────────────
+  const startBlank = () => {
+    dispatch({ type: 'load', tpl: blankTemplate() });
+    setSide('front'); setSelId(null); setEditingId(null); setStartError(''); setStarted(true);
+  };
+  const startCurrent = () => {
+    if (saved) dispatch({ type: 'load', tpl: saved });
+    setSide('front'); setSelId(null); setEditingId(null); setStartError(''); setStarted(true);
+  };
+  const startUpload = async (file, importSide) => {
+    setImporting(true); setStartError('');
+    try {
+      const { face, report } = await importSvgFile(file);
+      const t = blankTemplate();
+      t[importSide] = face;
+      dispatch({ type: 'load', tpl: t });
+      setSide(importSide); setSelId(null); setEditingId(null); setStarted(true);
+      setMsg({ ok: true, text: summarizeImport(report), ms: 12000 });
+    } catch (e) {
+      setStartError(e?.message || 'Could not read that file.');
+    }
+    setImporting(false);
+  };
+  const backToStart = () => {
+    if (dirty && !window.confirm('Go back to the start screen? Your unsaved changes will be lost.')) return;
+    setSelId(null); setEditingId(null); setStartError(''); setStarted(false);
+  };
+  // import an SVG into the side you are looking at (undoable)
+  const onSvgFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const { face, report } = await importSvgFile(file);
+      if (els.length && !window.confirm(`Replace the ${side} side with this file? You can undo it.`)) return;
+      commit((t) => ({ ...t, [side]: face }));
+      setSelId(null);
+      setMsg({ ok: true, text: summarizeImport(report), ms: 12000 });
+    } catch (err) {
+      setMsg({ ok: false, text: err?.message || 'Could not read that file.' });
+    }
+  };
+  const changeType = (el, tp) => patchEl(el.id, { type: tp, ...(tp === 'text' ? { content: el.content || sample[el.type] || 'Text' } : {}) }, `${el.id}:type`);
 
   // ── images ──────────────────────────────────────────────────────────────────
   const pickImage = (target) => { fileTarget.current = target; fileRef.current?.click(); };
@@ -561,6 +658,7 @@ export default function IdDesigner() {
     const onWheel = (e) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
+      setFitMode(false);
       setZoom((z) => clampZ(z * Math.exp(-e.deltaY * 0.01)));
     };
     const down = (e) => {
@@ -575,7 +673,7 @@ export default function IdDesigner() {
     const move = (e) => {
       if (!P.pts.has(e.pointerId)) return;
       P.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (P.pts.size === 2) setZoom(clampZ((P.zoom * dist()) / P.dist));
+      if (P.pts.size === 2) { setFitMode(false); setZoom(clampZ((P.zoom * dist()) / P.dist)); }
     };
     const up = (e) => { P.pts.delete(e.pointerId); };
     el.addEventListener('wheel', onWheel, { passive: false });
@@ -590,7 +688,7 @@ export default function IdDesigner() {
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
     };
-  }, [loadState]);
+  }, [loadState, started]);
 
   if (!authLoading && !isSuperAdmin) return <Navigate to="/unauthorized" replace />;
 
@@ -622,100 +720,160 @@ export default function IdDesigner() {
     );
   }
 
+  if (!started) {
+    return <IdDesignerStart onBlank={startBlank} onCurrent={startCurrent} onUpload={startUpload} busy={importing} error={startError} />;
+  }
+
+  const ctxToggle = (on, onClick, title, child) => (
+    <button type="button" title={title} aria-label={title} aria-pressed={on} onClick={onClick}
+      className={`${iconBtn} ${on ? '!bg-blue-600 !text-white !border-blue-600' : ''}`}>{child}</button>
+  );
+
+  const contextBar = (
+    <div className="flex flex-wrap items-center gap-1.5 min-h-12 px-3 py-2 border-b border-gray-200 bg-white">
+      {!sel ? (
+        <span className="text-xs text-gray-500">Select something on the card to edit it. Double-click text to type on the card.</span>
+      ) : (
+        <>
+          <span className="text-xs font-bold text-gray-800 mr-1">{TYPE_LABELS[sel.type]}</span>
+          {isText && (
+            <>
+              <select className={`${ctxSel} max-w-36`} value={st.fontFamily || 'Arial'} aria-label="Font" onChange={(e) => patchStyle(sel.id, { fontFamily: e.target.value })}>
+                {Object.keys(FONT_FAMILIES).map((f) => <option key={f} value={f}>{f}</option>)}
+              </select>
+              <input
+                type="number" aria-label="Font size" title="Font size" className="h-8 w-16 rounded-lg border border-gray-200 px-2 text-xs font-semibold" min={4} max={120} step={0.5}
+                value={r1(st.fontSize ?? 12)}
+                onChange={(e) => { const n = Number(e.target.value); if (e.target.value !== '' && Number.isFinite(n)) patchStyle(sel.id, { fontSize: Math.min(120, Math.max(4, n)) }); }}
+              />
+              {ctxToggle((st.fontWeight || 400) >= 600, () => patchStyle(sel.id, { fontWeight: (st.fontWeight || 400) >= 600 ? 400 : 700 }), 'Bold', <Bold size={14} />)}
+              {ctxToggle(st.fontStyle === 'italic', () => patchStyle(sel.id, { fontStyle: st.fontStyle === 'italic' ? 'normal' : 'italic' }), 'Italic', <Italic size={14} />)}
+              {ctxToggle((st.align || 'left') === 'left', () => patchStyle(sel.id, { align: 'left' }), 'Align left', <AlignLeft size={14} />)}
+              {ctxToggle(st.align === 'center', () => patchStyle(sel.id, { align: 'center' }), 'Align centre', <AlignCenter size={14} />)}
+              {ctxToggle(st.align === 'right', () => patchStyle(sel.id, { align: 'right' }), 'Align right', <AlignRight size={14} />)}
+              <input type="color" title="Text colour" aria-label="Text colour" className="h-8 w-8 shrink-0 rounded-lg border border-gray-200 bg-white p-0.5" value={hexOf(st.color)} onChange={(e) => patchStyle(sel.id, { color: e.target.value }, `${sel.id}:color`)} />
+            </>
+          )}
+          {sel.type === 'line' && (
+            <input type="color" title="Line colour" aria-label="Line colour" className="h-8 w-8 shrink-0 rounded-lg border border-gray-200 bg-white p-0.5" value={hexOf(st.color)} onChange={(e) => patchStyle(sel.id, { color: e.target.value }, `${sel.id}:color`)} />
+          )}
+          {hasBox && (
+            <label className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500" title="Fill colour">
+              Fill
+              <input type="color" aria-label="Fill colour" className="h-8 w-8 shrink-0 rounded-lg border border-gray-200 bg-white p-0.5" value={hexOf(st.fill)} onChange={(e) => patchStyle(sel.id, { fill: e.target.value }, `${sel.id}:fill`)} />
+            </label>
+          )}
+          {sel.type === 'image' && <button type="button" className={`${btnCls} h-8 py-0`} onClick={() => pickImage('replace')}><ImageIcon size={13} /> {sel.src ? 'Replace' : 'Choose image'}</button>}
+          <span className="mx-1 h-5 w-px bg-gray-200" />
+          <button type="button" className={iconBtn} title="Bring to front" aria-label="Bring to front" onClick={() => reorder(sel.id, 'front')}><ArrowUp size={14} /></button>
+          <button type="button" className={iconBtn} title="Send to back" aria-label="Send to back" onClick={() => reorder(sel.id, 'back')}><ArrowDown size={14} /></button>
+          <button type="button" className={iconBtn} title={sel.locked ? 'Unlock' : 'Lock'} aria-label="Lock" onClick={() => patchEl(sel.id, { locked: !sel.locked }, `${sel.id}:lock`)}>{sel.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
+          <button type="button" className={iconBtn} title="Duplicate (Ctrl+D)" aria-label="Duplicate" onClick={duplicateSel}><Copy size={14} /></button>
+          <button type="button" className={`${iconBtn} !text-red-600`} title="Delete" aria-label="Delete" onClick={removeSel}><Trash2 size={14} /></button>
+        </>
+      )}
+    </div>
+  );
+
   return (
-    <div className="p-4 sm:p-6 max-w-[1600px] mx-auto">
+    <div
+      className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-gray-50"
+      style={isDesktop ? { height: 'calc(100dvh - 8rem)', minHeight: 520 } : undefined}
+    >
       <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onFile} />
+      <input ref={svgRef} type="file" accept=".svg,image/svg+xml" className="hidden" onChange={onSvgFile} />
 
       {/* top bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="mr-auto">
-          <h1 className="text-xl font-bold text-gray-900">ID Designer</h1>
-          <p className="text-xs text-gray-500">Design the OSCA ID (85.6 × 54 mm). Nothing changes for seniors until you press Save.</p>
-        </div>
-        {dirty && <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1">Unsaved changes</span>}
-        <button type="button" className={btnCls} onClick={() => dispatch({ type: 'undo' })} disabled={!state.past.length} title="Undo (Ctrl+Z)"><Undo2 size={14} /> Undo</button>
-        <button type="button" className={btnCls} onClick={() => dispatch({ type: 'redo' })} disabled={!state.future.length} title="Redo (Ctrl+Y)"><Redo2 size={14} /> Redo</button>
-        <button type="button" className={btnCls} onClick={resetToDefault}><RotateCcw size={14} /> Reset to default</button>
-        <button
-          type="button" onClick={save} disabled={saving || !dirty}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold disabled:opacity-50"
-        >
-          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
-        </button>
-      </div>
-
-      {msg && (
-        <div role="status" className={`mt-3 rounded-xl border px-4 py-2.5 text-sm ${msg.ok ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>{msg.text}</div>
-      )}
-
-      {/* option bar */}
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-gray-200 bg-white px-4 py-2.5">
+      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-3 py-2">
+        <h1 className="text-sm font-bold text-gray-900">ID Designer</h1>
+        <button type="button" className={`${btnCls} h-8 py-0`} onClick={backToStart} title="New design, or upload a file"><FilePlus size={13} /> New / Upload</button>
+        {dirty && <span className="h-2 w-2 rounded-full bg-amber-500" title="Unsaved changes" />}
+        <div className="mx-1 h-5 w-px bg-gray-200" />
         <Seg value={side} onChange={(v) => { setSide(v); setSelId(null); setEditingId(null); }} options={[{ v: 'front', label: 'Front' }, { v: 'back', label: 'Back' }]} />
-        <Seg value={mode} onChange={setMode} options={[{ v: 'digital', label: 'Digital' }, { v: 'physical', label: 'Physical' }]} />
-        <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700"><input type="checkbox" checked={preview} onChange={(e) => setPreview(e.target.checked)} /> Preview with sample data</label>
-        <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700"><input type="checkbox" checked={snap} onChange={(e) => setSnap(e.target.checked)} /> Snap to grid</label>
-        <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700"><input type="checkbox" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} /> Show grid</label>
+        <Seg value={mode} onChange={setMode} options={[{ v: 'digital', label: 'Digital' }, { v: 'physical', label: 'Printed' }]} />
+        <div className="mx-1 h-5 w-px bg-gray-200" />
+        <IconToggle on={preview} onClick={() => setPreview((v) => !v)} title="Preview with sample data"><Eye size={14} /><span className="hidden xl:inline">Sample data</span></IconToggle>
+        <IconToggle on={snap} onClick={() => setSnap((v) => !v)} title="Snap to grid"><Magnet size={14} /><span className="hidden xl:inline">Snap</span></IconToggle>
+        <IconToggle on={showGrid} onClick={() => setShowGrid((v) => !v)} title="Show grid"><Grid3x3 size={14} /><span className="hidden xl:inline">Grid</span></IconToggle>
         <div className="ml-auto flex items-center gap-1.5">
-          <button type="button" className={btnCls} onClick={() => setZoom((z) => Math.max(0.5, r1(z - 0.25)))} aria-label="Zoom out"><ZoomOut size={14} /></button>
-          <select className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-semibold bg-white" value={String(zoom)} onChange={(e) => setZoom(Number(e.target.value))} aria-label="Zoom">
-            {[...new Set([0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, zoom])].sort((a, b) => a - b).map((z) => <option key={z} value={z}>{Math.round(z * 100)}%</option>)}
-          </select>
-          <button type="button" className={btnCls} onClick={() => setZoom((z) => Math.min(3, r1(z + 0.25)))} aria-label="Zoom in"><ZoomIn size={14} /></button>
-          <button type="button" className={btnCls} onClick={fitZoom} aria-label="Fit to screen"><Maximize size={14} /></button>
+          <button type="button" className={iconBtn} onClick={() => dispatch({ type: 'undo' })} disabled={!state.past.length} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 size={14} /></button>
+          <button type="button" className={iconBtn} onClick={() => dispatch({ type: 'redo' })} disabled={!state.future.length} title="Redo (Ctrl+Y)" aria-label="Redo"><Redo2 size={14} /></button>
+          <button type="button" className={`${btnCls} h-8 py-0`} onClick={resetToDefault} title="Load the original OSCA design (press Save to apply)"><RotateCcw size={13} /> Reset</button>
+          <button
+            type="button" onClick={save} disabled={saving || !dirty}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
+          </button>
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[230px_minmax(0,1fr)_300px] items-start">
-        {/* left: add + layers */}
-        <aside className="order-2 lg:order-1 rounded-2xl border border-gray-200 bg-white p-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
-          <Section title="Filled from the senior">
-            <div className="grid grid-cols-2 gap-1.5">
-              {DYNAMIC_TYPES.map((tp) => (
-                <button key={tp} type="button" className={`${btnCls} justify-start`} onClick={() => addElement(tp)}>
-                  {tp === 'photo' ? <UserSquare size={13} /> : tp === 'barcode' ? <Barcode size={13} /> : tp === 'qr' ? <QrCode size={13} /> : <Type size={13} />}
-                  {TYPE_LABELS[tp]}
-                </button>
-              ))}
-            </div>
-          </Section>
-          <Section title="Static items">
-            <div className="grid grid-cols-2 gap-1.5">
-              <button type="button" className={`${btnCls} justify-start`} onClick={() => addElement('text')}><Type size={13} /> Text</button>
-              <button type="button" className={`${btnCls} justify-start`} onClick={() => pickImage('add')}><ImageIcon size={13} /> Image</button>
-              <button type="button" className={`${btnCls} justify-start`} onClick={() => addElement('rectangle')}><Square size={13} /> Rectangle</button>
-              <button type="button" className={`${btnCls} justify-start`} onClick={() => addElement('line')}><Minus size={13} /> Line</button>
-              <button type="button" className={`${btnCls} justify-start col-span-2`} onClick={() => addElement('seal')}><Stamp size={13} /> Hologram seal</button>
-            </div>
-            <p className="text-[11px] text-gray-500">Images are shrunk automatically. Use a logo or a signature (PNG with a clear background works best).</p>
-          </Section>
-          <Section title={`Layers (${els.length})`}>
-            <ul className="max-h-64 overflow-y-auto -mx-1 space-y-0.5">
-              {sortedLayers.map((e) => (
-                <li key={e.id}>
-                  <button
-                    type="button" onClick={() => setSelId(e.id)}
-                    className={`w-full text-left px-2 py-1.5 rounded-lg text-xs flex items-center gap-1.5 ${e.id === selId ? 'bg-blue-50 text-blue-800 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
-                  >
-                    <Layers size={12} className="shrink-0 opacity-60" />
-                    <span className="truncate">{e.type === 'text' ? (e.content || '').split('\n')[0] || 'Text' : TYPE_LABELS[e.type]}</span>
-                    {e.locked && <Lock size={11} className="ml-auto shrink-0 opacity-60" />}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </Section>
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        {/* left: add / layers */}
+        <aside className="order-2 flex flex-col border-t border-gray-200 bg-white lg:order-1 lg:w-[232px] lg:shrink-0 lg:border-r lg:border-t-0 lg:min-h-0">
+          <div className="flex border-b border-gray-200">
+            {[['add', 'Add'], ['layers', `Layers (${els.length})`]].map(([k, label]) => (
+              <button
+                key={k} type="button" onClick={() => setLeftTab(k)} aria-pressed={leftTab === k}
+                className={`flex-1 px-3 py-2.5 text-xs font-bold ${leftTab === k ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-gray-800'}`}
+              >{label}</button>
+            ))}
+          </div>
+          <div className="p-3 lg:flex-1 lg:overflow-y-auto" style={thinScroll}>
+            {leftTab === 'add' ? (
+              <>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-gray-500">From the senior&apos;s record</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {DYNAMIC_TYPES.map((tp) => (
+                    <button key={tp} type="button" className={addBtn} onClick={() => addElement(tp)}>
+                      {tp === 'photo' ? <UserSquare size={14} /> : tp === 'barcode' ? <Barcode size={14} /> : tp === 'qr' ? <QrCode size={14} /> : <Type size={14} />}
+                      {ADD_LABELS[tp]}
+                    </button>
+                  ))}
+                </div>
+                <p className="mb-2 mt-4 text-[11px] font-bold uppercase tracking-wide text-gray-500">Design items</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button type="button" className={addBtn} onClick={() => addElement('text')}><Type size={14} /> Text</button>
+                  <button type="button" className={addBtn} onClick={() => pickImage('add')}><ImageIcon size={14} /> Image</button>
+                  <button type="button" className={addBtn} onClick={() => addElement('rectangle')}><Square size={14} /> Shape</button>
+                  <button type="button" className={addBtn} onClick={() => addElement('line')}><Minus size={14} /> Line</button>
+                  <button type="button" className={`${addBtn} col-span-2`} onClick={() => addElement('seal')}><Stamp size={14} /> Hologram seal</button>
+                </div>
+                <p className="mb-2 mt-4 text-[11px] font-bold uppercase tracking-wide text-gray-500">Import</p>
+                <button type="button" className={`${addBtn} w-full`} onClick={() => svgRef.current?.click()}><Upload size={14} /> SVG file to this side</button>
+                <p className="mt-3 text-[11px] text-gray-500">Images are shrunk automatically. A PNG with a clear background works best for a logo or signature.</p>
+              </>
+            ) : (
+              <ul className="space-y-0.5">
+                {sortedLayers.map((e) => (
+                  <li key={e.id}>
+                    <button
+                      type="button" onClick={() => setSelId(e.id)}
+                      className={`flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-xs ${e.id === selId ? 'bg-blue-50 font-semibold text-blue-800' : 'text-gray-700 hover:bg-gray-50'}`}
+                    >
+                      <Layers size={12} className="shrink-0 opacity-60" />
+                      <span className="truncate">{e.type === 'text' ? (e.content || '').split('\n')[0] || 'Text' : TYPE_LABELS[e.type]}</span>
+                      {e.locked && <Lock size={11} className="ml-auto shrink-0 opacity-60" />}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </aside>
 
-        {/* centre: canvas */}
-        <main className="order-1 lg:order-2 min-w-0">
-          <div
-            ref={stageRef}
-            className="overflow-auto rounded-2xl border border-gray-200 p-6"
-            style={{ background: 'repeating-conic-gradient(#f3f4f6 0% 25%, #e9ebef 0% 50%) 0 0 / 20px 20px', touchAction: 'pan-x pan-y' }}
-          >
+        {/* centre: context bar + canvas */}
+        <main className="order-1 flex min-w-0 flex-1 flex-col lg:order-2">
+          {contextBar}
+          <div className="relative min-h-[360px] flex-1 lg:min-h-0">
+            <div
+              ref={stageRef}
+              className="absolute inset-0 flex overflow-auto p-8"
+              style={{ background: 'repeating-conic-gradient(#f3f4f6 0% 25%, #eceef2 0% 50%) 0 0 / 20px 20px', touchAction: 'pan-x pan-y', ...thinScroll }}
+            >
             <div
               ref={canvasRef}
-              className="mx-auto select-none"
+              className="m-auto shrink-0 select-none"
               style={{ width: CARD_W * zoom, height: CARD_H * zoom, touchAction: 'none', position: 'relative' }}
               onPointerDown={() => { document.activeElement?.blur?.(); setSelId(null); }}
             >
@@ -803,14 +961,25 @@ export default function IdDesigner() {
                 </div>
               </div>
             </div>
+            </div>
+            <div className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white/95 px-2 py-1 shadow-sm">
+              <button type="button" className={`${iconBtn} !h-7 !w-7`} aria-label="Zoom out" onClick={() => manualZoom((z) => Math.max(0.5, Math.round((z - 0.1) * 100) / 100))}><ZoomOut size={14} /></button>
+              <input
+                type="range" min={50} max={300} step={5} aria-label="Zoom" className="w-24 accent-blue-600 sm:w-32"
+                value={Math.round(zoom * 100)} onChange={(e) => manualZoom(Number(e.target.value) / 100)}
+              />
+              <button type="button" className={`${iconBtn} !h-7 !w-7`} aria-label="Zoom in" onClick={() => manualZoom((z) => Math.min(3, Math.round((z + 0.1) * 100) / 100))}><ZoomIn size={14} /></button>
+              <span className="w-10 text-center text-xs font-semibold text-gray-700">{Math.round(zoom * 100)}%</span>
+              <button type="button" aria-pressed={fitMode} onClick={() => setFitMode(true)} title="Fit to screen" className={`inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-xs font-semibold ${fitMode ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}><Maximize size={12} /> Fit</button>
+            </div>
+            <p className="pointer-events-none absolute bottom-3 left-3 hidden max-w-[45%] rounded-lg bg-white/80 px-2 py-1 text-[11px] text-gray-500 2xl:block">
+              Drag to move · Shift + corner keeps proportions · arrows nudge · Delete removes · Ctrl+Z undo · Ctrl + wheel zooms
+            </p>
           </div>
-          <p className="mt-2 text-[11px] text-gray-500">
-            Drag to move · double-click text (or Enter) to type on the card · Ctrl + wheel or two-finger pinch zooms · corner/edge handles resize (Shift keeps proportions) · top dot rotates · arrow keys nudge 1 px (Shift = 10) · Alt = move without snapping · Delete removes · Ctrl+Z / Ctrl+Y undo / redo · Ctrl+D duplicates.
-          </p>
         </main>
 
         {/* right: properties */}
-        <aside className="order-3 rounded-2xl border border-gray-200 bg-white p-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+        <aside className="order-3 w-full border-t border-gray-200 bg-white p-4 lg:w-[300px] lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0" style={thinScroll}>
           {!sel ? (
             <>
               <Section title={`${side === 'front' ? 'Front' : 'Back'} background`}>
@@ -832,6 +1001,19 @@ export default function IdDesigner() {
                 <button type="button" className={btnCls} onClick={duplicateSel} title="Duplicate (Ctrl+D)" aria-label="Duplicate"><Copy size={13} /></button>
                 <button type="button" className={`${btnCls} text-red-600`} onClick={removeSel} title="Delete" aria-label="Delete"><Trash2 size={13} /></button>
               </div>
+
+              {(isText || ['rectangle', 'photo', 'qr', 'barcode'].includes(sel.type)) && (
+                <Section title={isText ? 'What this text shows' : 'What this box is'}>
+                  <select className={inputCls} value={sel.type} onChange={(e) => changeType(sel, e.target.value)}>
+                    {(isText ? ['text', ...DYNAMIC_TEXT_TYPES] : ['rectangle', 'photo', 'qr', 'barcode']).map((tp) => (
+                      <option key={tp} value={tp}>
+                        {isText ? (tp === 'text' ? 'Fixed text (typed by you)' : `Senior's ${TYPE_LABELS[tp].toLowerCase()}`) : (tp === 'rectangle' ? 'Plain shape' : `${TYPE_LABELS[tp]} area`)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-gray-500">{isText ? 'Pick a senior field to fill it automatically on every ID.' : 'Turn a placeholder box into the photo, QR code or barcode.'}</p>
+                </Section>
+              )}
 
               <Section title="Position and size">
                 <div className="grid grid-cols-2 gap-2">
@@ -962,8 +1144,13 @@ export default function IdDesigner() {
               )}
             </>
           )}
+
         </aside>
       </div>
+
+      {msg && (
+        <div role="status" className={`fixed bottom-6 left-1/2 z-50 max-w-[90vw] -translate-x-1/2 rounded-xl border px-4 py-2.5 text-sm shadow-lg ${msg.ok ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>{msg.text}</div>
+      )}
     </div>
   );
 }

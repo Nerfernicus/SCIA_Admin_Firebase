@@ -42,7 +42,7 @@ function Silhouette() {
 }
 
 /** One element. `editor` (designer only) fades elements hidden in the current mode and shows empty-image boxes. */
-export function ElementView({ el, data, mode = 'digital', placeholders = false, editor = false }) {
+function ElementViewBase({ el, data, mode = 'digital', placeholders = false, editor = false }) {
   const s = el.style || {};
   const hidden = (el.visibleIn === 'digital' && mode !== 'digital') || (el.visibleIn === 'physical' && mode !== 'physical');
   if (hidden && !editor) return null;
@@ -152,6 +152,8 @@ export function ElementView({ el, data, mode = 'digital', placeholders = false, 
     }
   }
 }
+
+export const ElementView = React.memo(ElementViewBase);
 
 /** One side of the card: background plus every element, sorted by zIndex. */
 export function IdFace({ template, side = 'front', data, mode = 'digital', placeholders = false, editor = false, children }) {
